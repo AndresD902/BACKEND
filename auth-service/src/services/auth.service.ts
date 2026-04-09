@@ -4,6 +4,9 @@ import { generateJwtToken } from "../utils/jwt.util";
 import { CreateUserDto } from "../dtos/create-user.dto";
 import { LoginDto } from "../dtos/login.dto";
 import { User } from "../entities/user.entity";
+import { UnauthorizedError } from "../shared/errors/unauthorized.error";
+import { forbiddenError } from "../shared/errors/forbidden.error";
+import { ConflictError } from "../shared/errors/conflict.error";
 
 
 export class AuthService {
@@ -17,7 +20,7 @@ export class AuthService {
         const normalizedEmail = createUserDto.email.toLowerCase().trim();
         const existingUser = this.userRepository.findByEmail(normalizedEmail);
          if (existingUser) {
-            throw new Error('User with this email already exists');
+            throw new ConflictError('User with this email already exists');
         }
         const hashedPassword = await hashPassword(createUserDto.password);
 
@@ -51,17 +54,17 @@ export class AuthService {
         const user = this.userRepository.findByEmail(normalizedEmail);
     
         if (!user) {
-            throw new Error('Invalid email or password');
+            throw new UnauthorizedError('Invalid email or password');
         }
         if (!user.isActive) {
-            throw new Error('User account is inactive');
+            throw new forbiddenError('User account is inactive');
         }
         const isPasswordValid = await comparePassword(loginDto.password, user.password);
         if (!isPasswordValid) {
-            throw new Error('Invalid email or password');
+            throw new UnauthorizedError('Invalid email or password');
         }
         const token =  generateJwtToken({
-            sub: user.id,
+            sub: user.id.toString(),
             email: user.email,
             role: user.role,
         });
