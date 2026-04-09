@@ -2,7 +2,7 @@
 
 export enum RoleName {
   admin = 'ADMIN',
-  user = 'HR',
+  HR = 'HR',
   viewer = 'VIEWER',
 }
 

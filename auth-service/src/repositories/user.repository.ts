@@ -1,13 +1,13 @@
 import { User } from "entities/user.entity";
 
 export class UserRepository {
-    private users: any[] = [];
+    private users: User[] = [];
     
     public findByEmail(email: string) {
         return this.users.find(user => user.email.toLowerCase() === email.toLowerCase());
     }
 
-    public findbyId(id: string) {
+    public findBy_id(id: number) {
         return this.users.find(user => user.id === id);
     }
 
