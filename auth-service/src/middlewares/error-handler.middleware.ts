@@ -1,14 +1,32 @@
 import { NextFunction, Request, Response } from 'express';
+import { AppError } from '../shared/errors/app-error';
 
-export const errorHandlerMiddleware = (
-  err: Error,
-  _req: Request,
-  res: Response,
-  _next: NextFunction,
+
+
+export const errorHandler = (
+    err: Error,
+    _req: Request,
+    res: Response,
+    _next: NextFunction
 ): void => {
-  const statusCode = res.statusCode !== 200 ? res.statusCode : 500;
-  res.status(statusCode).json({
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({
+      status: false,
+      message: err.message,
+      error: {
+        code: err.code,
+        details: err.details ?? null,
+      }
+    });
+    return;
+  }
+
+  res.status(500).json({
     success: false,
-    message: err.message || 'Internal Server Error',
+    message: 'Internal Server Error',
+    error: {
+      code: 'INTERNAL_SERVER_ERROR',
+      details: null,
+    },
   });
 };
