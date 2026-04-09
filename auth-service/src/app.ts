@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import routes from './routes';
 import { notFoundMiddleware } from './middlewares/not-found.middleware';
-import { errorHandlerMiddleware } from './middlewares/error-handler.middleware';
+import { errorHandler } from './middlewares/error-handler.middleware';
 
 const app = express();
 
@@ -16,6 +16,6 @@ app.use(express.json());
 
 app.use('/api/v1', routes);
 app.use(notFoundMiddleware);
-app.use(errorHandlerMiddleware);
+app.use(errorHandler);
 
 export default app;

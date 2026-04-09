@@ -1,4 +1,5 @@
-import { Role, RoleName } from "../entities/role.entity";
+import { RoleName, Role } from "../entities/role.entity";
+
 
 export interface CreateUserDto {
     firstName: string;

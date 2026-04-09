@@ -1,9 +1,9 @@
 // Defines role types and the Role entity used for authentication and authorization.
 
 export enum RoleName {
-  admin = 'ADMIN',
+  ADMIN = 'ADMIN',
   HR = 'HR',
-  viewer = 'VIEWER',
+  VIEWER = 'VIEWER',
 }
 
 export interface Role {
