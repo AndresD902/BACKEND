@@ -1,5 +1,5 @@
 import { env } from '../config/env';
-import { RoleName } from 'entities/role.entity';
+import { RoleName } from '../entities/role.entity';
 import jwt, { SignOptions } from 'jsonwebtoken';
 
 export interface JwtPayload {
