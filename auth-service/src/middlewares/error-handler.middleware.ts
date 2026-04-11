@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { AppError } from '../shared/errors/app-error';
+import { success } from 'zod';
 
 
 
@@ -11,7 +12,7 @@ export const errorHandler = (
 ): void => {
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
-      status: false,
+      success: false,
       message: err.message,
       error: {
         code: err.code,

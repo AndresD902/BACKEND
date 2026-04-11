@@ -1,44 +1,39 @@
-import { UserRepository, userRepository} from "../repositories/user.repository";
-import { hashPassword, comparePassword } from "../utils/password.util";
-import { generateJwtToken } from "../utils/jwt.util";
-import { CreateUserDto } from "../dtos/create-user.dto";
-import { LoginDto } from "../dtos/login.dto";
-import { User } from "../entities/user.entity";
-import { UnauthorizedError } from "../shared/errors/unauthorized.error";
-import { forbiddenError } from "../shared/errors/forbidden.error";
-import { ConflictError } from "../shared/errors/conflict.error";
+import { UserRepository, userRepository } from '../repositories/user.repository';
+import { hashPassword, comparePassword } from '../utils/password.util';
+import { generateJwtToken } from '../utils/jwt.util';
+import { CreateUserDto } from '../dtos/create-user.dto';
+import { LoginDto } from '../dtos/login.dto';
+import { UnauthorizedError } from '../shared/errors/unauthorized.error';
+import { ForbiddenError } from '../shared/errors/forbidden.error';
+import { ConflictError } from '../shared/errors/conflict.error';
+import { RoleName } from '../entities/role.entity';
+
 
 
 export class AuthService {
-    private userRepository: UserRepository;
-
-    constructor(userRepository: UserRepository) {
-        this.userRepository = userRepository;
-    }
+    constructor(private readonly userRepository: UserRepository) {}
 
     public async register(createUserDto: CreateUserDto ) {
-        const normalizedEmail = createUserDto.email.toLowerCase().trim();
-        const existingUser = this.userRepository.findByEmail(normalizedEmail);
+
+        const normalizedEmail =  createUserDto.email.toLowerCase().trim();
+        const existingUser = await  this.userRepository.findByEmail(normalizedEmail);
+
          if (existingUser) {
             throw new ConflictError('User with this email already exists');
         }
         const hashedPassword = await hashPassword(createUserDto.password);
 
-        const newUser: User = {
-            id: Date.now(), // Simple ID generation for demonstration
+        const createdUser = await this.userRepository.create({
             firstName: createUserDto.firstName,
             lastName: createUserDto.lastName,
             email: normalizedEmail,
-            password: hashedPassword,
+            passwordHash: hashedPassword,
             role: createUserDto.role,
             isActive: true,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-
-        };
-        const createdUser = this.userRepository.create(newUser);
+        });
+        
         return {
-            id: createdUser.id,
+            id: createdUser.id.toString(),
             firstName: createdUser.firstName,
             lastName: createdUser.lastName,
             email: createdUser.email,
@@ -50,33 +45,33 @@ export class AuthService {
     }
 
     public async login(loginDto: LoginDto) {
-        const normalizedEmail = loginDto.email.toLowerCase().trim();
-        const user = this.userRepository.findByEmail(normalizedEmail);
+        const normalizedEmail =  loginDto.email.toLowerCase().trim();
+        const user = await this.userRepository.findByEmail(normalizedEmail);
     
         if (!user) {
             throw new UnauthorizedError('Invalid email or password');
         }
         if (!user.isActive) {
-            throw new forbiddenError('User account is inactive');
+            throw new ForbiddenError('User account is inactive');
         }
-        const isPasswordValid = await comparePassword(loginDto.password, user.password);
+        const isPasswordValid = await comparePassword(loginDto.password, user.passwordHash);
         if (!isPasswordValid) {
             throw new UnauthorizedError('Invalid email or password');
         }
         const token =  generateJwtToken({
             sub: user.id.toString(),
             email: user.email,
-            role: user.role,
+            role: user.role as RoleName,
         });
         
         return {
             token,
             user: {
-                id: user.id,
+                id: user.id.toString(),
                 firstName: user.firstName,
                 lastName: user.lastName,
                 email: user.email,
-                role: user.role,
+                role: user.role as RoleName,
                 isActive: user.isActive,
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,

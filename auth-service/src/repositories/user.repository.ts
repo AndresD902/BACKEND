@@ -1,24 +1,39 @@
-import { User } from "../entities/user.entity";
+import { Prisma, User } from "generated/prisma/client";
+import { prisma } from "../config/prisma";
+
 
 export class UserRepository {
-    private users: User[] = [];
-    
-    public findByEmail(email: string) {
-        return this.users.find(user => user.email.toLowerCase() === email.toLowerCase());
-    }
+  public async findByEmail(email: string): Promise<User | null> {
+    return prisma.user.findUnique({
+      where: {
+        email: email.toLowerCase(),
+      },
+    });
+  }
 
-    public findBy_id(id: number) {
-        return this.users.find(user => user.id === id);
-    }
+  public async findById(id: number): Promise<User | null> {
+    return prisma.user.findUnique({
+      where: { id },
+    });
+  }
 
-    public create(user: User) {
-        this.users.push(user);
-        return user;
-    }
+  public async create(data: Prisma.UserCreateInput): Promise<User> {
+    return prisma.user.create({
+      data: {
+        ...data,
+        email: data.email.toLowerCase(),
+      },
+    });
+  }
 
-    public findAll() {
-        return this.users;
-    }
+  public async findAll(): Promise<User[]> {
+    return prisma.user.findMany({
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+  }
 }
 
 export const userRepository = new UserRepository();
+

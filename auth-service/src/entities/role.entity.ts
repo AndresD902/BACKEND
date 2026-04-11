@@ -3,7 +3,7 @@
 export enum RoleName {
   ADMIN = 'ADMIN',
   HR = 'HR',
-  VIEWER = 'VIEWER',
+  CONSULTATION = 'CONSULTATION',
 }
 
 export interface Role {
