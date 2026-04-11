@@ -1,7 +1,7 @@
 import { RoleName } from "../src/entities/role.entity";
 import { AuthService } from "../src/services/auth.service";
 import { ConflictError } from "../src/shared/errors/conflict.error";
-import { forbiddenError } from "../src/shared/errors/forbidden.error";
+import { ForbiddenError } from "../src/shared/errors/forbidden.error";
 import { UnauthorizedError } from "../src/shared/errors/unauthorized.error";
 import { hashPassword, comparePassword } from "../src/utils/password.util";
 import { generateJwtToken } from "../src/utils/jwt.util";
@@ -48,6 +48,8 @@ describe("AuthService", () => {
       mockUserRepository.create.mockImplementation((user) => ({
         ...user,
         id: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       }));
 
       const result = await authService.register(createUserDto);
@@ -108,6 +110,8 @@ describe("AuthService", () => {
       mockUserRepository.create.mockImplementation((user) => ({
         ...user,
         id: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       }));
 
       const result = await authService.register(createUserDto);
@@ -131,7 +135,7 @@ describe("AuthService", () => {
         firstName: "Andres",
         lastName: "Posada",
         email: "andresposada@gmail.com",
-        password: "hashed-password",
+        passwordHash: "hashed-password",
         role: RoleName.ADMIN,
         isActive: true,
         createdAt: new Date(),
@@ -195,14 +199,14 @@ describe("AuthService", () => {
         firstName: "Inactive",
         lastName: "User",
         email: "andresposada@gmail.com",
-        password: "hashed-password",
+        passwordHash: "hashed-password",
         role: RoleName.ADMIN,
         isActive: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
 
-      await expect(authService.login(loginDto)).rejects.toThrow(forbiddenError);
+      await expect(authService.login(loginDto)).rejects.toThrow(ForbiddenError);
       expect(comparePassword).not.toHaveBeenCalled();
       expect(generateJwtToken).not.toHaveBeenCalled();
     });
@@ -218,7 +222,7 @@ describe("AuthService", () => {
         firstName: "Andres",
         lastName: "Posada",
         email: "andresposada@gmail.com",
-        password: "hashed-password",
+        passwordHash: "hashed-password",
         role: RoleName.ADMIN,
         isActive: true,
         createdAt: new Date(),

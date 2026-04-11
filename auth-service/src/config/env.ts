@@ -22,4 +22,5 @@ export const env = {
   jwtSecret: getEnVariable('JWT_SECRET'),
   jwtExpiresIn: getEnVariable('JWT_EXPIRES_IN'),
   bcryptSaltRounds: Number(getEnVariable('BCRYPT_SALT_ROUNDS')),
+  databaseUrl: getEnVariable('DATABASE_URL'),
 };
