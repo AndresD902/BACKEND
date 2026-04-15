@@ -1,7 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
 import { AppError } from '../shared/errors/app-error';
-import { success } from 'zod';
-
 
 
 export const errorHandler = (
@@ -21,6 +19,7 @@ export const errorHandler = (
     });
     return;
   }
+  console.error('Unhandled error:', err);
 
   res.status(500).json({
     success: false,
