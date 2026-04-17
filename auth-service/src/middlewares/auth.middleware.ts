@@ -1,12 +1,13 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Request, Response} from "express";
 import { UnauthorizedError } from "../shared/errors/unauthorized.error";
 import { verifyJwtToken } from "../utils/jwt.util";
+import { RoleName } from "../entities/role.entity";
 
 
 export interface AuthenticatedUser {
     sub: string;
     email: string;
-    role: string;
+    role: RoleName;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -15,13 +16,13 @@ export interface AuthenticatedRequest extends Request {
 
 export const authenticate = (
     req: AuthenticatedRequest,
-    res: Response,
+    _res: Response,
     next: NextFunction
 ): void => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-        throw new UnauthorizedError('Authorization headeris required');
+        throw new UnauthorizedError('Authorization header is required');
     }
 
     const [scheme, token] = authHeader.split(' ');
@@ -31,6 +32,7 @@ export const authenticate = (
     }
     try {
         const payload = verifyJwtToken(token);
+        
         req.user = {
             sub: payload.sub,
             email: payload.email,

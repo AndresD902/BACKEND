@@ -12,11 +12,7 @@ protectedRouter.get(
         res.status(200).json({
             success: true,
             message: 'Authenticated user data retrived successfully',
-            "data": {
-                "sub": "...",
-                "email": "...",
-                "roles": "ADMIN"
-            }
+            data: req.user,
         });
     },
 )
@@ -29,6 +25,7 @@ protectedRouter.get(
         res.status(200).json({
             success: true,
             message: 'Welcome, admin user',
+            data: req.user,
         });
     },
 );
@@ -37,10 +34,11 @@ protectedRouter.get(
     '/hr-or-admin',
     authenticate,
     authorize(RoleName.HR, RoleName.ADMIN),
-    (_req: AuthenticatedRequest, res: Response) => {
+    (req: AuthenticatedRequest, res: Response) => {
         res.status(200).json({
             success: true,
             message: 'Welcome, HR or admin user',
+            data: req.user,
         });
     },
 );
