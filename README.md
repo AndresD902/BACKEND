@@ -155,7 +155,7 @@ Sistema web centralizado basado en **arquitectura de microservicios**, con model
 
 ## 6. Arquitectura del Sistema
 
-### Tecnologías por Capa
+### Tecnologías por Capa por cada microservicio
 
 | Capa | Tecnología | Justificación |
 |------|-----------|--------------|
