@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { checkDatabaseConnection } from '../config/database';
 import { env } from '../config/env';
-//add
+
 const router = Router();
 
 router.get('/', async (_req: Request, res: Response) => {
