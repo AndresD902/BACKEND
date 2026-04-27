@@ -52,18 +52,20 @@ router.delete(
     employeeController.softDelete(req as AuthenticatedRequest, res, next),
 );
 
+
+//nuevas funcionalidades
 // Cargos y salarios
 router.get('/:id/cargo-actual', (req: Request, res: Response, next: NextFunction) =>
   employeeController.getCargoActual(req as AuthenticatedRequest, res, next),
 );
-
+//nuevas funcionalidades
 router.get(
   '/:id/historial-cargo',
   requireRol(RoleName.ADMIN, RoleName.RRHH),
   (req: Request, res: Response, next: NextFunction) =>
     employeeController.getHistorialCargos(req as AuthenticatedRequest, res, next),
 );
-
+//nuevas funcionalidades
 router.post(
   '/:id/cargo',
   requireRol(RoleName.ADMIN, RoleName.RRHH),

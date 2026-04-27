@@ -147,6 +147,8 @@ export class EmployeeService {
     return empleado;
   }
 
+
+   //nuevas funcionalidades rama cargo y salario
   // ─── Cargos y salarios ─────────────────────────────────────────────────────
 
   async getCargoActual(empleadoId: number) {
