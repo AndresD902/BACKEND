@@ -77,6 +77,8 @@ export class EmployeeController {
     } catch (err) { next(err); }
   }
 
+
+  //feature/employee-service-s3-documents
   // GET /api/empleados/:id/documentos
   async getDocumentos(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
