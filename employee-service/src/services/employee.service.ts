@@ -193,6 +193,7 @@ export class EmployeeService {
     return nuevo;
   }
 
+//  git checkout -b feature/employee-service-s3-documents
   // ─── Documentos S3 ─────────────────────────────────────────────────────────
 
   async getDocumentos(empleadoId: number) {
