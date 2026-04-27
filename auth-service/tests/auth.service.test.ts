@@ -47,7 +47,7 @@ describe("AuthService", () => {
       (hashPassword as jest.Mock).mockResolvedValue("hashed-password");
       mockUserRepository.create.mockImplementation((user) => ({
         ...user,
-        id: 1,
+        id: "1",
         createdAt: new Date(),
         updatedAt: new Date(),
       }));
@@ -62,7 +62,7 @@ describe("AuthService", () => {
 
       expect(result).toEqual(
         expect.objectContaining({
-          id: 1,
+          id: "1",
           firstName: "Andres",
           lastName: "Posada",
           email: "andresposada@gmail.com",
@@ -109,7 +109,7 @@ describe("AuthService", () => {
       (hashPassword as jest.Mock).mockResolvedValue("hashed-password");
       mockUserRepository.create.mockImplementation((user) => ({
         ...user,
-        id: 1,
+        id: "1",
         createdAt: new Date(),
         updatedAt: new Date(),
       }));
@@ -131,7 +131,7 @@ describe("AuthService", () => {
       };
 
       const existingUser = {
-        id: 1,
+        id: "1",
         firstName: "Andres",
         lastName: "Posada",
         email: "andresposada@gmail.com",
@@ -164,7 +164,7 @@ describe("AuthService", () => {
       expect(result).toEqual({
         token: "mock-token",
         user: expect.objectContaining({
-          id: 1,
+          id: "1",
           email: "andresposada@gmail.com",
           role: RoleName.ADMIN,
           isActive: true,
@@ -195,7 +195,7 @@ describe("AuthService", () => {
       };
 
       mockUserRepository.findByEmail.mockReturnValue({
-        id: 1,
+        id: "1",
         firstName: "Inactive",
         lastName: "User",
         email: "andresposada@gmail.com",
@@ -218,7 +218,7 @@ describe("AuthService", () => {
       };
 
       mockUserRepository.findByEmail.mockReturnValue({
-        id: 1,
+        id: "1",
         firstName: "Andres",
         lastName: "Posada",
         email: "andresposada@gmail.com",
