@@ -51,6 +51,7 @@ export class EmployeeController {
     } catch (err) { next(err); }
   }
 
+//nueva funcionalidad
   // GET /api/empleados/:id/cargo-actual
   async getCargoActual(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -59,6 +60,7 @@ export class EmployeeController {
     } catch (err) { next(err); }
   }
 
+  //nueva funcionalidad
   // GET /api/empleados/:id/historial-cargo
   async getHistorialCargos(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -66,7 +68,7 @@ export class EmployeeController {
       res.status(200).json({ success: true, data: historial });
     } catch (err) { next(err); }
   }
-
+ //nueva funcionalidad
   // POST /api/empleados/:id/cargo
   async crearCargo(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
