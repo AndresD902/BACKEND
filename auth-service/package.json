@@ -9,18 +9,16 @@
     "start": "node dist/server.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage --runInBand",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "migrate": "node-pg-migrate --tsconfig tsconfig.json -m migrations up",
+    "migrate:down": "node-pg-migrate --tsconfig tsconfig.json -m migrations down"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@prisma/adapter-pg": "^7.7.0",
-    "@prisma/client": "^6.19.3",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -29,7 +27,6 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",
     "pg": "^8.16.3",
-    "prisma": "^6.19.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -40,6 +37,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
@@ -47,10 +45,12 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "jest": "^30.3.0",
+    "node-pg-migrate": "^8.0.4",
     "prettier": "^3.8.1",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
-  }
+  },
+  "type": "commonjs"
 }
