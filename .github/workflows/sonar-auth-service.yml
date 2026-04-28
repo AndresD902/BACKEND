@@ -1,0 +1,50 @@
+name: SonarQube Cloud - Auth Service
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - feature/**
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+
+jobs:
+  sonar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: auth-service
+        run: npm install
+
+      - name: Generate Prisma client
+        working-directory: auth-service
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Generate coverage
+        working-directory: auth-service
+        run: npm run test:coverage
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
