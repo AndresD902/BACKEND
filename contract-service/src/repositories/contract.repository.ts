@@ -138,7 +138,7 @@ export class ContractRepository {
       [id],
     );
 
-    if (result.rows[0]) {
+    if (!result.rows[0]) {
       return null;
     }
 

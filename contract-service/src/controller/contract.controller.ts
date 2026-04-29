@@ -1,26 +1,28 @@
-import { Request, Response } from "express";
+import { NextFunction,Request, Response } from "express";
 import { createContractAmendmentSchema } from "../dtos/create-contract-amendment.dto";
 import { createContractSchema } from "../dtos/create-contract.dto";
 import { updateContractStatusSchema } from "../dtos/update-contract-status.dto";
 import { contractService, ContractService } from "../services/contract.service";
-
+import { ValidationError } from "../shared/errors/validation.error";
 
 
 export class ContractController {
     constructor(private readonly contractService: ContractService) {}
 
-    public createContract = async (request: Request, response: Response): Promise<void> => {
+    public createContract = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const parseBody = createContractSchema.safeParse(request.body);
 
-            if (!parseBody.success) {
-                response.status(400).json({
-                    success: false,
-                    message: 'Contract could not be created because the request data is invalid',
-                    errors: parseBody.error.flatten().fieldErrors
-                });
+            if(!parseBody.success) {
+                next(
+                    new ValidationError(
+                        'Contract could not be created because the request data is invalid', 
+                        parseBody.error.flatten().fieldErrors
+                    ),
+                );
                 return;
             }
+            
 
             const contract = await this.contractService.createContract(parseBody.data);
 
@@ -30,11 +32,11 @@ export class ContractController {
                 data: contract
             });
         } catch (error) {
-            this.handleError(error, response);
+            next(error);
         }
     };
 
-    public findAllContracts = async (_request: Request, response: Response): Promise<void> => {
+    public findAllContracts = async (_request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const contracts = await this.contractService.findAllContracts();
 
@@ -44,11 +46,11 @@ export class ContractController {
                 data: contracts
             });
         } catch (error) {
-            this.handleError(error, response);
+            next(error);
         }
     };
 
-    public findContractById = async (request: Request, response: Response): Promise<void> => {
+    public findContractById = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const contractId = this.parsePositiveInteger(request.params.id, 'Contract id');
             const contract = await this.contractService.findContractById(contractId);
@@ -59,11 +61,11 @@ export class ContractController {
                 data: contract
             });
         } catch (error) {
-            this.handleError(error, response);
+            next(error);
         }
     };
 
-    public findContractsByEmployeeId = async (request: Request, response: Response): Promise<void> => {
+    public findContractsByEmployeeId = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const employeeId = this.parsePositiveInteger(request.params.employeeId, 'Employee id');
             const contracts = await this.contractService.findContractsByEmployeeId(employeeId);
@@ -74,21 +76,22 @@ export class ContractController {
                 data: contracts
             });
         } catch (error) {
-            this.handleError(error, response);
+            next(error);
         }
     };
 
-    public updateContractStatus = async (request: Request, response: Response): Promise<void> => {
+    public updateContractStatus = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const contractId = this.parsePositiveInteger(request.params.id, 'Contract id');
             const parseBody = updateContractStatusSchema.safeParse(request.body);
 
-            if (!parseBody.success) {
-                response.status(400).json({
-                    success: false,
-                    message: 'Contract status could not be updated because the request data is invalid',
-                    errors: parseBody.error.flatten().fieldErrors
-                });
+            if(!parseBody.success) {
+                next(
+                    new ValidationError(
+                        'Contract status could not be updated because the request data is invalid', 
+                        parseBody.error.flatten().fieldErrors
+                    ),
+                );
                 return;
             }
 
@@ -100,21 +103,22 @@ export class ContractController {
                 data: contract
             });
         } catch (error) {
-            this.handleError(error, response);
+            next(error);
         }
     };
 
-    public createContractAmendment = async (request: Request, response: Response): Promise<void> => {
+    public createContractAmendment = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const contractId = this.parsePositiveInteger(request.params.id, 'Contract id');
             const parseBody = createContractAmendmentSchema.safeParse(request.body);
 
-            if (!parseBody.success) {
-                response.status(400).json({
-                    success: false,
-                    message: 'Contract amendment could not be created because the request data is invalid',
-                    errors: parseBody.error.flatten().fieldErrors
-                });
+            if(!parseBody.success) {
+                next(
+                    new ValidationError(
+                        'Contract amendment could not be created because the request data is invalid', 
+                        parseBody.error.flatten().fieldErrors
+                    ),
+                );
                 return;
             }
 
@@ -126,11 +130,11 @@ export class ContractController {
                 data: contractAmendment
             });
         } catch (error) {
-            this.handleError(error, response);
+            next(error);
         }
     };
 
-    public findContractAmendments = async (request: Request, response: Response): Promise<void> => {
+    public findContractAmendments = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const contractId = this.parsePositiveInteger(request.params.id, 'Contract id');
             const contractAmendments = await this.contractService.findContractAmendments(contractId);
@@ -141,19 +145,19 @@ export class ContractController {
                 data: contractAmendments
             });
         } catch (error) {
-            this.handleError(error, response);
+            next(error);
         }
     };
 
     private parsePositiveInteger(value: string | string[] | undefined, fieldName: string): number {
         if (!value || Array.isArray(value)) {
-            throw new Error(`${fieldName} must be a positive integer`);
+            throw new ValidationError(`${fieldName} must be a positive integer`);
         }
 
         const parsedValue = Number(value);
 
         if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
-            throw new Error(`${fieldName} must be a positive integer`);
+            throw new ValidationError(`${fieldName} must be a positive integer`);
         }
 
         return parsedValue;
