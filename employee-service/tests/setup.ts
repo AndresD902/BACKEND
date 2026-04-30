@@ -1,0 +1,8 @@
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = 'test-secret-key-for-testing-only-32chars';
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
+process.env.HISTORY_SERVICE_URL = 'http://localhost:3006';
+process.env.S3_BUCKET_NAME = 'test-bucket';
+process.env.AWS_REGION = 'us-east-1';
+process.env.AWS_ACCESS_KEY_ID = 'AKIATEST';
+process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
