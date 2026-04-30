@@ -1,6 +1,8 @@
-import { MigrationBuilder } from 'node-pg-migrate';
+import { ColumnDefinitions, MigrationBuilder } from 'node-pg-migrate';
 
-export const up = (pgm: MigrationBuilder): void => {
+export const shorthands: ColumnDefinitions | undefined = undefined;
+
+export async function up(pgm: MigrationBuilder): Promise<void> {
   pgm.sql(`
     CREATE TABLE "refresh_tokens" (
       "id"          BIGSERIAL     NOT NULL,
@@ -21,8 +23,8 @@ export const up = (pgm: MigrationBuilder): void => {
     CREATE INDEX        "idx_refresh_tokens_hash"     ON "refresh_tokens"("token_hash");
     CREATE INDEX        "idx_refresh_tokens_revoked"  ON "refresh_tokens"("revoked", "expires_at");
   `);
-};
+}
 
-export const down = (pgm: MigrationBuilder): void => {
+export async function down(pgm: MigrationBuilder): Promise<void> {
   pgm.sql(`DROP TABLE IF EXISTS "refresh_tokens";`);
-};
+}
