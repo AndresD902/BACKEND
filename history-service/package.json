@@ -1,0 +1,35 @@
+{
+  "name": "history-service",
+  "version": "1.0.0",
+  "description": "Audit and history microservice for Employees Administration System",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "migrate": "tsx node_modules/node-pg-migrate/bin/node-pg-migrate.js -m migrations up",
+    "migrate:down": "tsx node_modules/node-pg-migrate/bin/node-pg-migrate.js -m migrations down"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.10.1",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
+    "node-pg-migrate": "^8.0.4",
+    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "type": "commonjs"
+}
