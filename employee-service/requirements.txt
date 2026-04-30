@@ -1,0 +1,110 @@
+# ============================================================
+# Employee Service — Dependencias y requisitos de instalación
+# Sistema Administrador de Empleados · Microservicio 2 de 5
+# ============================================================
+# Este archivo documenta todas las dependencias del proyecto.
+# Para instalar todo: npm install
+# ============================================================
+
+
+# ── RUNTIME DEPENDENCIES ────────────────────────────────────
+# Framework y servidor
+express@^5.2.1              # Framework HTTP (v5 — async error handling nativo)
+cors@^2.8.6                 # Middleware CORS para permitir peticiones cross-origin
+helmet@^8.1.0               # Cabeceras HTTP de seguridad
+morgan@^1.10.1              # Logger de peticiones HTTP
+
+# Base de datos
+pg@^8.16.3                  # Driver PostgreSQL para Node.js (node-postgres)
+
+# Autenticación y seguridad
+jsonwebtoken@^9.0.3         # Verificación de JWT emitidos por auth-service
+dotenv@^17.3.1              # Carga de variables de entorno desde .env
+
+# Comunicación entre servicios
+axios@^1.9.0                # Cliente HTTP para llamadas fire-and-forget a history-service
+
+# Almacenamiento de documentos
+@aws-sdk/client-s3@^3.1037.0            # SDK AWS S3 — cliente para operaciones con buckets
+@aws-sdk/s3-request-presigner@^3.1037.0 # Generación de presigned URLs (upload/download)
+
+
+# ── DEVELOPMENT DEPENDENCIES ────────────────────────────────
+# TypeScript y compilación
+typescript@^5.9.3           # Compilador TypeScript (commonjs module mode)
+ts-node-dev@^2.0.0          # Hot reload para desarrollo con TypeScript
+ts-jest@^29.4.6             # Transformador Jest para TypeScript
+
+# Migraciones de base de datos
+node-pg-migrate@^8.0.4      # Sistema de migraciones para PostgreSQL
+tsx@^4.21.0                 # Ejecutor TypeScript para scripts (usado en migrate)
+
+# Testing
+jest@^30.3.0                # Framework de pruebas
+supertest@^7.2.2            # Testing de endpoints HTTP
+
+# Tipos (@types)
+@types/cors@^2.8.19
+@types/express@^5.0.6
+@types/jest@^30.0.0
+@types/jsonwebtoken@^9.0.10
+@types/morgan@^1.9.10
+@types/node@^25.5.0
+@types/pg@^8.20.0
+@types/supertest@^7.2.0
+
+# Calidad de código
+eslint@^8.57.0
+@typescript-eslint/eslint-plugin@^8.57.1
+@typescript-eslint/parser@^8.57.1
+eslint-config-prettier@^10.1.8
+eslint-plugin-prettier@^5.5.5
+prettier@^3.8.1
+
+
+# ── NOTAS DE INSTALACIÓN ────────────────────────────────────
+# 1. Requiere Node.js >= 18
+# 2. Requiere PostgreSQL >= 14 corriendo y accesible
+# 3. Requiere auth-service corriendo en el puerto 3001 (verificación JWT)
+# 4. Requiere history-service corriendo en el puerto 3006 (registro de cambios)
+# 5. Configurar .env antes de ejecutar (ver .env.example)
+# 6. Ejecutar migraciones antes del primer inicio:
+#       npm run migrate
+# 7. Para desarrollo:
+#       npm run dev
+# 8. Para producción:
+#       npm run build && npm start
+
+
+# ── SCRIPTS NPM ─────────────────────────────────────────────
+# npm run dev              → Servidor con hot-reload (ts-node-dev)
+# npm run build            → Compilar TypeScript a dist/
+# npm start                → Iniciar servidor compilado
+# npm test                 → Ejecutar tests con Jest
+# npm run test:coverage    → Tests + reporte de cobertura (umbral: 90%)
+# npm run migrate          → Aplicar migraciones pendientes
+# npm run migrate:down     → Revertir última migración
+# npm run lint             → Verificar código con ESLint
+# npm run format           → Formatear código con Prettier
+
+
+# ── VARIABLES DE ENTORNO REQUERIDAS ─────────────────────────
+# DATABASE_URL             → postgresql://user:pass@host:5432/employee_db
+# JWT_SECRET               → Mismo secreto compartido con auth-service
+# PORT                     → Puerto del servidor (default: 3002)
+# HISTORY_SERVICE_URL      → URL base de history-service (default: http://localhost:3006)
+# AWS_REGION               → Región AWS (ej: us-east-1)
+# AWS_ACCESS_KEY_ID        → Credenciales AWS
+# AWS_SECRET_ACCESS_KEY    → Credenciales AWS
+# AWS_S3_BUCKET_NAME       → Nombre del bucket S3 para documentos
+
+
+# ── CONFIGURACIÓN TYPESCRIPT ────────────────────────────────
+# tsconfig.json            → Compilación de producción
+# tsconfig.test.json       → Compilación de tests (CommonJS module, incluye tests/)
+# tsconfig.migrations.json → Compilación de migraciones
+#
+# module:           commonjs
+# moduleResolution: node
+# target:           ES2022
+# strict:           true
