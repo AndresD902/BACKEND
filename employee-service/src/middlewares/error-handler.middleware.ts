@@ -19,14 +19,15 @@ export const errorHandler = (
     return;
   }
 
-  console.error('Unhandled error:', err);
+  process.stderr.write(`Unhandled error: ${err.stack ?? err.message}\n`);
 
+  const isDev = process.env.NODE_ENV === 'development';
   res.status(500).json({
     success: false,
     message: 'Internal Server Error',
     error: {
       code: 'INTERNAL_SERVER_ERROR',
-      details: null,
+      details: isDev ? err.message : null,
     },
   });
 };

@@ -9,3 +9,6 @@ pnpm-debug.log*
 .idea
 .vscode
 .DS_Store
+
+# Archivos multimedia locales (subir a S3, no al repo)
+src/img/

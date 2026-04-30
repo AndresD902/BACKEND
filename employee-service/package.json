@@ -12,8 +12,8 @@
     "test:coverage": "jest --coverage --runInBand",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
-    "migrate": "node-pg-migrate --tsconfig tsconfig.json -m migrations up",
-    "migrate:down": "node-pg-migrate --tsconfig tsconfig.json -m migrations down"
+    "migrate": "tsx node_modules/node-pg-migrate/bin/node-pg-migrate.js -m migrations up",
+    "migrate:down": "tsx node_modules/node-pg-migrate/bin/node-pg-migrate.js -m migrations down"
   },
   "keywords": [],
   "author": "",
@@ -50,6 +50,7 @@
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
     "ts-node-dev": "^2.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "type": "commonjs"

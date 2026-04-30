@@ -1,115 +1,80 @@
-import { Response, NextFunction } from 'express';
+import { Response } from 'express';
+import { IEmployeeService } from '../services/interfaces/employee.service.interface';
 import { employeeService } from '../services/employee.service';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { AuthenticatedUser } from '../types/authenticated-user.type';
+import { asyncHandler } from '../utils/async-handler.util';
 
 function actor(req: AuthenticatedRequest): AuthenticatedUser {
   return req.user as AuthenticatedUser;
 }
 
+// Handlers are arrow function properties (not methods) so `this` is bound correctly
+// when Express calls them without a class context (e.g. router.get('/', controller.getAll)).
 export class EmployeeController {
+  constructor(private readonly service: IEmployeeService = employeeService) {}
 
-  // GET /api/empleados?page=1&limit=20
-  async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const page  = Math.max(1, parseInt(String(req.query.page  ?? '1'), 10));
-      const limit = Math.max(1, parseInt(String(req.query.limit ?? '20'), 10));
-      const result = await employeeService.getAll(page, limit);
-      res.status(200).json({ success: true, data: result });
-    } catch (err) { next(err); }
-  }
+  public getAll = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const page  = Math.max(1, parseInt(String(req.query.page  ?? '1'), 10));
+    const limit = Math.max(1, parseInt(String(req.query.limit ?? '20'), 10));
+    const result = await this.service.getAll(page, limit);
+    res.status(200).json({ success: true, data: result });
+  });
 
-  // GET /api/empleados/:id
-  async getById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const empleado = await employeeService.getById(Number(req.params.id));
-      res.status(200).json({ success: true, data: empleado });
-    } catch (err) { next(err); }
-  }
+  public getById = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const empleado = await this.service.getById(Number(req.params.id));
+    res.status(200).json({ success: true, data: empleado });
+  });
 
-  // POST /api/empleados
-  async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const empleado = await employeeService.create(req.body, actor(req));
-      res.status(201).json({ success: true, data: empleado });
-    } catch (err) { next(err); }
-  }
+  public create = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const empleado = await this.service.create(req.body, actor(req));
+    res.status(201).json({ success: true, data: empleado });
+  });
 
-  // PATCH /api/empleados/:id
-  async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const empleado = await employeeService.update(Number(req.params.id), req.body, actor(req));
-      res.status(200).json({ success: true, data: empleado });
-    } catch (err) { next(err); }
-  }
+  public update = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const empleado = await this.service.update(Number(req.params.id), req.body, actor(req));
+    res.status(200).json({ success: true, data: empleado });
+  });
 
-  // DELETE /api/empleados/:id  (soft delete → estado='retirado')
-  async softDelete(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const empleado = await employeeService.softDelete(Number(req.params.id), actor(req));
-      res.status(200).json({ success: true, data: empleado });
-    } catch (err) { next(err); }
-  }
+  public softDelete = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const empleado = await this.service.softDelete(Number(req.params.id), actor(req));
+    res.status(200).json({ success: true, data: empleado });
+  });
 
-//nueva funcionalidad
-  // GET /api/empleados/:id/cargo-actual
-  async getCargoActual(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const cargo = await employeeService.getCargoActual(Number(req.params.id));
-      res.status(200).json({ success: true, data: cargo });
-    } catch (err) { next(err); }
-  }
+  public getCargoActual = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const cargo = await this.service.getCargoActual(Number(req.params.id));
+    res.status(200).json({ success: true, data: cargo });
+  });
 
-  //nueva funcionalidad
-  // GET /api/empleados/:id/historial-cargo
-  async getHistorialCargos(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const historial = await employeeService.getHistorialCargos(Number(req.params.id));
-      res.status(200).json({ success: true, data: historial });
-    } catch (err) { next(err); }
-  }
- //nueva funcionalidad
-  // POST /api/empleados/:id/cargo
-  async crearCargo(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const cargo = await employeeService.crearCargo(Number(req.params.id), req.body, actor(req));
-      res.status(201).json({ success: true, data: cargo });
-    } catch (err) { next(err); }
-  }
+  public getHistorialCargos = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const historial = await this.service.getHistorialCargos(Number(req.params.id));
+    res.status(200).json({ success: true, data: historial });
+  });
 
+  public crearCargo = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const cargo = await this.service.crearCargo(Number(req.params.id), req.body, actor(req));
+    res.status(201).json({ success: true, data: cargo });
+  });
 
-  //feature/employee-service-s3-documents
-  // GET /api/empleados/:id/documentos
-  async getDocumentos(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const docs = await employeeService.getDocumentos(Number(req.params.id));
-      res.status(200).json({ success: true, data: docs });
-    } catch (err) { next(err); }
-  }
+  public getDocumentos = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const docs = await this.service.getDocumentos(Number(req.params.id));
+    res.status(200).json({ success: true, data: docs });
+  });
 
-  // POST /api/empleados/presigned-url
-  async generarPresignedUrl(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const result = await employeeService.generarPresignedUrl(req.body);
-      res.status(200).json({ success: true, data: result });
-    } catch (err) { next(err); }
-  }
+  public generarPresignedUrl = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const result = await this.service.generarPresignedUrl(req.body);
+    res.status(200).json({ success: true, data: result });
+  });
 
-  // POST /api/empleados/:id/documentos
-  async confirmarDocumento(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const doc = await employeeService.confirmarDocumento(Number(req.params.id), req.body, actor(req));
-      res.status(201).json({ success: true, data: doc });
-    } catch (err) { next(err); }
-  }
+  public confirmarDocumento = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const doc = await this.service.confirmarDocumento(Number(req.params.id), req.body, actor(req));
+    res.status(201).json({ success: true, data: doc });
+  });
 
-  // GET /api/empleados/documentos/:docId/url
-  async generarUrlDescarga(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const result = await employeeService.generarUrlDescargaDocumento(Number(req.params.docId));
-      res.status(200).json({ success: true, data: result });
-    } catch (err) { next(err); }
-  }
+  public generarUrlDescarga = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const result = await this.service.generarUrlDescargaDocumento(Number(req.params.docId));
+    res.status(200).json({ success: true, data: result });
+  });
 }
 
 export const employeeController = new EmployeeController();

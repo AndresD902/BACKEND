@@ -1,5 +1,5 @@
 export interface CreateEmpleadoDto {
-  cedula: string;
+  cedula?: string;
   tipo_documento?: string;
   nombre: string;
   apellido: string;

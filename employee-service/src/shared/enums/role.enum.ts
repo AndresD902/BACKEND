@@ -1,6 +1,5 @@
 export enum RoleName {
-  ADMIN   = 'admin',
-  RRHH    = 'rrhh',
-  CONSULTA = 'consulta',
+  ADMIN        = 'ADMIN',
+  HR           = 'HR',
+  CONSULTATION = 'CONSULTATION',
 }
-
