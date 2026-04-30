@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { env } from '../config/env';
-//feature/employee-service-history-service-client
-interface CambioPayload {
+
+export interface CambioPayload {
   empleado_id: number;
   entidad: string;
   entidad_id?: number;
@@ -13,6 +13,8 @@ interface CambioPayload {
   ip_origen?: string;
 }
 
+// Fire-and-forget: does NOT await the response intentionally.
+// A failure in history-service must never block or roll back the main operation.
 export const registrarCambio = (datos: CambioPayload): void => {
   axios
     .post(`${env.historyServiceUrl}/api/historial/cambios`, datos)

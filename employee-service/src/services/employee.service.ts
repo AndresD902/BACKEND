@@ -3,17 +3,35 @@ import { cargoSalarioRepository } from '../repositories/cargoSalario.repository'
 import { documentoRepository } from '../repositories/documento.repository';
 import { generarUrlSubida, generarUrlDescarga } from '../config/s3';
 import { registrarCambio } from '../clients/historyServiceClient';
+import { IEmployeeRepository } from '../repositories/interfaces/employee.repository.interface';
+import { ICargoSalarioRepository } from '../repositories/interfaces/cargo-salario.repository.interface';
+import { IDocumentoRepository } from '../repositories/interfaces/documento.repository.interface';
+import { IEmployeeService } from './interfaces/employee.service.interface';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { ConflictError } from '../shared/errors/conflict.error';
 import { CreateEmpleadoDto } from '../dtos/create-employee.dto';
 import { UpdateEmpleadoDto, CreateCargoDto, ConfirmarDocumentoDto, PresignedUrlDto } from '../dtos/update-employee.dto';
 import { AuthenticatedUser } from '../types/authenticated-user.type';
-import { Empleado } from '../entities/employee.entity';
+import { Empleado, CargoSalario, DocumentoEmpleado } from '../entities/employee.entity';
 
-export class EmployeeService {
+type GenerarUrlSubidaFn = typeof generarUrlSubida;
+type GenerarUrlDescargaFn = typeof generarUrlDescarga;
+type RegistrarCambioFn = typeof registrarCambio;
+
+// Dependencies injected via constructor (DIP). Production code uses the real singletons
+// as defaults; tests pass mocks without touching module-level state.
+export class EmployeeService implements IEmployeeService {
+  constructor(
+    private readonly empRepo: IEmployeeRepository = employeeRepository,
+    private readonly cargoRepo: ICargoSalarioRepository = cargoSalarioRepository,
+    private readonly docRepo: IDocumentoRepository = documentoRepository,
+    private readonly urlSubida: GenerarUrlSubidaFn = generarUrlSubida,
+    private readonly urlDescarga: GenerarUrlDescargaFn = generarUrlDescarga,
+    private readonly registrar: RegistrarCambioFn = registrarCambio,
+  ) {}
 
   private async findOrFail(id: number): Promise<Empleado> {
-    const empleado = await employeeRepository.findById(id);
+    const empleado = await this.empRepo.findById(id);
     if (!empleado) throw new NotFoundError(`Empleado con id ${id} no encontrado`);
     return empleado;
   }
@@ -23,8 +41,8 @@ export class EmployeeService {
   async getAll(page: number, limit: number) {
     const offset = (page - 1) * limit;
     const [empleados, total] = await Promise.all([
-      employeeRepository.findAll(limit, offset),
-      employeeRepository.count(),
+      this.empRepo.findAll(limit, offset),
+      this.empRepo.count(),
     ]);
     return { empleados, total, page, limit };
   }
@@ -35,21 +53,20 @@ export class EmployeeService {
 
   async create(dto: CreateEmpleadoDto, actor: AuthenticatedUser): Promise<Empleado> {
     const [existeCedula, existeCorreo] = await Promise.all([
-      employeeRepository.findByCedula(dto.cedula),
-      employeeRepository.findByCorreoCorporativo(dto.correo_corporativo),
+      dto.cedula ? this.empRepo.findByCedula(dto.cedula) : Promise.resolve(null),
+      this.empRepo.findByCorreoCorporativo(dto.correo_corporativo),
     ]);
 
     if (existeCedula) throw new ConflictError(`Ya existe un empleado con cédula ${dto.cedula}`);
     if (existeCorreo) throw new ConflictError(`Ya existe un empleado con correo ${dto.correo_corporativo}`);
 
     const empleadoData: Record<string, unknown> = {
-      cedula:             dto.cedula,
       tipo_documento:     dto.tipo_documento ?? 'cedula_ciudadania',
       nombre:             dto.nombre,
       apellido:           dto.apellido,
       correo_corporativo: dto.correo_corporativo.toLowerCase(),
     };
-
+    if (dto.cedula)           empleadoData.cedula           = dto.cedula;
     if (dto.genero)           empleadoData.genero           = dto.genero;
     if (dto.fecha_nacimiento) empleadoData.fecha_nacimiento  = dto.fecha_nacimiento;
     if (dto.celular)          empleadoData.celular           = dto.celular;
@@ -61,22 +78,22 @@ export class EmployeeService {
     if (dto.nivel_educativo)  empleadoData.nivel_educativo   = dto.nivel_educativo;
     if (dto.fecha_ingreso)    empleadoData.fecha_ingreso     = dto.fecha_ingreso;
 
-    const empleado = await employeeRepository.create(empleadoData);
+    const empleado = await this.empRepo.create(empleadoData);
 
     if (dto.cargo && dto.salario) {
-      await cargoSalarioRepository.create({
-        empleado_id:     empleado.id,
-        cargo:           dto.cargo,
-        departamento:    dto.cargo_departamento ?? null,
-        salario:         dto.salario,
-        tipo_salario:    dto.tipo_salario ?? 'fijo',
-        fecha_inicio:    dto.fecha_ingreso ?? new Date().toISOString().split('T')[0],
-        activo:          true,
-        registrado_por:  actor.email,
+      await this.cargoRepo.create({
+        empleado_id:    empleado.id,
+        cargo:          dto.cargo,
+        departamento:   dto.cargo_departamento ?? null,
+        salario:        dto.salario,
+        tipo_salario:   dto.tipo_salario ?? 'fijo',
+        fecha_inicio:   dto.fecha_ingreso ?? new Date().toISOString().split('T')[0],
+        activo:         true,
+        registrado_por: actor.email,
       });
     }
 
-    registrarCambio({
+    this.registrar({
       empleado_id:         empleado.id,
       entidad:             'empleado',
       campo_modificado:    'creacion',
@@ -92,12 +109,12 @@ export class EmployeeService {
     const antes = await this.findOrFail(id);
 
     if (dto.cedula && dto.cedula !== antes.cedula) {
-      const existe = await employeeRepository.findByCedula(dto.cedula);
+      const existe = await this.empRepo.findByCedula(dto.cedula);
       if (existe) throw new ConflictError(`La cédula ${dto.cedula} ya está en uso`);
     }
 
     if (dto.correo_corporativo && dto.correo_corporativo !== antes.correo_corporativo) {
-      const existe = await employeeRepository.findByCorreoCorporativo(dto.correo_corporativo);
+      const existe = await this.empRepo.findByCorreoCorporativo(dto.correo_corporativo);
       if (existe) throw new ConflictError(`El correo ${dto.correo_corporativo} ya está en uso`);
     }
 
@@ -113,10 +130,10 @@ export class EmployeeService {
       if (dto[campo] !== undefined) campos[campo] = dto[campo];
     }
 
-    const empleado = await employeeRepository.update(id, campos);
+    const empleado = await this.empRepo.update(id, campos);
     if (!empleado) throw new NotFoundError(`Empleado con id ${id} no encontrado`);
 
-    registrarCambio({
+    this.registrar({
       empleado_id:         id,
       entidad:             'empleado',
       campo_modificado:    Object.keys(campos).join(', '),
@@ -131,10 +148,10 @@ export class EmployeeService {
 
   async softDelete(id: number, actor: AuthenticatedUser): Promise<Empleado> {
     await this.findOrFail(id);
-    const empleado = await employeeRepository.softDelete(id);
+    const empleado = await this.empRepo.softDelete(id);
     if (!empleado) throw new NotFoundError(`Empleado con id ${id} no encontrado`);
 
-    registrarCambio({
+    this.registrar({
       empleado_id:         id,
       entidad:             'empleado',
       campo_modificado:    'estado',
@@ -147,39 +164,37 @@ export class EmployeeService {
     return empleado;
   }
 
-
-   //nuevas funcionalidades rama cargo y salario
   // ─── Cargos y salarios ─────────────────────────────────────────────────────
 
-  async getCargoActual(empleadoId: number) {
+  async getCargoActual(empleadoId: number): Promise<CargoSalario | null> {
     await this.findOrFail(empleadoId);
-    return cargoSalarioRepository.findActivo(empleadoId);
+    return this.cargoRepo.findActivo(empleadoId);
   }
 
-  async getHistorialCargos(empleadoId: number) {
+  async getHistorialCargos(empleadoId: number): Promise<CargoSalario[]> {
     await this.findOrFail(empleadoId);
-    return cargoSalarioRepository.findAll(empleadoId);
+    return this.cargoRepo.findAll(empleadoId);
   }
 
-  async crearCargo(empleadoId: number, dto: CreateCargoDto, actor: AuthenticatedUser) {
+  async crearCargo(empleadoId: number, dto: CreateCargoDto, actor: AuthenticatedUser): Promise<CargoSalario> {
     await this.findOrFail(empleadoId);
 
-    const anterior = await cargoSalarioRepository.findActivo(empleadoId);
-    await cargoSalarioRepository.cerrarActivo(empleadoId);
+    const anterior = await this.cargoRepo.findActivo(empleadoId);
+    await this.cargoRepo.cerrarActivo(empleadoId);
 
-    const nuevo = await cargoSalarioRepository.create({
-      empleado_id:     empleadoId,
-      cargo:           dto.cargo,
-      departamento:    dto.departamento ?? null,
-      salario:         dto.salario,
-      tipo_salario:    dto.tipo_salario ?? 'fijo',
-      fecha_inicio:    dto.fecha_inicio,
-      activo:          true,
-      motivo_cambio:   dto.motivo_cambio ?? null,
-      registrado_por:  actor.email,
+    const nuevo = await this.cargoRepo.create({
+      empleado_id:    empleadoId,
+      cargo:          dto.cargo,
+      departamento:   dto.departamento ?? null,
+      salario:        dto.salario,
+      tipo_salario:   dto.tipo_salario ?? 'fijo',
+      fecha_inicio:   dto.fecha_inicio,
+      activo:         true,
+      motivo_cambio:  dto.motivo_cambio ?? null,
+      registrado_por: actor.email,
     });
 
-    registrarCambio({
+    this.registrar({
       empleado_id:         empleadoId,
       entidad:             'cargo_salario',
       entidad_id:          nuevo.id,
@@ -193,45 +208,42 @@ export class EmployeeService {
     return nuevo;
   }
 
-//  git checkout -b feature/employee-service-s3-documents
   // ─── Documentos S3 ─────────────────────────────────────────────────────────
 
-  async getDocumentos(empleadoId: number) {
+  async getDocumentos(empleadoId: number): Promise<DocumentoEmpleado[]> {
     await this.findOrFail(empleadoId);
-    return documentoRepository.findAll(empleadoId);
+    return this.docRepo.findAll(empleadoId);
   }
 
-  async generarPresignedUrl(dto: PresignedUrlDto) {
-    return generarUrlSubida(dto.empleado_id, dto.tipo, dto.contentType);
+  async generarPresignedUrl(dto: PresignedUrlDto): Promise<{ url: string; key: string }> {
+    return this.urlSubida(dto.empleado_id, dto.tipo, dto.contentType);
   }
 
   async confirmarDocumento(
     empleadoId: number,
     dto: ConfirmarDocumentoDto,
     actor: AuthenticatedUser,
-  ) {
+  ): Promise<DocumentoEmpleado> {
     await this.findOrFail(empleadoId);
-    await documentoRepository.desactivarPorTipo(empleadoId, dto.tipo);
+    await this.docRepo.desactivarPorTipo(empleadoId, dto.tipo);
 
-    const documento = await documentoRepository.create({
-      empleado_id:     empleadoId,
-      tipo:            dto.tipo,
-      s3_key:          dto.s3_key,
-      s3_url:          dto.s3_url,
-      mime_type:       dto.mime_type ?? null,
-      tamano_bytes:    dto.tamano_bytes ?? null,
-      nombre_archivo:  dto.nombre_archivo ?? null,
-      activo:          true,
-      subido_por:      actor.email,
+    return this.docRepo.create({
+      empleado_id:    empleadoId,
+      tipo:           dto.tipo,
+      s3_key:         dto.s3_key,
+      s3_url:         dto.s3_url,
+      mime_type:      dto.mime_type ?? null,
+      tamano_bytes:   dto.tamano_bytes ?? null,
+      nombre_archivo: dto.nombre_archivo ?? null,
+      activo:         true,
+      subido_por:     actor.email,
     });
-
-    return documento;
   }
 
-  async generarUrlDescargaDocumento(docId: number) {
-    const doc = await documentoRepository.findById(docId);
+  async generarUrlDescargaDocumento(docId: number): Promise<{ url: string; expires_in: number }> {
+    const doc = await this.docRepo.findById(docId);
     if (!doc) throw new NotFoundError(`Documento con id ${docId} no encontrado`);
-    const url = await generarUrlDescarga(doc.s3_key);
+    const url = await this.urlDescarga(doc.s3_key);
     return { url, expires_in: 3600 };
   }
 }

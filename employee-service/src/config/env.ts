@@ -18,6 +18,7 @@ export const env = {
   serviceName: optional('SERVICE_NAME', 'employee-service'),
 
   jwtSecret:          required('JWT_SECRET'),
+  internalApiKey:     optional('INTERNAL_API_KEY', 'dev-internal-key-change-in-prod'),
   historyServiceUrl:  optional('HISTORY_SERVICE_URL', 'http://localhost:3006'),
   databaseUrl:        required('DATABASE_URL'),
 

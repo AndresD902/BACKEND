@@ -56,6 +56,13 @@ export class EmployeeRepository {
     return rows[0] ?? null;
   }
 
+  async updateEstadoByCorreo(correo: string, estado: string): Promise<void> {
+    await pool.query(
+      `UPDATE empleados SET estado = $1, updated_at = CURRENT_TIMESTAMP WHERE correo_corporativo = $2`,
+      [estado, correo.toLowerCase()],
+    );
+  }
+
   async softDelete(id: number): Promise<Empleado | null> {
     const { rows } = await pool.query<Empleado>(
       `UPDATE empleados

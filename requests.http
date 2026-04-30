@@ -1,0 +1,483 @@
+### ============================================================
+###   BACKEND — HR System — Colección de pruebas integración
+###   Requisito: auth-service en :3001  |  employee-service en :3002
+###   Extensión recomendada: REST Client (VS Code)
+### ============================================================
+
+@auth_url    = http://localhost:3001/api/v1
+@emp_url     = http://localhost:3002/api
+@history_url = http://localhost:3006/api
+
+### ─── Variables de sesión (se llenan con las respuestas) ────
+@access_token  = PEGAR_ACCESS_TOKEN_AQUI
+@refresh_token = PEGAR_REFRESH_TOKEN_AQUI
+
+
+### ============================================================
+###   1. AUTH-SERVICE — Registro de usuario ADMIN
+### ============================================================
+
+### 1.1  Registrar un nuevo usuario ADMIN (operador del sistema)
+POST {{auth_url}}/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "Alexander",
+  "lastName": "Zapata",
+  "email": "admin@hr-system.com",
+  "password": "Admin1234!",
+  "role": "ADMIN"
+}
+
+###
+
+### 1.2  Registrar un usuario RRHH (operador del sistema)
+POST {{auth_url}}/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "Maria",
+  "lastName": "Lopez",
+  "email": "hr@hr-system.com",
+  "password": "Hr1234567!",
+  "role": "HR"
+}
+
+###
+
+### 1.3  Registrar usuario CONSULTA (operador del sistema)
+POST {{auth_url}}/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "Carlos",
+  "lastName": "Perez",
+  "email": "consulta@hr-system.com",
+  "password": "Consult1234!",
+  "role": "CONSULTATION"
+}
+
+###
+
+### ─── COPIA el accessToken y refreshToken de la respuesta ────
+
+### 1.4  Login con usuario ADMIN
+POST {{auth_url}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@hr-system.com",
+  "password": "Admin1234!"
+}
+
+###
+
+### 1.5  Refrescar access token
+POST {{auth_url}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+###
+
+### 1.6  Ver datos del usuario autenticado (ruta protegida)
+GET {{auth_url}}/protected/me
+Authorization: Bearer {{access_token}}
+
+###
+
+### 1.7  Ruta solo ADMIN
+GET {{auth_url}}/protected/admin-only
+Authorization: Bearer {{access_token}}
+
+###
+
+### 1.8  Listar usuarios del sistema (auth-service)
+GET {{auth_url}}/users
+Authorization: Bearer {{access_token}}
+
+###
+
+### 1.9  Obtener usuario por ID
+GET {{auth_url}}/users/1
+Authorization: Bearer {{access_token}}
+
+###
+
+### 1.10  Desactivar usuario
+PATCH {{auth_url}}/users/2/deactivate
+Authorization: Bearer {{access_token}}
+
+###
+
+### 1.11  Activar usuario
+PATCH {{auth_url}}/users/2/activate
+Authorization: Bearer {{access_token}}
+
+###
+
+### 1.12  Cerrar todas las sesiones del usuario autenticado
+POST {{auth_url}}/auth/logout-all
+Authorization: Bearer {{access_token}}
+
+###
+
+### 1.13  Logout (invalida el refresh token)
+POST {{auth_url}}/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+###
+
+### 1.14  Health check auth-service
+GET {{auth_url}}/health
+
+###
+
+
+### ============================================================
+###   2. EMPLOYEE-SERVICE — usando el JWT emitido por auth-service
+###   IMPORTANTE: el mismo access_token del paso 1.4 funciona aquí
+###
+###   CONCEPTO CLAVE:
+###   Los usuarios de auth-service (Admin, RRHH, Consulta) son los OPERADORES
+###   del sistema — las personas que USAN el software.
+###   Los empleados del employee-service son las personas GESTIONADAS
+###   por el software — NO tienen login. RRHH/Admin los crea manualmente.
+### ============================================================
+
+### 2.1  Health check employee-service
+GET {{emp_url}}/health
+
+###
+
+### 2.2  Listar todos los empleados (cualquier rol autenticado)
+GET {{emp_url}}/empleados
+Authorization: Bearer {{access_token}}
+
+###
+
+### 2.3  Obtener empleado por ID
+GET {{emp_url}}/empleados/1
+Authorization: Bearer {{access_token}}
+
+###
+
+### 2.4  Crear un empleado (requiere ADMIN o HR)
+POST {{emp_url}}/empleados
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "cedula": "1234567899",
+  "tipo_documento": "cedula_ciudadania",
+  "nombre": "Pablo",
+  "apellido": "García",
+  "genero": "masculino",
+  "correo_corporativo": "pablo.garcia@empresa.com",
+  "correo_personal": "pablo.garcia@gmail.com",
+  "celular": "3001234568",
+  "fecha_nacimiento": "1991-05-15",
+  "fecha_ingreso": "2024-01-10",
+  "departamento": "Tecnología",
+  "ciudad": "Bogotá",
+  "nivel_educativo": "universitario",
+  "cargo": "Desarrollador",
+  "cargo_departamento": "Tecnología",
+  "salario": 5000000,
+  "tipo_salario": "fijo"
+}
+
+###
+
+### 2.5  Actualizar empleado (requiere ADMIN o HR)
+PATCH {{emp_url}}/empleados/1
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "celular": "3009876543",
+  "departamento": "Ingeniería"
+}
+
+###
+
+### 2.6  Ver cargo actual del empleado
+GET {{emp_url}}/empleados/1/cargo-actual
+Authorization: Bearer {{access_token}}
+
+###
+
+### 2.7  Historial de cargos (requiere ADMIN o HR)
+GET {{emp_url}}/empleados/1/historial-cargo
+Authorization: Bearer {{access_token}}
+
+###
+
+### 2.8  Eliminar empleado — soft delete (solo ADMIN)
+DELETE {{emp_url}}/empleados/1
+Authorization: Bearer {{access_token}}
+
+###
+
+### 2.9  Asignar nuevo cargo/salario a un empleado (ascenso o cambio salarial — ADMIN o HR)
+###      Cierra el cargo anterior y abre uno nuevo. Registra cambio en history-service.
+POST {{emp_url}}/empleados/1/cargo
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "cargo": "Senior Developer",
+  "departamento": "Tecnología",
+  "salario": 7500000,
+  "fecha_inicio": "2025-01-01"
+}
+
+###
+
+### ─── Prueba de acceso denegado ────────────────────────────
+
+### 2.9  Login como usuario CONSULTATION y probar ruta HR-only
+###      Espera: 403 Forbidden
+# Primero haz login con consulta@hr-system.com y usa ese token
+
+POST {{emp_url}}/empleados
+Authorization: Bearer PEGAR_TOKEN_CONSULTATION_AQUI
+Content-Type: application/json
+
+{
+  "nombre": "Test",
+  "apellido": "Forbidden"
+}
+
+###
+
+### ─── Prueba de token inválido ────────────────────────────
+
+### 2.10  Llamada sin token — espera 401
+GET {{emp_url}}/empleados
+###
+
+### 2.11  Llamada con token expirado/inválido — espera 401
+GET {{emp_url}}/empleados
+Authorization: Bearer token.invalido.aqui
+###
+
+
+### ============================================================
+###   3. HISTORY-SERVICE — auditoría de cambios y acciones
+###   Los POST son fire-and-forget (sin token), los GET requieren JWT
+### ============================================================
+
+### 3.1  Health check history-service
+GET {{history_url}}/health
+
+###
+
+### 3.2  Ver log de acciones del sistema (solo ADMIN)
+###      Muestra login, logout, registro, token_renovado generados por auth-service
+GET {{history_url}}/historial/acciones
+Authorization: Bearer {{access_token}}
+
+###
+
+### 3.3  Filtrar acciones por tipo
+GET {{history_url}}/historial/acciones?accion=login
+Authorization: Bearer {{access_token}}
+
+###
+
+### 3.4  Filtrar acciones por resultado fallido
+GET {{history_url}}/historial/acciones?resultado=fallido
+Authorization: Bearer {{access_token}}
+
+###
+
+### 3.5  Ver historial de cambios de un empleado (ADMIN o RRHH)
+GET {{history_url}}/historial/cambios/empleado/1
+Authorization: Bearer {{access_token}}
+
+###
+
+### 3.6  Filtrar cambios por entidad
+GET {{history_url}}/historial/cambios/empleado/1?entidad=empleado
+Authorization: Bearer {{access_token}}
+
+###
+
+### 3.7  Registrar acción manual (fire-and-forget — sin token, uso interno)
+POST {{history_url}}/historial/acciones
+Content-Type: application/json
+
+{
+  "usuario_email": "admin@hr-system.com",
+  "rol": "ADMIN",
+  "accion": "test_manual",
+  "resultado": "exitoso",
+  "detalle": "Prueba manual del endpoint"
+}
+
+###
+
+### 3.8  Registrar cambio directo (fire-and-forget — sin token, llamado internamente por employee-service)
+###      Normalmente lo envía employee-service automáticamente; este endpoint permite prueba manual.
+POST {{history_url}}/historial/cambios
+Content-Type: application/json
+
+{
+  "empleado_id": 1,
+  "entidad": "empleado",
+  "entidad_id": 1,
+  "campo_modificado": "cargo",
+  "valor_anterior": "Desarrollador",
+  "valor_nuevo": "Senior Developer",
+  "usuario_modificador": "admin@hr-system.com",
+  "rol_modificador": "ADMIN",
+  "ip_origen": "127.0.0.1"
+}
+
+###
+
+
+### ============================================================
+###   4. EMPLOYEE-SERVICE — Gestión de documentos (S3)
+###
+###   FLUJO DE SUBIDA (3 pasos):
+###   Paso A → Solicitar URL firmada   (backend genera URL temporal de S3)
+###   Paso B → Subir el archivo a S3   (PUT directo con la URL del Paso A — fuera del REST client)
+###   Paso C → Confirmar el documento  (backend registra la referencia en la BD)
+###
+###   TIPOS válidos: foto | hoja_vida | certificado | diploma | contrato | otro
+### ============================================================
+
+### 4.1  Paso A — Solicitar presigned URL para FOTO (ADMIN o HR)
+POST {{emp_url}}/empleados/presigned-url
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "empleado_id": 1,
+  "tipo": "foto",
+  "contentType": "image/jpeg"
+}
+
+###
+
+### 4.2  Paso A — Solicitar presigned URL para HOJA DE VIDA (ADMIN o HR)
+POST {{emp_url}}/empleados/presigned-url
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "empleado_id": 1,
+  "tipo": "hoja_vida",
+  "contentType": "application/pdf"
+}
+
+###
+
+### 4.3  Paso A — Solicitar presigned URL para CERTIFICADO (ADMIN o HR)
+POST {{emp_url}}/empleados/presigned-url
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "empleado_id": 1,
+  "tipo": "certificado",
+  "contentType": "application/pdf"
+}
+
+###
+
+### 4.4  Paso A — Solicitar presigned URL para DIPLOMA (ADMIN o HR)
+POST {{emp_url}}/empleados/presigned-url
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "empleado_id": 1,
+  "tipo": "diploma",
+  "contentType": "application/pdf"
+}
+
+###
+
+### 4.5  Paso A — Solicitar presigned URL para CONTRATO FIRMADO (ADMIN o HR)
+POST {{emp_url}}/empleados/presigned-url
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "empleado_id": 1,
+  "tipo": "contrato",
+  "contentType": "application/pdf"
+}
+
+###
+
+### ─── PASO B ────────────────────────────────────────────────
+### 4.6  Paso B — Subir el archivo directamente a S3
+###      Copia la "url" que devolvió el Paso A y reemplázala abajo.
+###      Content-Type DEBE coincidir exactamente con el del Paso A.
+###      Esta llamada va directo a S3 — NO pasa por tu backend.
+###
+### PUT https://admin-employee-microservice.s3.us-east-2.amazonaws.com/fotos/1_TIMESTAMP.jpg?X-Amz-...
+### Content-Type: image/jpeg
+###
+### < C:/ruta/local/a/la/foto.jpg
+###
+### (Descomentar y reemplazar la URL cuando tengas la presigned URL real)
+###
+
+### ─── PASO C ────────────────────────────────────────────────
+
+### 4.7  Paso C — Confirmar foto tras subida exitosa a S3 (ADMIN o HR)
+###      Reemplaza s3_key y s3_url con los valores devueltos en el Paso A
+POST {{emp_url}}/empleados/1/documentos
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "tipo": "foto",
+  "s3_key": "fotos/1_1700000000000.jpg",
+  "s3_url": "https://admin-employee-microservice.s3.us-east-2.amazonaws.com/fotos/1_1700000000000.jpg",
+  "mime_type": "image/jpeg",
+  "nombre_archivo": "foto_empleado.jpg"
+}
+
+###
+
+### 4.8  Paso C — Confirmar hoja de vida tras subida exitosa a S3 (ADMIN o HR)
+POST {{emp_url}}/empleados/1/documentos
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "tipo": "hoja_vida",
+  "s3_key": "hoja_vida/1_1700000000000.pdf",
+  "s3_url": "https://admin-employee-microservice.s3.us-east-2.amazonaws.com/hoja_vida/1_1700000000000.pdf",
+  "mime_type": "application/pdf",
+  "nombre_archivo": "hoja_vida_juan_garcia.pdf"
+}
+
+###
+
+### ─── Consultas de documentos ─────────────────────────────
+
+### 4.9  Listar todos los documentos de un empleado (cualquier rol autenticado)
+GET {{emp_url}}/empleados/1/documentos
+Authorization: Bearer {{access_token}}
+
+###
+
+### 4.10  Obtener URL de descarga de un documento específico (cualquier rol autenticado)
+###       Reemplaza 1 con el ID real del documento obtenido en 4.9
+GET {{emp_url}}/empleados/documentos/1/url
+Authorization: Bearer {{access_token}}
+
+###
