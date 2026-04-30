@@ -1,0 +1,11 @@
+# Claude Code workspace (herramienta de desarrollo local)
+.claude/
+
+# Archivos de entorno — nunca commitear credenciales
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db

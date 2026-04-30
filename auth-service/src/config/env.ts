@@ -1,6 +1,3 @@
-/** * It reads and validates environment variables. If any are missing, it throws an error; if they exist, it returns them. Then all the variables are exported together in an `env` object.
- */
-
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -23,4 +20,6 @@ export const env = {
   jwtExpiresIn: getEnVariable('JWT_EXPIRES_IN'),
   bcryptSaltRounds: Number(getEnVariable('BCRYPT_SALT_ROUNDS')),
   databaseUrl: getEnVariable('DATABASE_URL'),
+  refreshTokenExpiresDays: Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS ?? '7'),
+  historyServiceUrl: process.env.HISTORY_SERVICE_URL ?? 'http://localhost:3006',
 };

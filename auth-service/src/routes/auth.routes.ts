@@ -1,11 +1,15 @@
-import { Router } from "express";
-import { authController } from "../controllers/auth.controller";
-import { validateRequest } from "../middlewares/validate-request.middleware";
-import { createUserSchema, loginSchema } from "../schemas/auth.schema";
+import { Router } from 'express';
+import { authController } from '../controllers/auth.controller';
+import { validateRequest } from '../middlewares/validate-request.middleware';
+import { authenticate } from '../middlewares/auth.middleware';
+import { createUserSchema, loginSchema, refreshTokenSchema, logoutSchema } from '../schemas/auth.schema';
 
 const authRoutes = Router();
 
-authRoutes.post("/register", validateRequest(createUserSchema),(req, res, next) => authController.register(req, res, next));
-authRoutes.post("/login", validateRequest(loginSchema),(req, res, next) => authController.login(req, res, next));
+authRoutes.post('/register', validateRequest(createUserSchema), authController.register);
+authRoutes.post('/login', validateRequest(loginSchema), authController.login);
+authRoutes.post('/refresh', validateRequest(refreshTokenSchema), authController.refresh);
+authRoutes.post('/logout', validateRequest(logoutSchema), authController.logout);
+authRoutes.post('/logout-all', authenticate, authController.logoutAll);
 
 export default authRoutes;
