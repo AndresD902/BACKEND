@@ -251,6 +251,20 @@ describe('AuthService', () => {
 
       await expect(authService.refresh('nonexistent-token')).rejects.toThrow(UnauthorizedError);
     });
+
+    it('should throw UnauthorizedError when user is inactive at refresh time', async () => {
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
+      mockRefreshTokenRepository.findByHash.mockResolvedValue({
+        id: '1',
+        userId: '1',
+        tokenHash: 'hashed-token',
+        expiresAt: new Date(Date.now() + 60000),
+        revoked: false,
+      });
+      mockUserRepository.findById.mockResolvedValue({ ...baseUser, isActive: false });
+
+      await expect(authService.refresh('valid-refresh-token')).rejects.toThrow(UnauthorizedError);
+    });
   });
 
   describe('logout', () => {
