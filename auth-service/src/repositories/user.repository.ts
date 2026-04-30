@@ -1,15 +1,7 @@
 import { pool } from '../config/database';
 import { User } from '../entities/user.entity';
 import { RoleName } from '../entities/role.entity';
-
-interface CreateUserData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  passwordHash: string;
-  role: RoleName;
-  isActive?: boolean;
-}
+import { IUserRepository, CreateUserData } from './interfaces/user-repository.interface';
 
 function mapRowToUser(row: Record<string, unknown>): User {
   return {
@@ -26,7 +18,7 @@ function mapRowToUser(row: Record<string, unknown>): User {
   };
 }
 
-export class UserRepository {
+export class UserRepository implements IUserRepository {
   public async findByEmail(email: string): Promise<User | null> {
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
     return result.rows[0] ? mapRowToUser(result.rows[0]) : null;

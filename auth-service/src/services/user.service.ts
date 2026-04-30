@@ -1,10 +1,12 @@
-import { UserRepository, userRepository } from '../repositories/user.repository';
+import { userRepository } from '../repositories/user.repository';
+import { IUserRepository } from '../repositories/interfaces/user-repository.interface';
+import { IUserService, UserSummary, UserStatusResult } from './interfaces/user-service.interface';
 import { NotFoundError } from '../shared/errors/not-found.error';
 
-export class UserService {
-  constructor(private readonly userRepository: UserRepository) {}
+export class UserService implements IUserService {
+  constructor(private readonly userRepository: IUserRepository) {}
 
-  public async findAll() {
+  public async findAll(): Promise<UserSummary[]> {
     const users = await this.userRepository.findAll();
     return users.map((user) => ({
       id: user.id,
@@ -19,7 +21,7 @@ export class UserService {
     }));
   }
 
-  public async findById(id: string) {
+  public async findById(id: string): Promise<UserSummary> {
     const user = await this.userRepository.findById(id);
     if (!user) {
       throw new NotFoundError('User not found');
@@ -37,7 +39,7 @@ export class UserService {
     };
   }
 
-  public async deactivate(id: string) {
+  public async deactivate(id: string): Promise<UserStatusResult> {
     const user = await this.userRepository.updateStatus(id, false);
     if (!user) {
       throw new NotFoundError('User not found');
@@ -53,7 +55,7 @@ export class UserService {
     };
   }
 
-  public async activate(id: string) {
+  public async activate(id: string): Promise<UserStatusResult> {
     const user = await this.userRepository.updateStatus(id, true);
     if (!user) {
       throw new NotFoundError('User not found');

@@ -1,62 +1,48 @@
-import { Response, NextFunction } from 'express';
-import { userService } from '../services/user.service';
+import { Response } from 'express';
+import { userService as defaultUserService } from '../services/user.service';
+import { IUserService } from '../services/interfaces/user-service.interface';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
+import { asyncHandler } from '../utils/async-handler.util';
 
 export class UserController {
-  public async findAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const users = await userService.findAll();
-      res.status(200).json({
-        success: true,
-        message: 'Users retrieved successfully',
-        data: users,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+  constructor(private readonly userService: IUserService = defaultUserService) {}
 
-  public async findById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { id } = req.params;
-      const user = await userService.findById(id);
-      res.status(200).json({
-        success: true,
-        message: 'User retrieved successfully',
-        data: user,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+  public findAll = asyncHandler(async (_req: AuthenticatedRequest, res: Response) => {
+    const users = await this.userService.findAll();
+    res.status(200).json({
+      success: true,
+      message: 'Users retrieved successfully',
+      data: users,
+    });
+  });
 
-  public async deactivate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { id } = req.params;
-      const user = await userService.deactivate(id);
-      res.status(200).json({
-        success: true,
-        message: 'User deactivated successfully',
-        data: user,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+  public findById = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const user = await this.userService.findById(String(req.params.id));
+    res.status(200).json({
+      success: true,
+      message: 'User retrieved successfully',
+      data: user,
+    });
+  });
 
-  public async activate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { id } = req.params;
-      const user = await userService.activate(id);
-      res.status(200).json({
-        success: true,
-        message: 'User activated successfully',
-        data: user,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+  public deactivate = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const user = await this.userService.deactivate(String(req.params.id));
+    res.status(200).json({
+      success: true,
+      message: 'User deactivated successfully',
+      data: user,
+    });
+  });
+
+  public activate = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const user = await this.userService.activate(String(req.params.id));
+    res.status(200).json({
+      success: true,
+      message: 'User activated successfully',
+      data: user,
+    });
+  });
+
 }
 
 export const userController = new UserController();

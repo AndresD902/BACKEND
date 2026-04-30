@@ -1,74 +1,101 @@
-import { Request, Response, NextFunction } from 'express';
-import { authService } from '../services/auth.service';
+import { NextFunction, Request, Response } from 'express';
+import { authService as defaultAuthService } from '../services/auth.service';
+import { IAuthService } from '../services/interfaces/auth-service.interface';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
+import { UnauthorizedError } from '../shared/errors/unauthorized.error';
+import { asyncHandler } from '../utils/async-handler.util';
+import { registrarAccion } from '../clients/historyServiceClient';
 
 export class AuthController {
-  public async register(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const user = await authService.register(req.body);
-      res.status(201).json({
-        success: true,
-        message: 'User registered successfully',
-        data: user,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+  constructor(private readonly authService: IAuthService = defaultAuthService) {}
 
-  public async login(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const ipOrigin = req.ip;
-      const userAgent = req.headers['user-agent'];
-      const result = await authService.login(req.body, ipOrigin, userAgent);
-      res.status(200).json({
-        success: true,
-        message: 'Login successful',
-        data: result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+  public register = asyncHandler(async (req: Request, res: Response) => {
+    const user = await this.authService.register(req.body);
+    registrarAccion({
+      usuario_email: user.email,
+      rol:           user.role,
+      accion:        'registro',
+      resultado:     'exitoso',
+      ip_origen:     req.ip,
+      user_agent:    req.headers['user-agent'],
+    });
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: user,
+    });
+  });
 
-  public async refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { refreshToken } = req.body;
-      const result = await authService.refresh(refreshToken);
-      res.status(200).json({
-        success: true,
-        message: 'Token refreshed successfully',
-        data: result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+  public login = asyncHandler(async (req: Request, res: Response) => {
+    const ipOrigin  = req.ip;
+    const userAgent = req.headers['user-agent'];
+    const result = await this.authService.login(req.body, ipOrigin, userAgent);
+    registrarAccion({
+      usuario_email: result.user.email,
+      rol:           result.user.role,
+      accion:        'login',
+      resultado:     'exitoso',
+      ip_origen:     ipOrigin,
+      user_agent:    userAgent,
+    });
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: result,
+    });
+  });
 
-  public async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { refreshToken } = req.body;
-      await authService.logout(refreshToken);
-      res.status(200).json({
-        success: true,
-        message: 'Session closed successfully',
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+  public refresh = asyncHandler(async (req: Request, res: Response) => {
+    const { refreshToken } = req.body;
+    const result = await this.authService.refresh(refreshToken);
+    registrarAccion({
+      accion:     'token_renovado',
+      resultado:  'exitoso',
+      ip_origen:  req.ip,
+      user_agent: req.headers['user-agent'],
+    });
+    res.status(200).json({
+      success: true,
+      message: 'Token refreshed successfully',
+      data: result,
+    });
+  });
 
-  public async logoutAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      await authService.logoutAll(req.user!.sub);
+  public logout = asyncHandler(async (req: Request, res: Response) => {
+    const { refreshToken } = req.body;
+    await this.authService.logout(refreshToken);
+    registrarAccion({
+      accion:     'logout',
+      resultado:  'exitoso',
+      ip_origen:  req.ip,
+      user_agent: req.headers['user-agent'],
+    });
+    res.status(200).json({
+      success: true,
+      message: 'Session closed successfully',
+    });
+  });
+
+  public logoutAll = asyncHandler(
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      if (!req.user) {
+        return next(new UnauthorizedError('User not authenticated'));
+      }
+      await this.authService.logoutAll(req.user.sub);
+      registrarAccion({
+        usuario_email: req.user.email,
+        rol:           req.user.role,
+        accion:        'logout_all',
+        resultado:     'exitoso',
+        ip_origen:     req.ip,
+        user_agent:    req.headers['user-agent'],
+      });
       res.status(200).json({
         success: true,
         message: 'All sessions closed successfully',
       });
-    } catch (error) {
-      next(error);
-    }
-  }
+    },
+  );
 }
 
 export const authController = new AuthController();

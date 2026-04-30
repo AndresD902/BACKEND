@@ -1,5 +1,8 @@
-import { UserRepository, userRepository } from '../repositories/user.repository';
-import { RefreshTokenRepository, refreshTokenRepository } from '../repositories/refreshToken.repository';
+import { userRepository } from '../repositories/user.repository';
+import { refreshTokenRepository } from '../repositories/refreshToken.repository';
+import { IUserRepository } from '../repositories/interfaces/user-repository.interface';
+import { IRefreshTokenRepository } from '../repositories/interfaces/refresh-token-repository.interface';
+import { IAuthService, LoginResult, UserProfile } from './interfaces/auth-service.interface';
 import { hashPassword, comparePassword } from '../utils/password.util';
 import { generateJwtToken } from '../utils/jwt.util';
 import { generateRefreshToken, hashToken } from '../utils/token.util';
@@ -12,13 +15,13 @@ import { NotFoundError } from '../shared/errors/not-found.error';
 import { RoleName } from '../entities/role.entity';
 import { env } from '../config/env';
 
-export class AuthService {
+export class AuthService implements IAuthService {
   constructor(
-    private readonly userRepository: UserRepository,
-    private readonly refreshTokenRepository: RefreshTokenRepository,
+    private readonly userRepository: IUserRepository,
+    private readonly refreshTokenRepository: IRefreshTokenRepository,
   ) {}
 
-  public async register(createUserDto: CreateUserDto) {
+  public async register(createUserDto: CreateUserDto): Promise<UserProfile> {
     const normalizedEmail = createUserDto.email.toLowerCase().trim();
     const existingUser = await this.userRepository.findByEmail(normalizedEmail);
 
@@ -48,7 +51,7 @@ export class AuthService {
     };
   }
 
-  public async login(loginDto: LoginDto, ipOrigin?: string, userAgent?: string) {
+  public async login(loginDto: LoginDto, ipOrigin?: string, userAgent?: string): Promise<LoginResult> {
     const normalizedEmail = loginDto.email.toLowerCase().trim();
     const user = await this.userRepository.findByEmail(normalizedEmail);
 
@@ -91,7 +94,7 @@ export class AuthService {
     };
   }
 
-  public async refresh(incomingRefreshToken: string) {
+  public async refresh(incomingRefreshToken: string): Promise<{ accessToken: string }> {
     const tokenHash = hashToken(incomingRefreshToken);
     const record = await this.refreshTokenRepository.findByHash(tokenHash);
 

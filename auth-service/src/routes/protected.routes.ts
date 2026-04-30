@@ -11,7 +11,7 @@ protectedRouter.get(
     (req: AuthenticatedRequest, res: Response) => {
         res.status(200).json({
             success: true,
-            message: 'Authenticated user data retrived successfully',
+            message: 'Authenticated user data retrieved successfully',
             data: req.user,
         });
     },

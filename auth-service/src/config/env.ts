@@ -21,4 +21,5 @@ export const env = {
   bcryptSaltRounds: Number(getEnVariable('BCRYPT_SALT_ROUNDS')),
   databaseUrl: getEnVariable('DATABASE_URL'),
   refreshTokenExpiresDays: Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS ?? '7'),
+  historyServiceUrl: process.env.HISTORY_SERVICE_URL ?? 'http://localhost:3006',
 };

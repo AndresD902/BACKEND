@@ -1,13 +1,6 @@
 import { pool } from '../config/database';
 import { RefreshToken } from '../entities/refresh-token.entity';
-
-interface CreateRefreshTokenData {
-  userId: string;
-  tokenHash: string;
-  expiresAt: Date;
-  ipOrigin?: string;
-  userAgent?: string;
-}
+import { IRefreshTokenRepository, CreateRefreshTokenData } from './interfaces/refresh-token-repository.interface';
 
 function mapRowToRefreshToken(row: Record<string, unknown>): RefreshToken {
   return {
@@ -22,7 +15,7 @@ function mapRowToRefreshToken(row: Record<string, unknown>): RefreshToken {
   };
 }
 
-export class RefreshTokenRepository {
+export class RefreshTokenRepository implements IRefreshTokenRepository {
   public async create(data: CreateRefreshTokenData): Promise<RefreshToken> {
     const result = await pool.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, ip_origin, user_agent)
