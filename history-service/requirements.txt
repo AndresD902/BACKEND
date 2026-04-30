@@ -1,0 +1,77 @@
+# ============================================================
+# History Service — Dependencias y requisitos de instalación
+# Sistema Administrador de Empleados · Microservicio 3 de 5
+# ============================================================
+# Este archivo documenta todas las dependencias del proyecto.
+# Para instalar todo: npm install
+# ============================================================
+
+
+# ── RUNTIME DEPENDENCIES ────────────────────────────────────
+# Framework y servidor
+express@^5.2.1              # Framework HTTP (v5 — async error handling nativo)
+cors@^2.8.6                 # Middleware CORS para permitir peticiones cross-origin
+helmet@^8.1.0               # Cabeceras HTTP de seguridad
+morgan@^1.10.1              # Logger de peticiones HTTP
+
+# Base de datos
+pg@^8.16.3                  # Driver PostgreSQL para Node.js (node-postgres)
+
+# Autenticación y seguridad
+jsonwebtoken@^9.0.3         # Verificación de JWT (endpoints de consulta)
+dotenv@^17.3.1              # Carga de variables de entorno desde .env
+
+
+# ── DEVELOPMENT DEPENDENCIES ────────────────────────────────
+# TypeScript y compilación
+typescript@^5.9.3           # Compilador TypeScript
+ts-node-dev@^2.0.0          # Hot reload para desarrollo con TypeScript
+tsx@^4.21.0                 # Ejecutor TypeScript para scripts (usado en migrate)
+
+# Migraciones de base de datos
+node-pg-migrate@^8.0.4      # Sistema de migraciones para PostgreSQL
+
+# Tipos (@types)
+@types/cors@^2.8.19
+@types/express@^5.0.6
+@types/jsonwebtoken@^9.0.10
+@types/morgan@^1.9.10
+@types/node@^25.5.0
+@types/pg@^8.20.0
+
+
+# ── NOTAS DE INSTALACIÓN ────────────────────────────────────
+# 1. Requiere Node.js >= 18
+# 2. Requiere PostgreSQL >= 14 corriendo y accesible
+# 3. NO requiere que otros microservicios estén corriendo (recibe llamadas, no las hace)
+# 4. Configurar .env antes de ejecutar (ver .env.example)
+# 5. Ejecutar migraciones antes del primer inicio:
+#       npm run migrate
+# 6. Para desarrollo:
+#       npm run dev
+# 7. Para producción:
+#       npm run build && npm start
+
+
+# ── SCRIPTS NPM ─────────────────────────────────────────────
+# npm run dev              → Servidor con hot-reload (ts-node-dev)
+# npm run build            → Compilar TypeScript a dist/
+# npm start                → Iniciar servidor compilado
+# npm run migrate          → Aplicar migraciones pendientes
+# npm run migrate:down     → Revertir última migración
+
+
+# ── VARIABLES DE ENTORNO REQUERIDAS ─────────────────────────
+# DATABASE_URL             → postgresql://user:pass@host:5432/history_db
+# JWT_SECRET               → Mismo secreto compartido con auth-service
+# PORT                     → Puerto del servidor (default: 3006)
+# NODE_ENV                 → development | production | test
+
+
+# ── CONFIGURACIÓN TYPESCRIPT ────────────────────────────────
+# tsconfig.json            → Compilación de producción
+#
+# module:           commonjs
+# moduleResolution: node
+# target:           ES2022
+# strict:           true
