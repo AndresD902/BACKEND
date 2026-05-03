@@ -1,5 +1,6 @@
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { generarUrlSubida, generarUrlDescarga } from '../../../src/config/s3';
 
 jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({})),
@@ -14,15 +15,6 @@ jest.mock('@aws-sdk/s3-request-presigner', () => ({
 const mockGetSignedUrl = getSignedUrl as jest.Mock;
 
 describe('S3 helpers', () => {
-  let generarUrlSubida: typeof import('../../../src/config/s3').generarUrlSubida;
-  let generarUrlDescarga: typeof import('../../../src/config/s3').generarUrlDescarga;
-
-  beforeAll(async () => {
-    const s3Module = await import('../../../src/config/s3');
-    generarUrlSubida  = s3Module.generarUrlSubida;
-    generarUrlDescarga = s3Module.generarUrlDescarga;
-  });
-
   beforeEach(() => jest.clearAllMocks());
 
   describe('generarUrlSubida', () => {
