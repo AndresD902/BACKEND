@@ -46,7 +46,7 @@ export function authenticateToken(
        };
        next();
     }catch (error) {
-        next(new AppError('Invalid authenticated token', 401));
+        next(new AppError('Invalid or expired authentication token', 401));
     }
 }
 
