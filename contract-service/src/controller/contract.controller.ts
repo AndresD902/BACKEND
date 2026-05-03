@@ -162,37 +162,6 @@ export class ContractController {
 
         return parsedValue;
     }
-
-
-    private handleError(error: unknown, response: Response): void {
-        const message = error instanceof Error ? error.message : 'An unexpected error occurred';
-
-        if (message.includes('not found')) {
-            response.status(404).json({
-                success: false,
-                message
-            });
-            return;
-        }
-
-        if (message.includes('already has an active contract')){
-            response.status(409).json({ success: false, message });
-            return;
-        }
-
-        if (message.includes('must be a positive integer')) {
-            response.status(400).json({
-                success: false,
-                message
-            });
-            return;
-        }
-
-        response.status(500).json({
-            success: false,
-            message: 'Internal server error',
-        });
-    }
 }
 
 export const contractController = new ContractController(contractService);
