@@ -22,6 +22,12 @@ jsonwebtoken@^9.0.3         # Generación y verificación de JWT (access tokens)
 bcrypt@^6.0.0               # Hash seguro de contraseñas (bcrypt, 12 rondas)
 dotenv@^17.3.1              # Carga de variables de entorno desde .env
 
+# Correo electrónico
+nodemailer@^8.0.7           # Envío de correos via SMTP (recuperación de contraseña)
+
+# Comunicación entre servicios
+axios@^1.15.2               # Cliente HTTP para integración con history-service
+
 # Validación
 zod@^4.3.6                  # Validación de esquemas con TypeScript-first
 
@@ -48,6 +54,7 @@ supertest@^7.2.2            # Testing de endpoints HTTP
 @types/jsonwebtoken@^9.0.10
 @types/morgan@^1.9.10
 @types/node@^25.5.0
+@types/nodemailer@^8.0.0
 @types/pg@^8.20.0           # REQUERIDO: tipos para el driver pg
 @types/supertest@^7.2.0
 
@@ -61,14 +68,16 @@ prettier@^3.8.1
 
 
 # ── NOTAS DE INSTALACIÓN ────────────────────────────────────
-# 1. Requiere Node.js >= 18 (para compatibilidad con Node16 module resolution)
+# 1. Requiere Node.js >= 18
 # 2. Requiere PostgreSQL >= 14 corriendo y accesible
 # 3. Configurar .env antes de ejecutar (ver .env.example)
 # 4. Ejecutar migraciones antes del primer inicio:
 #       npm run migrate
-# 5. Para desarrollo:
+# 5. Para habilitar envío real de correos, configurar SMTP_USER y SMTP_PASS en .env
+#    Si no están configuradas, los correos se imprimen en consola (modo desarrollo).
+# 6. Para desarrollo:
 #       npm run dev
-# 6. Para producción:
+# 7. Para producción:
 #       npm run build && npm start
 
 
@@ -76,12 +85,31 @@ prettier@^3.8.1
 # npm run dev              → Servidor con hot-reload (ts-node-dev)
 # npm run build            → Compilar TypeScript a dist/
 # npm start                → Iniciar servidor compilado
-# npm test                 → Ejecutar tests con Jest
-# npm run test:coverage    → Tests + reporte de cobertura
+# npm test                 → Ejecutar tests con Jest (--runInBand)
+# npm run test:watch       → Tests en modo watch
+# npm run test:coverage    → Tests + reporte de cobertura (umbral: 60%)
 # npm run migrate          → Aplicar migraciones pendientes
 # npm run migrate:down     → Revertir última migración
 # npm run lint             → Verificar código con ESLint
 # npm run format           → Formatear código con Prettier
+
+
+# ── VARIABLES DE ENTORNO REQUERIDAS ─────────────────────────
+# NODE_ENV                     → development | production | test
+# PORT                         → Puerto del servidor (default: 3001)
+# SERVICE_NAME                 → auth-service
+# JWT_SECRET                   → Secreto para firmar JWT (mín. 32 caracteres)
+# JWT_EXPIRES_IN               → Duración del access token (1h)
+# BCRYPT_SALT_ROUNDS           → Rondas de bcrypt (recomendado: 12)
+# DATABASE_URL                 → postgresql://user:pass@host:5432/auth_db
+# REFRESH_TOKEN_EXPIRES_DAYS   → Días de validez del refresh token (default: 7)
+# RESET_TOKEN_EXPIRES_MINUTES  → Minutos de validez del token de reset (default: 15)
+# FRONTEND_URL                 → URL del frontend (default: http://localhost:5173)
+# SMTP_HOST                    → Host SMTP (default: smtp.gmail.com)
+# SMTP_PORT                    → Puerto SMTP (default: 587)
+# SMTP_USER                    → Cuenta de correo (si vacío → modo consola)
+# SMTP_PASS                    → App Password de Gmail
+# SMTP_FROM                    → Dirección "From" (default: SMTP_USER)
 
 
 # ── CONFIGURACIÓN TYPESCRIPT ────────────────────────────────

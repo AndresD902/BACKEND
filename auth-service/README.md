@@ -2,7 +2,7 @@
 
 > Microservicio 1 de 5 · Puerto 3001 · Base de datos: `auth_db`
 
-Sistema de autenticación basado en JWT + Refresh Tokens con revocación real de sesiones, bcrypt para contraseñas y control de acceso por roles.
+Sistema de autenticación basado en JWT + Refresh Tokens con revocación real de sesiones, bcrypt para contraseñas, recuperación de contraseña por correo electrónico (Nodemailer + Gmail SMTP) y control de acceso por roles.
 
 ---
 
@@ -35,6 +35,9 @@ Sistema de autenticación basado en JWT + Refresh Tokens con revocación real de
 | Renovación de sesión | Nuevo access token sin pedir contraseña |
 | Logout real | Revoca el refresh token en BD → sesión inválida |
 | Logout global | Revoca TODOS los tokens del usuario |
+| Recuperación de contraseña | Token de un solo uso enviado por correo (expira en 15 min) |
+| Cambio de contraseña | Verifica contraseña actual y actualiza hash bcrypt |
+| Perfil de usuario | Retorna datos del usuario autenticado |
 | Gestión de usuarios | CRUD básico por roles (ADMIN/HR) |
 | Middleware reutilizable | `authenticate` + `authorize` copiables a otros servicios |
 
@@ -51,6 +54,7 @@ Sistema de autenticación basado en JWT + Refresh Tokens con revocación real de
 | Driver BD | pg (node-postgres) |
 | Autenticación | jsonwebtoken |
 | Contraseñas | bcrypt |
+| Correo electrónico | Nodemailer (SMTP — Gmail u otro proveedor) |
 | Validación | Zod v4 |
 | Pruebas | Jest + ts-jest |
 | Linting | ESLint + Prettier |
@@ -63,14 +67,16 @@ Sistema de autenticación basado en JWT + Refresh Tokens con revocación real de
 ```
 auth-service/
 ├── migrations/
-│   ├── 001_create_users.ts          # Tabla users con roles e índices
-│   └── 002_create_refresh_tokens.ts # Tabla refresh_tokens con FK a users
+│   ├── 001_create_users.ts                          # Tabla users con roles e índices
+│   ├── 002_create_refresh_tokens.ts                 # Tabla refresh_tokens con FK a users
+│   └── 1777862763125_create-password-reset-tokens.ts # Tabla password_reset_tokens
 ├── src/
 │   ├── config/
 │   │   ├── database.ts              # Pool de conexión pg
 │   │   └── env.ts                   # Lectura y validación de variables de entorno
 │   ├── controllers/
-│   │   ├── auth.controller.ts       # register, login, refresh, logout, logout-all
+│   │   ├── auth.controller.ts       # register, login, refresh, logout, logout-all,
+│   │   │                            #   forgot-password, reset-password, change-password
 │   │   └── user.controller.ts       # findAll, findById, activate, deactivate
 │   ├── dtos/
 │   │   ├── create-user.dto.ts       # DTO para registro
@@ -78,6 +84,7 @@ auth-service/
 │   ├── entities/
 │   │   ├── user.entity.ts           # Interfaz User
 │   │   ├── refresh-token.entity.ts  # Interfaz RefreshToken
+│   │   ├── password-reset-token.entity.ts # Interfaz PasswordResetToken
 │   │   └── role.entity.ts           # Enum RoleName + interfaz Role
 │   ├── middlewares/
 │   │   ├── auth.middleware.ts        # authenticate — verifica JWT
@@ -86,19 +93,30 @@ auth-service/
 │   │   ├── not-found.middleware.ts
 │   │   └── validate-request.middleware.ts
 │   ├── repositories/
-│   │   ├── user.repository.ts        # CRUD de usuarios (raw pg)
-│   │   └── refreshToken.repository.ts # CRUD de refresh tokens
+│   │   ├── interfaces/
+│   │   │   ├── user-repository.interface.ts
+│   │   │   ├── refresh-token-repository.interface.ts
+│   │   │   └── password-reset-token-repository.interface.ts
+│   │   ├── user.repository.ts
+│   │   ├── refreshToken.repository.ts
+│   │   └── password-reset-token.repository.ts
 │   ├── routes/
 │   │   ├── auth.routes.ts            # /api/v1/auth/*
 │   │   ├── user.routes.ts            # /api/v1/users/*
 │   │   ├── health.routes.ts          # /api/v1/health
-│   │   ├── protected.routes.ts       # /api/v1/protected/* (ejemplos)
+│   │   ├── protected.routes.ts       # /api/v1/protected/*
 │   │   └── index.ts                  # Router raíz
 │   ├── schemas/
 │   │   └── auth.schema.ts            # Esquemas Zod para validación
 │   ├── services/
-│   │   ├── auth.service.ts           # Lógica: register, login, refresh, logout
-│   │   └── user.service.ts           # Lógica: gestión de usuarios
+│   │   ├── interfaces/
+│   │   │   ├── auth-service.interface.ts
+│   │   │   └── email-service.interface.ts
+│   │   ├── auth.service.ts           # Lógica: register, login, refresh, logout,
+│   │   │                             #   forgotPassword, resetPassword, changePassword
+│   │   ├── user.service.ts           # Lógica: gestión de usuarios
+│   │   └── email/
+│   │       └── smtp-email.service.ts # SmtpEmailService (Nodemailer) + ConsoleEmailService (fallback)
 │   ├── shared/
 │   │   └── errors/
 │   │       ├── app-error.ts
@@ -111,7 +129,7 @@ auth-service/
 │   ├── utils/
 │   │   ├── jwt.util.ts               # generateJwtToken, verifyJwtToken
 │   │   ├── password.util.ts          # hashPassword, comparePassword
-│   │   └── token.util.ts             # generateRefreshToken, hashToken
+│   │   └── token.util.ts             # generateRefreshToken, hashToken (SHA-256)
 │   ├── app.ts                        # Express app con middlewares
 │   └── server.ts                     # Bootstrap + graceful shutdown
 ├── tests/
@@ -164,27 +182,49 @@ CREATE TABLE "refresh_tokens" (
 );
 ```
 
+### Tabla `password_reset_tokens`
+
+```sql
+CREATE TABLE "password_reset_tokens" (
+  "id"          BIGSERIAL     NOT NULL,
+  "user_id"     BIGINT        NOT NULL,
+  "token_hash"  VARCHAR(255)  NOT NULL UNIQUE,  -- SHA-256 del token crudo
+  "expires_at"  TIMESTAMP(6)  NOT NULL,
+  "used"        BOOLEAN       NOT NULL DEFAULT FALSE,
+  "created_at"  TIMESTAMP(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "password_reset_tokens_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "fk_prt_user"
+    FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE
+);
+```
+
 ### Relación entre tablas
 
 ```
-users (1) ─────────── (N) refresh_tokens
-  id                        user_id  ← FK con CASCADE
-  email                     token_hash (SHA-256, único)
-  password_hash             expires_at
-  role                      revoked (true al hacer logout)
-  is_active
+users (1) ─────────────────── (N) refresh_tokens
+  id                                  user_id  ← FK CASCADE
+  email                               token_hash (SHA-256)
+  password_hash                       expires_at
+  role                                revoked
+
+users (1) ─────────────────── (N) password_reset_tokens
+  id                                  user_id  ← FK CASCADE
+                                      token_hash (SHA-256, único)
+                                      expires_at
+                                      used (true al usar el token)
 ```
 
 ---
 
 ## Migraciones
 
-Las migraciones usan `node-pg-migrate` con TypeScript, igual que el Employee Service. Se ejecutan en orden secuencial y son idempotentes.
+Las migraciones usan `node-pg-migrate` con TypeScript. Se ejecutan en orden secuencial y son idempotentes.
 
 ```
 migrations/
-├── 001_create_users.ts          # Crea tabla users + índices
-└── 002_create_refresh_tokens.ts # Crea tabla refresh_tokens + FK
+├── 001_create_users.ts                           # Crea tabla users + índices
+├── 002_create_refresh_tokens.ts                  # Crea tabla refresh_tokens + FK
+└── 1777862763125_create-password-reset-tokens.ts # Crea tabla password_reset_tokens + FK
 ```
 
 **Ejecutar migraciones:**
@@ -206,6 +246,17 @@ npm run migrate:down   # Revierte la última migración
 | `POST` | `/auth/refresh` | Renueva access token con refresh token | No |
 | `POST` | `/auth/logout` | Cierra sesión actual (revoca refresh token) | No |
 | `POST` | `/auth/logout-all` | Cierra TODAS las sesiones del usuario | Bearer JWT |
+| `POST` | `/auth/forgot-password` | Envía email de recuperación de contraseña | No |
+| `POST` | `/auth/reset-password` | Restablece contraseña con token del email | No |
+
+### Rutas protegidas — `/api/v1/protected`
+
+| Método | Ruta | Descripción | Auth |
+|--------|------|-------------|------|
+| `GET` | `/protected/profile` | Datos del usuario autenticado | Bearer JWT |
+| `POST` | `/protected/change-password` | Cambia contraseña (requiere contraseña actual) | Bearer JWT |
+| `GET` | `/protected/admin-only` | Solo acceso ADMIN | Bearer JWT + ADMIN |
+| `GET` | `/protected/hr-or-admin` | Acceso HR o ADMIN | Bearer JWT + HR/ADMIN |
 
 ### Usuarios — `/api/v1/users`
 
@@ -222,14 +273,6 @@ npm run migrate:down   # Revierte la última migración
 |--------|------|-------------|
 | `GET` | `/health` | Estado del servicio y conexión a BD |
 
-### Rutas protegidas de ejemplo — `/api/v1/protected`
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/protected/me` | Datos del usuario autenticado |
-| `GET` | `/protected/admin-only` | Solo acceso ADMIN |
-| `GET` | `/protected/hr-or-admin` | Acceso HR o ADMIN |
-
 ---
 
 ## Flujos de Autenticación
@@ -240,13 +283,12 @@ npm run migrate:down   # Revierte la última migración
 POST /api/v1/auth/register
   Body: { firstName, lastName, email, password, role }
   ──────────────────────────────────────────────────
-  1. Validar body con Zod (validateRequest middleware)
+  1. Validar body con Zod
   2. Normalizar email → lowercase.trim()
   3. Verificar que el email no exista en users
-  4. hashPassword(password) → bcrypt con 12 salt rounds
+  4. hashPassword(password) → bcrypt (12 salt rounds)
   5. INSERT en users
   6. Retornar 201 { id, firstName, lastName, email, role, isActive }
-     (passwordHash nunca se retorna)
 ```
 
 ### Login
@@ -278,7 +320,6 @@ POST /api/v1/auth/refresh
   4. Buscar usuario por user_id → verificar is_active
   5. Generar nuevo access_token (JWT)
   6. Retornar 200 { accessToken }
-  7. Si alguna verificación falla → 401 Unauthorized
 ```
 
 ### Logout (sesión actual)
@@ -304,6 +345,53 @@ POST /api/v1/auth/logout-all
   4. Retornar 200 { message: 'All sessions closed successfully' }
 ```
 
+### Recuperación de Contraseña
+
+```
+POST /api/v1/auth/forgot-password
+  Body: { email }
+  ─────────────────────────────────────────────────────
+  1. Buscar usuario por email (siempre responde 200 para evitar enumeración)
+  2. Si no existe o está inactivo → retornar silenciosamente
+  3. Eliminar tokens expirados previos del usuario
+  4. Generar rawToken: crypto.randomBytes(32).toString('hex')
+  5. Guardar SHA-256(rawToken) en password_reset_tokens con expires_at = +15 min
+  6. Enviar email con enlace: ${FRONTEND_URL}/reset-password?token=${rawToken}
+  7. Retornar 200 { message: 'If the email is registered, a reset link was sent' }
+```
+
+### Restablecimiento de Contraseña
+
+```
+POST /api/v1/auth/reset-password
+  Body: { token, newPassword }
+  ─────────────────────────────────────────────────────
+  1. Calcular SHA-256(token)
+  2. Buscar en password_reset_tokens por token_hash
+  3. Verificar: ¿existe? ¿used = false? ¿expires_at > ahora?
+  4. hashPassword(newPassword) → nuevo hash bcrypt
+  5. UPDATE users SET password_hash = $1 WHERE id = $2
+  6. UPDATE password_reset_tokens SET used = TRUE WHERE id = $1
+  7. Revocar TODOS los refresh_tokens del usuario
+  8. Retornar 200 { message: 'Password reset successfully' }
+```
+
+### Cambio de Contraseña (usuario autenticado)
+
+```
+POST /api/v1/protected/change-password
+  Headers: Authorization: Bearer <access_token>
+  Body: { currentPassword, newPassword }
+  ─────────────────────────────────────────────────────
+  1. authenticate middleware → extrae userId del JWT
+  2. Buscar usuario por ID, verificar is_active
+  3. comparePassword(currentPassword, passwordHash) → si no coincide → 401
+  4. hashPassword(newPassword) → nuevo hash bcrypt
+  5. UPDATE users SET password_hash = $1 WHERE id = $2
+  6. Revocar TODOS los refresh_tokens del usuario
+  7. Retornar 200 { message: 'Password changed successfully' }
+```
+
 ---
 
 ## Variables de Entorno
@@ -317,14 +405,32 @@ SERVICE_NAME=auth-service
 # JWT
 JWT_SECRET=minimo_32_caracteres_muy_seguro_aqui_1234
 JWT_EXPIRES_IN=1h
-REFRESH_TOKEN_EXPIRES_DAYS=7
 
 # Contraseñas
 BCRYPT_SALT_ROUNDS=12
 
 # Base de datos
 DATABASE_URL=postgresql://postgres:password@localhost:5432/auth_db
+
+# Refresh token
+REFRESH_TOKEN_EXPIRES_DAYS=7
+
+# Recuperación de contraseña
+RESET_TOKEN_EXPIRES_MINUTES=15
+FRONTEND_URL=http://localhost:5173
+
+# Correo electrónico (Nodemailer + Gmail SMTP)
+# Si SMTP_USER y SMTP_PASS están vacíos, los correos se imprimen en consola
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tucuenta@gmail.com
+SMTP_PASS=tu_app_password_de_gmail
+SMTP_FROM=tucuenta@gmail.com
 ```
+
+> **Gmail SMTP**: Usa una **App Password** (no tu contraseña personal).
+> Actívala en Google Account → Seguridad → Contraseñas de aplicaciones.
+> Requiere verificación en dos pasos habilitada.
 
 ---
 
@@ -389,6 +495,9 @@ Las pruebas cubren:
 - `refresh`: token válido, token revocado, token expirado, token inexistente
 - `logout`: revocación de token
 - `logoutAll`: revocación global, usuario inexistente
+- `forgotPassword`: usuario inexistente (responde igual), usuario inactivo (responde igual), envío de email
+- `resetPassword`: token válido, token usado, token expirado
+- `changePassword`: contraseña actual correcta, contraseña actual incorrecta, usuario inactivo
 
 ---
 
@@ -426,6 +535,27 @@ Cliente                         Auth Service                   Base de Datos
   │◄── 200 { message } ─────────────│                               │
 ```
 
+### Flujo de recuperación de contraseña
+
+```
+Cliente                         Auth Service                  Email (SMTP)    BD
+  │                                  │                              │           │
+  │─── POST /auth/forgot-password ──►│                              │           │
+  │    { email }                      │── SELECT users WHERE email ──────────────►│
+  │                                  │── INSERT password_reset_tokens ───────────►│
+  │                                  │── sendPasswordResetEmail() ──►│           │
+  │◄── 200 (siempre) ───────────────│                              │           │
+  │                                  │                              │           │
+  │  (usuario abre el email)         │                              │           │
+  │                                  │                              │           │
+  │─── POST /auth/reset-password ───►│                              │           │
+  │    { token, newPassword }         │── SELECT password_reset_tokens ──────────►│
+  │                                  │── UPDATE users.password_hash ─────────────►│
+  │                                  │── UPDATE prt SET used = TRUE ─────────────►│
+  │                                  │── UPDATE refresh_tokens SET revoked ───────►│
+  │◄── 200 { message } ─────────────│                              │           │
+```
+
 ### Validación de JWT en otros microservicios
 
 ```
@@ -440,7 +570,7 @@ Cliente                       Employee/Contract/etc             Auth Service
   │◄── 200 { empleados } ───────────│                               │
 ```
 
-> **Nota:** Cada microservicio valida el JWT localmente usando el mismo `JWT_SECRET`. No hay llamada HTTP al Auth Service por cada request — esto es stateless y eficiente.
+> **Nota:** Cada microservicio valida el JWT localmente usando el mismo `JWT_SECRET`. No hay llamada HTTP al Auth Service por cada request.
 
 ---
 
@@ -452,7 +582,7 @@ Cliente                       Employee/Contract/etc             Auth Service
 - `authenticate` middleware: copiado/adaptado en cada servicio para validar tokens
 - `authorize` middleware: copiado/adaptado para validar roles
 
-### Comunicación con History Service (futuro)
+### Comunicación con History Service
 
 ```
 Auth Service → POST /api/historial/acciones

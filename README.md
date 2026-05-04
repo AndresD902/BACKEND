@@ -92,7 +92,7 @@ Sistema web centralizado basado en **arquitectura de microservicios**, con model
 
 | # | Servicio | Responsabilidad clave |
 |---|----------|-----------------------|
-| 1 | **Auth Service** | Hasheo bcrypt + JWT + refresh tokens + logout real |
+| 1 | **Auth Service** | Hasheo bcrypt + JWT + refresh tokens + logout real + recuperación de contraseña por email |
 | 2 | **Employee Service** | Empleados + historial de cargo/salario + archivos en S3 |
 | 3 | **Contract Service** | Contratos + adendas + validación REST al Employee Service |
 | 4 | **Vacation Service** | Solicitudes + días disponibles por año + festivos en BD + email |
@@ -184,13 +184,16 @@ Esta sección detalla la lógica interna, responsabilidades, flujos y estructura
 
 ### Microservicio 1 — Auth Service
 
-**Puerto:** 3001 | **Base de datos:** `auth_db` | **Tablas:** `usuarios`, `refresh_tokens`
+**Puerto:** 3001 | **Base de datos:** `auth_db` | **Tablas:** `users`, `refresh_tokens`, `password_reset_tokens`
 
 #### Responsabilidades
 - Registrar usuarios con contraseña hasheada en bcrypt.
 - Autenticar usuarios y emitir `access_token` (JWT, 1h) + `refresh_token` (opaco, 7 días).
 - Renovar el `access_token` sin pedir contraseña nuevamente, usando el `refresh_token`.
 - Revocar tokens en logout (individual y global).
+- Recuperar contraseña olvidada: genera token de un solo uso y envía enlace por email (Nodemailer + SMTP).
+- Restablecer contraseña: valida token, actualiza hash bcrypt y revoca todas las sesiones.
+- Cambiar contraseña: verifica contraseña actual y actualiza el hash.
 - Proveer middleware `verifyToken` reutilizable por los demás servicios.
 
 #### Flujo de Login
