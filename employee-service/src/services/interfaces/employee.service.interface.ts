@@ -2,9 +2,10 @@ import { Empleado, CargoSalario, DocumentoEmpleado } from '../../entities/employ
 import { CreateEmpleadoDto } from '../../dtos/create-employee.dto';
 import { UpdateEmpleadoDto, CreateCargoDto, ConfirmarDocumentoDto, PresignedUrlDto } from '../../dtos/update-employee.dto';
 import { AuthenticatedUser } from '../../types/authenticated-user.type';
+import { EmployeeFilters } from '../../repositories/interfaces/employee.repository.interface';
 
 export interface IEmployeeService {
-  getAll(page: number, limit: number): Promise<{ empleados: Empleado[]; total: number; page: number; limit: number }>;
+  getAll(page: number, limit: number, filters?: EmployeeFilters): Promise<{ empleados: Empleado[]; total: number; page: number; limit: number }>;
   getById(id: number): Promise<Empleado>;
   create(dto: CreateEmpleadoDto, actor: AuthenticatedUser): Promise<Empleado>;
   update(id: number, dto: UpdateEmpleadoDto, actor: AuthenticatedUser): Promise<Empleado>;

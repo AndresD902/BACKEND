@@ -1,17 +1,51 @@
 import { pool } from '../config/database';
 import { Empleado } from '../entities/employee.entity';
+import { EmployeeFilters } from './interfaces/employee.repository.interface';
+
+function buildWhere(filters?: EmployeeFilters): { clause: string; values: unknown[] } {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (filters?.estado) {
+    values.push(filters.estado);
+    conditions.push(`estado = $${values.length}`);
+  }
+
+  if (filters?.departamento) {
+    values.push(filters.departamento);
+    conditions.push(`LOWER(departamento) = LOWER($${values.length})`);
+  }
+
+  if (filters?.search) {
+    const term = `%${filters.search.toLowerCase()}%`;
+    values.push(term);
+    conditions.push(
+      `(LOWER(nombre) LIKE $${values.length} OR LOWER(apellido) LIKE $${values.length} OR cedula LIKE $${values.length})`
+    );
+  }
+
+  const clause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { clause, values };
+}
 
 export class EmployeeRepository {
-  async findAll(limit: number, offset: number): Promise<Empleado[]> {
+  async findAll(limit: number, offset: number, filters?: EmployeeFilters): Promise<Empleado[]> {
+    const { clause, values } = buildWhere(filters);
+    const limitIdx  = values.length + 1;
+    const offsetIdx = values.length + 2;
     const { rows } = await pool.query<Empleado>(
-      'SELECT * FROM empleados ORDER BY created_at DESC LIMIT $1 OFFSET $2',
-      [limit, offset],
+      `SELECT * FROM empleados ${clause} ORDER BY created_at DESC LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      [...values, limit, offset],
     );
     return rows;
   }
 
-  async count(): Promise<number> {
-    const { rows } = await pool.query<{ count: string }>('SELECT COUNT(*) FROM empleados');
+  async count(filters?: EmployeeFilters): Promise<number> {
+    const { clause, values } = buildWhere(filters);
+    const { rows } = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) FROM empleados ${clause}`,
+      values,
+    );
     return parseInt(rows[0].count, 10);
   }
 
