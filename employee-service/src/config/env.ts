@@ -20,6 +20,7 @@ export const env = {
   jwtSecret:          required('JWT_SECRET'),
   internalApiKey:     optional('INTERNAL_API_KEY', 'dev-internal-key-change-in-prod'),
   historyServiceUrl:  optional('HISTORY_SERVICE_URL', 'http://localhost:3006'),
+  authServiceUrl:     optional('AUTH_SERVICE_URL', 'http://localhost:3001/api/v1'),
   databaseUrl:        required('DATABASE_URL'),
 
   awsRegion:          optional('AWS_REGION', 'us-east-1'),
