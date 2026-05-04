@@ -45,6 +45,18 @@ export class UserController {
     });
   });
 
+  public getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError('User not authenticated');
+    }
+    const user = await this.userService.findById(req.user.sub);
+    res.status(200).json({
+      success: true,
+      message: 'Profile retrieved successfully',
+      data: user,
+    });
+  });
+
   public changePassword = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError('User not authenticated');

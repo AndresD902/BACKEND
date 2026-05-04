@@ -49,8 +49,19 @@ export const changePasswordSchema = z.object({
   newPassword: z.string().min(8, { message: 'New password must be at least 8 characters long' }).max(100, { message: 'New password must be at most 100 characters long' }),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email({ message: 'Invalid email address' }),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, { message: 'Token is required' }),
+  newPassword: z.string().min(8, { message: 'New password must be at least 8 characters long' }).max(100, { message: 'New password must be at most 100 characters long' }),
+});
+
 export type CreateUserSchema = z.infer<typeof createUserSchema>;
 export type LoginUserSchema = z.infer<typeof loginSchema>;
 export type RefreshTokenSchema = z.infer<typeof refreshTokenSchema>;
 export type LogoutSchema = z.infer<typeof logoutSchema>;
 export type ChangePasswordSchema = z.infer<typeof changePasswordSchema>;
+export type ForgotPasswordSchema = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordSchema = z.infer<typeof resetPasswordSchema>;

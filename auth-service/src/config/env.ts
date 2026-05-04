@@ -23,4 +23,15 @@ export const env = {
   refreshTokenExpiresDays: Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS ?? '7'),
   historyServiceUrl: process.env.HISTORY_SERVICE_URL ?? 'http://localhost:3006',
   internalApiKey: process.env.INTERNAL_API_KEY ?? 'dev-internal-key-change-in-prod',
+
+  // Email SMTP
+  smtpHost: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+  smtpPort: Number(process.env.SMTP_PORT ?? '587'),
+  smtpUser: process.env.SMTP_USER ?? '',
+  smtpPass: process.env.SMTP_PASS ?? '',
+  smtpFrom: process.env.SMTP_FROM ?? '',
+
+  // Password reset
+  resetTokenExpiresMinutes: Number(process.env.RESET_TOKEN_EXPIRES_MINUTES ?? '15'),
+  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
 };
