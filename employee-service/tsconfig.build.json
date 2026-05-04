@@ -1,11 +1,22 @@
 {
-  // Dedicated config for production builds — excludes test files and
-  // emits output to dist/. Used by the "build" npm script.
-  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": false,
+    "target": "ES2022",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "outDir": "./dist",
     "rootDir": "./src",
-    "outDir": "./dist"
+
+    "typeRoots": ["./node_modules/@types"],
+    "types": ["node"],
+
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "coverage", "tests", "migrations"]
 }

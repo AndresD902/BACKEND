@@ -139,6 +139,56 @@ GET {{auth_url}}/health
 
 ###
 
+### 1.15  Cambio de contraseña (usuario autenticado)
+###        Requiere Bearer token. Cambio seguro con verificación de contraseña actual.
+POST {{auth_url}}/protected/change-password
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "currentPassword": "Admin1234!",
+  "newPassword": "Admin5678!"
+}
+
+###
+
+### 1.16  Solicitar recuperación de contraseña (forgot-password)
+###        Envía un email con link de recuperación al correo registrado.
+POST {{auth_url}}/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "admin@hr-system.com"
+}
+
+###
+
+### 1.17  Restablecer contraseña con token (reset-password)
+###        Usar el token recibido por email en el paso 1.16
+POST {{auth_url}}/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "PEGAR_TOKEN_DEL_EMAIL_AQUI",
+  "newPassword": "NewPassword1!"
+}
+
+###
+
+### 1.18  Notificar cambio de empleado (endpoint interno — x-internal-key requerida)
+###        Llamado automáticamente por employee-service. Esta prueba es solo para validación manual.
+POST {{auth_url}}/internal/notify-employee-change
+x-internal-key: dev-internal-key-change-in-prod
+Content-Type: application/json
+
+{
+  "userEmail": "admin@hr-system.com",
+  "action": "creacion",
+  "employeeName": "Pablo García"
+}
+
+###
+
 
 ### ============================================================
 ###   2. EMPLOYEE-SERVICE — usando el JWT emitido por auth-service

@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "Node16",
-    "moduleResolution": "Node16",
+    "module": "node16",
+    "moduleResolution": "node16",
     "rootDir": ".",
     "noEmit": true,
 
@@ -17,6 +17,6 @@
     "forceConsistentCasingInFileNames": true,
     "sourceMap": true
   },
-  "include": ["src", "tests"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist", "coverage", "migrations"]
 }
