@@ -18,4 +18,6 @@ export interface IUserRepository {
   updateLastLogin(id: string): Promise<void>;
   updateStatus(id: string, isActive: boolean): Promise<User | null>;
   updatePassword(id: string, passwordHash: string): Promise<User | null>;
+  updatePasswordHash(id: string, passwordHash: string): Promise<void>;
+  updateNotificationPrefs(id: string, notifLogin: boolean, notifCambios: boolean): Promise<void>;
 }
