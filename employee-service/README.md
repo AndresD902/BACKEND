@@ -224,26 +224,44 @@ La subida de archivos usa **tres pasos** para no exponer credenciales AWS al cli
 ```
 Paso A — Obtener presigned URL de subida
 POST /api/empleados/presigned-url
-Body: { "empleadoId": 1, "tipoDocumento": "foto", "contentType": "image/jpeg" }
-← { url: "https://s3.amazonaws.com/...", key: "fotos/1_1234567890.jpeg" }
+Body: { "empleado_id": 1, "tipo": "hoja_vida", "contentType": "application/pdf" }
+← { url: "https://<bucket>.s3.amazonaws.com/...", key: "hojas_vida/1_1234567890.pdf" }
 
 Paso B — PUT directo desde el cliente a S3 (NO pasa por el backend)
 PUT <url del paso A>
-Headers: Content-Type: image/jpeg
+Headers: Content-Type: application/pdf
 Body: <bytes del archivo>
 ← 200 OK de AWS S3
 
 Paso C — Confirmar el documento en la base de datos
 POST /api/empleados/:id/documentos
-Body: { "tipoDocumento": "foto", "s3Key": "fotos/1_1234567890.jpeg",
-        "contentType": "image/jpeg", "nombreOriginal": "foto.jpg" }
+Body: { "tipo": "hoja_vida", "s3_key": "hojas_vida/1_1234567890.pdf",
+        "s3_url": "https://<bucket>.s3.amazonaws.com/hojas_vida/1_1234567890.pdf",
+        "mime_type": "application/pdf", "nombre_archivo": "cv_juan.pdf" }
 ← 201 Created con el registro del documento
 ```
 
 > **Importante:** El archivo físico vive en S3. Paso C solo crea el registro en BD.
 > Sin Paso C, el archivo existe en S3 pero el sistema no lo reconoce.
 
+### Estructura de carpetas en S3
+
+| Tipo de documento | Carpeta en S3 | Extensiones frecuentes |
+|-------------------|---------------|------------------------|
+| `foto` | `fotos/` | jpg, png, webp |
+| `hoja_vida` | `hojas_vida/` | pdf, doc, docx |
+| `certificado` | `certificados/` | pdf |
+| `diploma` | `diplomas/` | pdf, jpg |
+| `contrato` | `contratos/` | pdf, doc |
+| `otro` | `otros/` | cualquiera |
+
+El nombre de cada objeto sigue el patrón: `<carpeta>/<empleadoId>_<timestamp>.<ext>`  
+Ejemplo: `hojas_vida/42_1735689420000.pdf`
+
 Para descargar, usar `GET /documentos/:docId/url` que devuelve una presigned URL con 1 hora de validez.
+
+> **CORS en S3**: el bucket debe tener una política CORS que permita `PUT` desde el origen
+> del frontend (`http://localhost:5173` en desarrollo). Sin esto, el Paso B fallará con error de red.
 
 ---
 

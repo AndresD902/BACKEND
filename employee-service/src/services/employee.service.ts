@@ -3,10 +3,12 @@ import { cargoSalarioRepository } from '../repositories/cargoSalario.repository'
 import { documentoRepository } from '../repositories/documento.repository';
 import { generarUrlSubida, generarUrlDescarga } from '../config/s3';
 import { registrarCambio } from '../clients/historyServiceClient';
+import { notificarCambioEmpleado } from '../clients/authNotificationClient';
 import { IEmployeeRepository } from '../repositories/interfaces/employee.repository.interface';
 import { ICargoSalarioRepository } from '../repositories/interfaces/cargo-salario.repository.interface';
 import { IDocumentoRepository } from '../repositories/interfaces/documento.repository.interface';
 import { IEmployeeService } from './interfaces/employee.service.interface';
+import { EmployeeFilters } from '../repositories/interfaces/employee.repository.interface';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { ConflictError } from '../shared/errors/conflict.error';
 import { CreateEmpleadoDto } from '../dtos/create-employee.dto';
@@ -17,6 +19,7 @@ import { Empleado, CargoSalario, DocumentoEmpleado } from '../entities/employee.
 type GenerarUrlSubidaFn = typeof generarUrlSubida;
 type GenerarUrlDescargaFn = typeof generarUrlDescarga;
 type RegistrarCambioFn = typeof registrarCambio;
+type NotificarCambioFn = typeof notificarCambioEmpleado;
 
 // Dependencies injected via constructor (DIP). Production code uses the real singletons
 // as defaults; tests pass mocks without touching module-level state.
@@ -28,6 +31,7 @@ export class EmployeeService implements IEmployeeService {
     private readonly urlSubida: GenerarUrlSubidaFn = generarUrlSubida,
     private readonly urlDescarga: GenerarUrlDescargaFn = generarUrlDescarga,
     private readonly registrar: RegistrarCambioFn = registrarCambio,
+    private readonly notificar: NotificarCambioFn = notificarCambioEmpleado,
   ) {}
 
   private async findOrFail(id: number): Promise<Empleado> {
@@ -38,11 +42,11 @@ export class EmployeeService implements IEmployeeService {
 
   // ─── Empleados ─────────────────────────────────────────────────────────────
 
-  async getAll(page: number, limit: number) {
+  async getAll(page: number, limit: number, filters?: EmployeeFilters) {
     const offset = (page - 1) * limit;
     const [empleados, total] = await Promise.all([
-      this.empRepo.findAll(limit, offset),
-      this.empRepo.count(),
+      this.empRepo.findAll(limit, offset, filters),
+      this.empRepo.count(filters),
     ]);
     return { empleados, total, page, limit };
   }
@@ -101,6 +105,11 @@ export class EmployeeService implements IEmployeeService {
       usuario_modificador: actor.email,
       rol_modificador:     actor.rol,
     });
+    this.notificar({
+      userEmail:    actor.email,
+      action:       'creacion',
+      employeeName: `${empleado.nombre} ${empleado.apellido}`,
+    });
 
     return empleado;
   }
@@ -142,6 +151,11 @@ export class EmployeeService implements IEmployeeService {
       usuario_modificador: actor.email,
       rol_modificador:     actor.rol,
     });
+    this.notificar({
+      userEmail:    actor.email,
+      action:       'actualizacion',
+      employeeName: `${empleado.nombre} ${empleado.apellido}`,
+    });
 
     return empleado;
   }
@@ -159,6 +173,11 @@ export class EmployeeService implements IEmployeeService {
       valor_nuevo:         'retirado',
       usuario_modificador: actor.email,
       rol_modificador:     actor.rol,
+    });
+    this.notificar({
+      userEmail:    actor.email,
+      action:       'retiro',
+      employeeName: `${empleado.nombre} ${empleado.apellido}`,
     });
 
     return empleado;
@@ -204,6 +223,14 @@ export class EmployeeService implements IEmployeeService {
       usuario_modificador: actor.email,
       rol_modificador:     actor.rol,
     });
+    const empInfo = await this.empRepo.findById(empleadoId);
+    if (empInfo) {
+      this.notificar({
+        userEmail:    actor.email,
+        action:       'asignacion_cargo',
+        employeeName: `${empInfo.nombre} ${empInfo.apellido}`,
+      });
+    }
 
     return nuevo;
   }
