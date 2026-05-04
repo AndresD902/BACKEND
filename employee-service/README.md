@@ -63,7 +63,8 @@ employee-service/
 │   └── 003_create_documentos_empleado.ts
 ├── src/
 │   ├── clients/
-│   │   └── historyServiceClient.ts    # Cliente HTTP fire-and-forget → history-service
+│   │   ├── historyServiceClient.ts    # Cliente HTTP fire-and-forget → history-service
+│   │   └── authNotificationClient.ts  # Cliente HTTP fire-and-forget → auth-service (notificaciones)
 │   ├── config/
 │   │   ├── database.ts                # Pool de conexiones PostgreSQL
 │   │   ├── env.ts                     # Variables de entorno validadas
@@ -256,7 +257,8 @@ Para descargar, usar `GET /documentos/:docId/url` que devuelve una presigned URL
 | `PORT` | No | `3002` | Puerto del servidor |
 | `NODE_ENV` | No | `development` | `development`, `production`, `test` |
 | `HISTORY_SERVICE_URL` | No | `http://localhost:3006` | URL base de history-service |
-| `INTERNAL_API_KEY` | No | `dev-internal-key-...` | Clave para endpoints internos |
+| `AUTH_SERVICE_URL` | No | `http://localhost:3001/api/v1` | URL base de auth-service (notificaciones) |
+| `INTERNAL_API_KEY` | No | `dev-internal-key-...` | Clave para endpoints internos entre servicios |
 | `AWS_REGION` | No | `us-east-1` | Región del bucket S3 |
 | `AWS_ACCESS_KEY_ID` | No* | `""` | Credencial AWS |
 | `AWS_SECRET_ACCESS_KEY` | No* | `""` | Credencial AWS |
@@ -293,8 +295,17 @@ Los roles son validados localmente del JWT — no se consulta auth-service en ca
   - Se hace soft delete (`campo_modificado: "estado"`, nuevo valor: `"inactivo"`)
   - Se crea un nuevo cargo (`campo_modificado: "cargo_salario_creado"`)
 
+### → auth-service (Puerto 3001) — notificaciones
+- **Fire-and-forget**: `notifyEmployeeChange()` en `authNotificationClient.ts` llama al endpoint interno `/internal/notify-employee-change` de auth-service
+- auth-service envía un correo al usuario que realizó la acción informando el cambio
+- La clave `INTERNAL_API_KEY` es requerida para autenticar estas llamadas
+- Los fallos se loguean pero NO afectan la respuesta principal
+
 ```
-employee-service ──POST /api/historial/cambios──► history-service
+employee-service ──POST /api/historial/cambios──────► history-service
+                   (fire-and-forget, no bloquea)
+
+employee-service ──POST /internal/notify-employee-change──► auth-service
                    (fire-and-forget, no bloquea)
 ```
 

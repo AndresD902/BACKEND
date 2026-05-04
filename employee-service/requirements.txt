@@ -93,6 +93,8 @@ prettier@^3.8.1
 # JWT_SECRET               → Mismo secreto compartido con auth-service
 # PORT                     → Puerto del servidor (default: 3002)
 # HISTORY_SERVICE_URL      → URL base de history-service (default: http://localhost:3006)
+# AUTH_SERVICE_URL         → URL base de auth-service (default: http://localhost:3001/api/v1)
+# INTERNAL_API_KEY         → Clave compartida para endpoints internos entre servicios
 # AWS_REGION               → Región AWS (ej: us-east-1)
 # AWS_ACCESS_KEY_ID        → Credenciales AWS
 # AWS_SECRET_ACCESS_KEY    → Credenciales AWS
@@ -100,11 +102,11 @@ prettier@^3.8.1
 
 
 # ── CONFIGURACIÓN TYPESCRIPT ────────────────────────────────
-# tsconfig.json            → Compilación de producción
+# tsconfig.json            → Desarrollo / IDE (noEmit:true, src/ únicamente)
+# tsconfig.build.json      → Compilación de producción (outDir: dist/)
 # tsconfig.test.json       → Compilación de tests (CommonJS module, incluye tests/)
-# tsconfig.migrations.json → Compilación de migraciones
 #
-# module:           commonjs
-# moduleResolution: node
+# module:           node16
+# moduleResolution: node16
 # target:           ES2022
 # strict:           true
