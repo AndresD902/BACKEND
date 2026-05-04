@@ -3,11 +3,11 @@
     "target": "ES2022",
     "module": "node16",
     "moduleResolution": "node16",
-    "rootDir": ".",
-    "noEmit": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
 
     "typeRoots": ["./node_modules/@types"],
-    "types": ["node", "jest"],
+    "types": ["node"],
 
     "esModuleInterop": true,
     "resolveJsonModule": true,
@@ -17,6 +17,6 @@
     "forceConsistentCasingInFileNames": true,
     "sourceMap": true
   },
-  "include": ["src", "tests"],
-  "exclude": ["node_modules", "dist", "coverage", "migrations"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "migrations"]
 }
