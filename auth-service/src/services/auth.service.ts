@@ -1,8 +1,13 @@
+import crypto from 'crypto';
 import { userRepository } from '../repositories/user.repository';
 import { refreshTokenRepository } from '../repositories/refreshToken.repository';
+import { passwordResetTokenRepository as defaultPrtRepository } from '../repositories/password-reset-token.repository';
 import { IUserRepository } from '../repositories/interfaces/user-repository.interface';
 import { IRefreshTokenRepository } from '../repositories/interfaces/refresh-token-repository.interface';
-import { IAuthService, LoginResult, UserProfile } from './interfaces/auth-service.interface';
+import { IPasswordResetTokenRepository } from '../repositories/interfaces/password-reset-token-repository.interface';
+import { IAuthService, LoginResult, UserProfile, NotificationPrefs } from './interfaces/auth-service.interface';
+import { IEmailService } from './interfaces/email-service.interface';
+import { emailService as defaultEmailService } from './email/smtp-email.service';
 import { hashPassword, comparePassword } from '../utils/password.util';
 import { generateJwtToken } from '../utils/jwt.util';
 import { generateRefreshToken, hashToken } from '../utils/token.util';
@@ -19,6 +24,8 @@ export class AuthService implements IAuthService {
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly refreshTokenRepository: IRefreshTokenRepository,
+    private readonly passwordResetTokenRepository: IPasswordResetTokenRepository = defaultPrtRepository,
+    private readonly emailService: IEmailService = defaultEmailService,
   ) {}
 
   public async register(createUserDto: CreateUserDto): Promise<UserProfile> {
@@ -80,6 +87,11 @@ export class AuthService implements IAuthService {
     await this.refreshTokenRepository.create({ userId: user.id, tokenHash, expiresAt, ipOrigin, userAgent });
     await this.userRepository.updateLastLogin(user.id);
 
+    // Fire-and-forget login alert — never blocks the login response
+    if (user.notifLogin) {
+      this.emailService.sendLoginAlertEmail(user.email, ipOrigin, userAgent).catch(() => {});
+    }
+
     return {
       accessToken,
       refreshToken,
@@ -127,6 +139,71 @@ export class AuthService implements IAuthService {
       throw new NotFoundError('User not found');
     }
     await this.refreshTokenRepository.revokeAllByUserId(userId);
+  }
+
+  public async forgotPassword(email: string): Promise<void> {
+    const user = await this.userRepository.findByEmail(email.toLowerCase().trim());
+    // Always respond success to prevent email enumeration
+    if (!user || !user.isActive) return;
+
+    await this.passwordResetTokenRepository.deleteExpiredByUserId(user.id);
+
+    const rawToken  = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + env.resetTokenExpiresMinutes * 60 * 1000);
+
+    await this.passwordResetTokenRepository.create(user.id, tokenHash, expiresAt);
+
+    const resetLink = `${env.frontendUrl}/reset-password?token=${rawToken}`;
+    await this.emailService.sendPasswordResetEmail(user.email, resetLink);
+  }
+
+  public async resetPassword(rawToken: string, newPassword: string): Promise<void> {
+    const tokenHash = hashToken(rawToken);
+    const record = await this.passwordResetTokenRepository.findByHash(tokenHash);
+
+    if (!record || record.used || new Date(record.expiresAt) < new Date()) {
+      throw new UnauthorizedError('Token de restablecimiento inválido o expirado');
+    }
+
+    const newHash = await hashPassword(newPassword);
+    await this.userRepository.updatePasswordHash(record.userId, newHash);
+    await this.passwordResetTokenRepository.markUsed(record.id);
+    await this.refreshTokenRepository.revokeAllByUserId(record.userId);
+  }
+
+  public async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.userRepository.findById(userId);
+    if (!user || !user.isActive) {
+      throw new UnauthorizedError('Usuario no encontrado o inactivo');
+    }
+
+    const isValid = await comparePassword(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new UnauthorizedError('La contraseña actual es incorrecta');
+    }
+
+    const newHash = await hashPassword(newPassword);
+    await this.userRepository.updatePasswordHash(userId, newHash);
+    await this.refreshTokenRepository.revokeAllByUserId(userId);
+  }
+
+  public async getPreferences(userId: string): Promise<NotificationPrefs> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    return { notifLogin: user.notifLogin, notifCambios: user.notifCambios };
+  }
+
+  public async updatePreferences(userId: string, prefs: NotificationPrefs): Promise<void> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    await this.userRepository.updateNotificationPrefs(userId, prefs.notifLogin, prefs.notifCambios);
+  }
+
+  public async notifyEmployeeChange(userEmail: string, action: string, employeeName: string): Promise<void> {
+    const user = await this.userRepository.findByEmail(userEmail);
+    if (!user || !user.notifCambios) return;
+    this.emailService.sendEmployeeChangeEmail(user.email, action, employeeName).catch(() => {});
   }
 }
 
