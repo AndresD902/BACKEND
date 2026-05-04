@@ -22,6 +22,10 @@ jsonwebtoken@^9.0.3         # Generación y verificación de JWT (access tokens)
 bcrypt@^6.0.0               # Hash seguro de contraseñas (bcrypt, 12 rondas)
 dotenv@^17.3.1              # Carga de variables de entorno desde .env
 
+# Email y comunicación
+nodemailer@^6.10.1          # Envío de correos vía SMTP (Gmail App Password)
+axios@^1.15.2               # Cliente HTTP para llamadas fire-and-forget a otros servicios
+
 # Validación
 zod@^4.3.6                  # Validación de esquemas con TypeScript-first
 
@@ -50,6 +54,7 @@ supertest@^7.2.2            # Testing de endpoints HTTP
 @types/node@^25.5.0
 @types/pg@^8.20.0           # REQUERIDO: tipos para el driver pg
 @types/supertest@^7.2.0
+@types/nodemailer@^6.4.17   # Tipos para nodemailer (compatibilidad IDE/TS)
 
 # Calidad de código
 eslint@^8.57.0
@@ -85,9 +90,9 @@ prettier@^3.8.1
 
 
 # ── CONFIGURACIÓN TYPESCRIPT ────────────────────────────────
-# tsconfig.json          → Compilación de producción (src/ únicamente)
-# tsconfig.test.json     → Compilación de tests (src/ + tests/)
-# tsconfig.migrations.json → Compilación de migraciones
+# tsconfig.json          → Desarrollo / IDE (noEmit:true, src/ únicamente)
+# tsconfig.build.json    → Compilación de producción (outDir: dist/)
+# tsconfig.test.json     → Compilación de tests (CommonJS, src/ + tests/)
 #
 # module:           Node16   (compatible TS 5.x → 7.x)
 # moduleResolution: Node16   (resuelve exports field de paquetes)

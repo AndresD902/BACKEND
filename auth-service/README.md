@@ -36,6 +36,11 @@ Sistema de autenticación basado en JWT + Refresh Tokens con revocación real de
 | Logout real | Revoca el refresh token en BD → sesión inválida |
 | Logout global | Revoca TODOS los tokens del usuario |
 | Gestión de usuarios | CRUD básico por roles (ADMIN/HR) |
+| Recuperación de contraseña | Flujo completo forgot/reset via token de un solo uso (15 min) |
+| Cambio de contraseña | Cambio autenticado verificando contraseña actual |
+| Notificaciones por email | Alerta de login y cambios de empleados vía Gmail SMTP |
+| Preferencias de usuario | Configuración de notificaciones por correo (login, cambios) |
+| Endpoints internos | Recibe notificaciones de employee-service para reenviarlas por email |
 | Middleware reutilizable | `authenticate` + `authorize` copiables a otros servicios |
 
 ---
@@ -52,6 +57,8 @@ Sistema de autenticación basado en JWT + Refresh Tokens con revocación real de
 | Autenticación | jsonwebtoken |
 | Contraseñas | bcrypt |
 | Validación | Zod v4 |
+| Email | nodemailer + Gmail SMTP (App Password) |
+| HTTP Client | Axios (llamadas fire-and-forget) |
 | Pruebas | Jest + ts-jest |
 | Linting | ESLint + Prettier |
 | Contenedor | Docker |
@@ -63,22 +70,25 @@ Sistema de autenticación basado en JWT + Refresh Tokens con revocación real de
 ```
 auth-service/
 ├── migrations/
-│   ├── 001_create_users.ts          # Tabla users con roles e índices
-│   └── 002_create_refresh_tokens.ts # Tabla refresh_tokens con FK a users
+│   ├── 001_create_users.ts                    # Tabla users con roles e índices
+│   ├── 002_create_refresh_tokens.ts           # Tabla refresh_tokens con FK a users
+│   ├── 1777862763125_create-password-reset-tokens.ts # Tabla password_reset_tokens
+│   └── 1778200000000_add-notification-prefs.ts       # Columnas notif_login / notif_cambios
 ├── src/
 │   ├── config/
 │   │   ├── database.ts              # Pool de conexión pg
 │   │   └── env.ts                   # Lectura y validación de variables de entorno
 │   ├── controllers/
-│   │   ├── auth.controller.ts       # register, login, refresh, logout, logout-all
-│   │   └── user.controller.ts       # findAll, findById, activate, deactivate
-│   ├── dtos/
-│   │   ├── create-user.dto.ts       # DTO para registro
-│   │   └── login.dto.ts             # DTO para login
+│   │   ├── auth.controller.ts       # register, login, refresh, logout, logout-all,
+│   │   │                            #   forgotPassword, resetPassword, getPreferences,
+│   │   │                            #   updatePreferences, notifyEmployeeChange
+│   │   └── user.controller.ts       # findAll, findById, activate, deactivate,
+│   │                                #   getProfile, changePassword
 │   ├── entities/
-│   │   ├── user.entity.ts           # Interfaz User
-│   │   ├── refresh-token.entity.ts  # Interfaz RefreshToken
-│   │   └── role.entity.ts           # Enum RoleName + interfaz Role
+│   │   ├── user.entity.ts                     # Interfaz User (incluye notif_login, notif_cambios)
+│   │   ├── refresh-token.entity.ts            # Interfaz RefreshToken
+│   │   ├── password-reset-token.entity.ts     # Interfaz PasswordResetToken
+│   │   └── role.entity.ts                     # Enum RoleName + interfaz Role
 │   ├── middlewares/
 │   │   ├── auth.middleware.ts        # authenticate — verifica JWT
 │   │   ├── authorize.middleware.ts   # authorize — valida rol
@@ -86,19 +96,33 @@ auth-service/
 │   │   ├── not-found.middleware.ts
 │   │   └── validate-request.middleware.ts
 │   ├── repositories/
-│   │   ├── user.repository.ts        # CRUD de usuarios (raw pg)
-│   │   └── refreshToken.repository.ts # CRUD de refresh tokens
+│   │   ├── interfaces/
+│   │   │   ├── user-repository.interface.ts
+│   │   │   └── password-reset-token-repository.interface.ts
+│   │   ├── user.repository.ts                 # CRUD + updatePasswordHash + updateNotificationPrefs
+│   │   ├── refreshToken.repository.ts         # CRUD de refresh tokens
+│   │   └── password-reset-token.repository.ts # CRUD de tokens de recuperación
 │   ├── routes/
 │   │   ├── auth.routes.ts            # /api/v1/auth/*
 │   │   ├── user.routes.ts            # /api/v1/users/*
 │   │   ├── health.routes.ts          # /api/v1/health
-│   │   ├── protected.routes.ts       # /api/v1/protected/* (ejemplos)
+│   │   ├── protected.routes.ts       # /api/v1/protected/* (profile, preferences, etc.)
+│   │   ├── internal.routes.ts        # /api/v1/internal/* (llamadas entre servicios)
 │   │   └── index.ts                  # Router raíz
 │   ├── schemas/
-│   │   └── auth.schema.ts            # Esquemas Zod para validación
+│   │   └── auth.schema.ts            # Esquemas Zod: createUser, login, refresh, logout,
+│   │                                 #   changePassword, forgotPassword, resetPassword,
+│   │                                 #   notifyEmployeeChange
 │   ├── services/
-│   │   ├── auth.service.ts           # Lógica: register, login, refresh, logout
-│   │   └── user.service.ts           # Lógica: gestión de usuarios
+│   │   ├── interfaces/
+│   │   │   ├── auth-service.interface.ts
+│   │   │   └── email-service.interface.ts
+│   │   ├── email/
+│   │   │   └── smtp-email.service.ts  # SmtpEmailService + ConsoleEmailService (fallback)
+│   │   ├── auth.service.ts            # Lógica completa: register, login, refresh, logout,
+│   │   │                              #   forgotPassword, resetPassword, changePassword,
+│   │   │                              #   getPreferences, updatePreferences, notifyEmployeeChange
+│   │   └── user.service.ts            # Lógica: gestión de usuarios
 │   ├── shared/
 │   │   └── errors/
 │   │       ├── app-error.ts
@@ -120,7 +144,8 @@ auth-service/
 ├── DOCKERFILE
 ├── jest.config.ts
 ├── package.json
-└── tsconfig.json
+├── tsconfig.json                      # Desarrollo / IDE
+└── tsconfig.build.json                # Compilación de producción
 ```
 
 ---
@@ -140,6 +165,8 @@ CREATE TABLE "users" (
                   CHECK (role IN ('ADMIN', 'HR', 'CONSULTATION')),
   "is_active"     BOOLEAN       NOT NULL DEFAULT TRUE,
   "last_login"    TIMESTAMP(6),
+  "notif_login"   BOOLEAN       NOT NULL DEFAULT TRUE,  -- alerta email al iniciar sesión
+  "notif_cambios" BOOLEAN       NOT NULL DEFAULT TRUE,  -- alerta email al modificar empleados
   "created_at"    TIMESTAMP(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at"    TIMESTAMP(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "users_pkey" PRIMARY KEY ("id")
@@ -164,6 +191,22 @@ CREATE TABLE "refresh_tokens" (
 );
 ```
 
+### Tabla `password_reset_tokens`
+
+```sql
+CREATE TABLE "password_reset_tokens" (
+  "id"         BIGSERIAL    NOT NULL,
+  "user_id"    BIGINT       NOT NULL,
+  "token_hash" VARCHAR(255) NOT NULL,   -- SHA-256 del token de recuperación
+  "expires_at" TIMESTAMP(6) NOT NULL,   -- expira en 15 minutos por defecto
+  "used"       BOOLEAN      NOT NULL DEFAULT FALSE,
+  "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "password_reset_tokens_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "fk_prt_user"
+    FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE
+);
+```
+
 ### Relación entre tablas
 
 ```
@@ -173,6 +216,14 @@ users (1) ─────────── (N) refresh_tokens
   password_hash             expires_at
   role                      revoked (true al hacer logout)
   is_active
+  notif_login
+  notif_cambios
+
+users (1) ─────────── (N) password_reset_tokens
+  id                        user_id  ← FK con CASCADE
+                            token_hash (SHA-256, uso único)
+                            expires_at (15 min)
+                            used (true al usar el token)
 ```
 
 ---
@@ -183,8 +234,10 @@ Las migraciones usan `node-pg-migrate` con TypeScript, igual que el Employee Ser
 
 ```
 migrations/
-├── 001_create_users.ts          # Crea tabla users + índices
-└── 002_create_refresh_tokens.ts # Crea tabla refresh_tokens + FK
+├── 001_create_users.ts                          # Crea tabla users + índices
+├── 002_create_refresh_tokens.ts                 # Crea tabla refresh_tokens + FK
+├── 1777862763125_create-password-reset-tokens.ts # Crea tabla password_reset_tokens
+└── 1778200000000_add-notification-prefs.ts       # Agrega notif_login y notif_cambios a users
 ```
 
 **Ejecutar migraciones:**
@@ -206,6 +259,8 @@ npm run migrate:down   # Revierte la última migración
 | `POST` | `/auth/refresh` | Renueva access token con refresh token | No |
 | `POST` | `/auth/logout` | Cierra sesión actual (revoca refresh token) | No |
 | `POST` | `/auth/logout-all` | Cierra TODAS las sesiones del usuario | Bearer JWT |
+| `POST` | `/auth/forgot-password` | Solicita token de recuperación por email | No |
+| `POST` | `/auth/reset-password` | Restablece contraseña con token válido | No |
 
 ### Usuarios — `/api/v1/users`
 
@@ -222,13 +277,25 @@ npm run migrate:down   # Revierte la última migración
 |--------|------|-------------|
 | `GET` | `/health` | Estado del servicio y conexión a BD |
 
-### Rutas protegidas de ejemplo — `/api/v1/protected`
+### Rutas protegidas — `/api/v1/protected`
+
+| Método | Ruta | Descripción | Auth |
+|--------|------|-------------|------|
+| `GET` | `/protected/me` | Datos del usuario del JWT | Bearer JWT |
+| `GET` | `/protected/admin-only` | Solo acceso ADMIN | Bearer JWT |
+| `GET` | `/protected/hr-or-admin` | Acceso HR o ADMIN | Bearer JWT |
+| `GET` | `/protected/profile` | Perfil completo del usuario autenticado | Bearer JWT |
+| `POST` | `/protected/change-password` | Cambio de contraseña (requiere actual) | Bearer JWT |
+| `GET` | `/protected/preferences` | Preferencias de notificación del usuario | Bearer JWT |
+| `PATCH` | `/protected/preferences` | Actualiza preferencias de notificación | Bearer JWT |
+
+### Rutas internas — `/api/v1/internal`
+
+> Solo accesibles entre microservicios — requieren header `x-internal-api-key`.
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `GET` | `/protected/me` | Datos del usuario autenticado |
-| `GET` | `/protected/admin-only` | Solo acceso ADMIN |
-| `GET` | `/protected/hr-or-admin` | Acceso HR o ADMIN |
+| `POST` | `/internal/notify-employee-change` | Recibe evento de employee-service y envía email al usuario |
 
 ---
 
@@ -304,6 +371,51 @@ POST /api/v1/auth/logout-all
   4. Retornar 200 { message: 'All sessions closed successfully' }
 ```
 
+### Recuperación de Contraseña (Forgot Password)
+
+```
+POST /api/v1/auth/forgot-password
+  Body: { email }
+  ─────────────────────────────────────────────────────
+  1. Buscar usuario por email (si no existe, responder 200 igual — no revelar si existe)
+  2. Generar token aleatorio (crypto.randomBytes)
+  3. Guardar SHA-256(token) en password_reset_tokens (expires: 15 min)
+  4. Enviar email con enlace: <FRONTEND_URL>/reset-password?token=<token>
+  5. Retornar 200 { message: 'If the email exists, a recovery link was sent' }
+```
+
+### Restablecer Contraseña (Reset Password)
+
+```
+POST /api/v1/auth/reset-password
+  Body: { token, newPassword }
+  ─────────────────────────────────────────────────────
+  1. Calcular SHA-256(token)
+  2. Buscar en password_reset_tokens por token_hash
+  3. Verificar: ¿existe? ¿used = false? ¿expires_at > ahora?
+  4. Verificar que el usuario asociado esté activo
+  5. hashPassword(newPassword) con bcrypt
+  6. UPDATE users SET password_hash = $1 WHERE id = $2
+  7. Marcar token como used = TRUE
+  8. Retornar 200 { message: 'Password reset successfully' }
+```
+
+### Cambio de Contraseña (Change Password)
+
+```
+POST /api/v1/protected/change-password
+  Headers: Authorization: Bearer <access_token>
+  Body: { currentPassword, newPassword }
+  ─────────────────────────────────────────────────────
+  1. authenticate middleware verifica JWT → extrae userId
+  2. Buscar usuario por userId
+  3. comparePassword(currentPassword, passwordHash) con bcrypt
+  4. Si no coincide → 401 Unauthorized
+  5. hashPassword(newPassword) con bcrypt
+  6. UPDATE users SET password_hash = $1 WHERE id = $2
+  7. Retornar 200 { message: 'Password changed successfully' }
+```
+
 ---
 
 ## Variables de Entorno
@@ -324,7 +436,24 @@ BCRYPT_SALT_ROUNDS=12
 
 # Base de datos
 DATABASE_URL=postgresql://postgres:password@localhost:5432/auth_db
+
+# Comunicación entre servicios
+HISTORY_SERVICE_URL=http://localhost:3006
+INTERNAL_API_KEY=clave-interna-secreta-cambiar-en-prod
+
+# Email SMTP (Gmail con App Password)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tu-correo@gmail.com
+SMTP_PASS=xxxx-xxxx-xxxx-xxxx   # App Password de 16 caracteres (no la contraseña de Gmail)
+SMTP_FROM=tu-correo@gmail.com
+
+# Recuperación de contraseña
+RESET_TOKEN_EXPIRES_MINUTES=15
+FRONTEND_URL=http://localhost:5173   # URL del frontend para el enlace de reset
 ```
+
+> Si `SMTP_USER` o `SMTP_PASS` están vacíos, el servicio usa `ConsoleEmailService` (imprime los correos en consola) — útil para desarrollo sin SMTP configurado.
 
 ---
 
@@ -452,7 +581,18 @@ Cliente                       Employee/Contract/etc             Auth Service
 - `authenticate` middleware: copiado/adaptado en cada servicio para validar tokens
 - `authorize` middleware: copiado/adaptado para validar roles
 
-### Comunicación con History Service (futuro)
+### ← employee-service (Puerto 3002) — notificaciones de cambios
+
+employee-service llama al endpoint interno `POST /internal/notify-employee-change` tras cada operación de empleado. auth-service recibe la solicitud y, si el usuario tiene `notif_cambios = true`, envía un email de confirmación.
+
+```
+employee-service ──POST /internal/notify-employee-change──► auth-service
+  Header: x-internal-api-key: <INTERNAL_API_KEY>
+  Body: { userEmail, action, employeeName }
+  (fire-and-forget desde employee-service)
+```
+
+### → history-service (Puerto 3006) — registro de acciones (futuro)
 
 ```
 Auth Service → POST /api/historial/acciones
@@ -464,4 +604,4 @@ Auth Service → POST /api/historial/acciones
   }
 ```
 
-Esta integración es fire-and-forget: si History Service no está disponible, el login igual se completa.
+Esta integración puede activarse en el futuro. Si History Service no está disponible, el login igual se completa (fire-and-forget).

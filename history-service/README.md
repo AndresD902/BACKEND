@@ -73,6 +73,10 @@ history-service/
 │   │   └── enums/role.enum.ts
 │   ├── app.ts
 │   └── server.ts
+├── .vscode/
+│   └── settings.json          # TypeScript SDK local (evita deprecation warnings)
+├── tsconfig.json               # Desarrollo / IDE
+├── tsconfig.build.json         # Compilación de producción
 └── package.json
 ```
 
