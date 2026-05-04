@@ -64,19 +64,19 @@ describe('EmployeeController', () => {
       await controller.getAll(req(), r, next);
       expect(r.status).toHaveBeenCalledWith(200);
       expect(r.json).toHaveBeenCalledWith({ success: true, data });
-      expect(service.getAll).toHaveBeenCalledWith(1, 20);
+      expect(service.getAll).toHaveBeenCalledWith(1, 20, { search: undefined, estado: undefined, departamento: undefined });
     });
 
     it('parses page and limit from query string', async () => {
       service.getAll.mockResolvedValue({ empleados: [], total: 0, page: 3, limit: 5 });
       await controller.getAll(req({ query: { page: '3', limit: '5' } }), res(), next);
-      expect(service.getAll).toHaveBeenCalledWith(3, 5);
+      expect(service.getAll).toHaveBeenCalledWith(3, 5, { search: undefined, estado: undefined, departamento: undefined });
     });
 
     it('clamps page to minimum of 1', async () => {
       service.getAll.mockResolvedValue({ empleados: [], total: 0, page: 1, limit: 20 });
       await controller.getAll(req({ query: { page: '-10' } }), res(), next);
-      expect(service.getAll).toHaveBeenCalledWith(1, 20);
+      expect(service.getAll).toHaveBeenCalledWith(1, 20, { search: undefined, estado: undefined, departamento: undefined });
     });
 
     it('calls next with error on failure', async () => {
