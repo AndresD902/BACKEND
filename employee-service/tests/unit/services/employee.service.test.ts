@@ -86,7 +86,7 @@ describe('EmployeeService', () => {
       empRepo.findAll.mockResolvedValue([mockEmpleado]);
       empRepo.count.mockResolvedValue(1);
       const result = await service.getAll(2, 10);
-      expect(empRepo.findAll).toHaveBeenCalledWith(10, 10); // offset = (2-1)*10
+      expect(empRepo.findAll).toHaveBeenCalledWith(10, 10, undefined); // offset = (2-1)*10
       expect(result).toEqual({ empleados: [mockEmpleado], total: 1, page: 2, limit: 10 });
     });
   });
