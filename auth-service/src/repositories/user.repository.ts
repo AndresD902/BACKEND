@@ -39,6 +39,14 @@ export class UserRepository implements IUserRepository {
     return mapRowToUser(result.rows[0]);
   }
 
+  public async updatePassword(id: string, passwordHash: string): Promise<User | null> {
+    const result = await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [passwordHash, id],
+    );
+    return result.rows[0] ? mapRowToUser(result.rows[0]) : null;
+  }
+
   public async findAll(): Promise<User[]> {
     const result = await pool.query('SELECT * FROM users ORDER BY created_at DESC');
     return result.rows.map(mapRowToUser);

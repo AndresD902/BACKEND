@@ -2,6 +2,8 @@ import { userRepository } from '../repositories/user.repository';
 import { IUserRepository } from '../repositories/interfaces/user-repository.interface';
 import { IUserService, UserSummary, UserStatusResult } from './interfaces/user-service.interface';
 import { NotFoundError } from '../shared/errors/not-found.error';
+import { UnauthorizedError } from '../shared/errors/unauthorized.error';
+import { hashPassword, comparePassword } from '../utils/password.util';
 
 export class UserService implements IUserService {
   constructor(private readonly userRepository: IUserRepository) {}
@@ -69,6 +71,21 @@ export class UserService implements IUserService {
       isActive: user.isActive,
       updatedAt: user.updatedAt,
     };
+  }
+
+  public async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    const isPasswordValid = await comparePassword(currentPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedError('Current password is incorrect');
+    }
+
+    const newPasswordHash = await hashPassword(newPassword);
+    await this.userRepository.updatePassword(userId, newPasswordHash);
   }
 }
 

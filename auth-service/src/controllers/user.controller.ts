@@ -3,6 +3,8 @@ import { userService as defaultUserService } from '../services/user.service';
 import { IUserService } from '../services/interfaces/user-service.interface';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { asyncHandler } from '../utils/async-handler.util';
+import { ChangePasswordSchema } from '../schemas/auth.schema';
+import { UnauthorizedError } from '../shared/errors/unauthorized.error';
 
 export class UserController {
   constructor(private readonly userService: IUserService = defaultUserService) {}
@@ -43,6 +45,20 @@ export class UserController {
     });
   });
 
+  public changePassword = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError('User not authenticated');
+    }
+
+    const body = req.body as ChangePasswordSchema;
+
+    await this.userService.changePassword(req.user.sub, body.currentPassword, body.newPassword);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  });
 }
 
 export const userController = new UserController();

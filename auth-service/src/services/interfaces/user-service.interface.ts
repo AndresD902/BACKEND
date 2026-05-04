@@ -27,4 +27,5 @@ export interface IUserService {
   findById(id: string): Promise<UserSummary>;
   deactivate(id: string): Promise<UserStatusResult>;
   activate(id: string): Promise<UserStatusResult>;
+  changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void>;
 }
