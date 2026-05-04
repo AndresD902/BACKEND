@@ -1,7 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "node"
-  }
+    // Required by ts-jest: each file is transpiled independently without
+    // full type-checking, which speeds up test runs significantly.
+    "isolatedModules": true
+  },
+  "include": ["src", "tests"]
 }

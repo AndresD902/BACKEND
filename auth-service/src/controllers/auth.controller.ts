@@ -96,6 +96,68 @@ export class AuthController {
       });
     },
   );
+
+  public forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+    await this.authService.forgotPassword(req.body.email);
+    // Always 200 — prevents email enumeration
+    res.status(200).json({
+      success: true,
+      message: 'If that email exists, a reset link has been sent.',
+    });
+  });
+
+  public resetPassword = asyncHandler(async (req: Request, res: Response) => {
+    const { token, newPassword } = req.body;
+    await this.authService.resetPassword(token, newPassword);
+    res.status(200).json({
+      success: true,
+      message: 'Password updated successfully. Please log in again.',
+    });
+  });
+
+  public changePassword = asyncHandler(
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      if (!req.user) {
+        return next(new UnauthorizedError('User not authenticated'));
+      }
+      const { currentPassword, newPassword } = req.body;
+      await this.authService.changePassword(req.user.sub, currentPassword, newPassword);
+      registrarAccion({
+        usuario_email: req.user.email,
+        rol:           req.user.role,
+        accion:        'cambio_contrasena',
+        resultado:     'exitoso',
+        ip_origen:     req.ip,
+        user_agent:    req.headers['user-agent'],
+      });
+      res.status(200).json({
+        success: true,
+        message: 'Password changed successfully.',
+      });
+    },
+  );
+
+  public getPreferences = asyncHandler(
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      if (!req.user) return next(new UnauthorizedError('User not authenticated'));
+      const prefs = await this.authService.getPreferences(req.user.sub);
+      res.status(200).json({ success: true, data: prefs });
+    },
+  );
+
+  public updatePreferences = asyncHandler(
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      if (!req.user) return next(new UnauthorizedError('User not authenticated'));
+      await this.authService.updatePreferences(req.user.sub, req.body);
+      res.status(200).json({ success: true, message: 'Preferences updated.' });
+    },
+  );
+
+  public notifyEmployeeChange = asyncHandler(async (req: Request, res: Response) => {
+    const { userEmail, action, employeeName } = req.body;
+    await this.authService.notifyEmployeeChange(userEmail, action, employeeName);
+    res.status(200).json({ success: true });
+  });
 }
 
 export const authController = new AuthController();

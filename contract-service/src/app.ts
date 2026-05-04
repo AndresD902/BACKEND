@@ -15,7 +15,7 @@ app.use(express.json());
 app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 
 app.use('/contracts', contractRouter);
-app.use(errorHandler);
+
 
 app.get('/health', (_request, response) => {
   response.status(200).json({
@@ -24,3 +24,5 @@ app.get('/health', (_request, response) => {
     status: 'healthy',
   });
 });
+
+app.use(errorHandler);

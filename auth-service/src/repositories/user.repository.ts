@@ -13,6 +13,8 @@ function mapRowToUser(row: Record<string, unknown>): User {
     role: row.role as RoleName,
     isActive: row.is_active as boolean,
     lastLogin: row.last_login as Date | null,
+    notifLogin: (row.notif_login as boolean) ?? false,
+    notifCambios: (row.notif_cambios as boolean) ?? false,
     createdAt: row.created_at as Date,
     updatedAt: row.updated_at as Date,
   };
@@ -62,6 +64,20 @@ export class UserRepository implements IUserRepository {
       [isActive, id],
     );
     return result.rows[0] ? mapRowToUser(result.rows[0]) : null;
+  }
+
+  public async updatePasswordHash(id: string, newHash: string): Promise<void> {
+    await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [newHash, id],
+    );
+  }
+
+  public async updateNotificationPrefs(id: string, notifLogin: boolean, notifCambios: boolean): Promise<void> {
+    await pool.query(
+      'UPDATE users SET notif_login = $1, notif_cambios = $2, updated_at = NOW() WHERE id = $3',
+      [notifLogin, notifCambios, id],
+    );
   }
 }
 
