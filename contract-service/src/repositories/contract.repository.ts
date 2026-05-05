@@ -1,4 +1,4 @@
-import { pool } from "config/database";
+import { pool } from "../config/database";
 import { QueryResult } from "pg";
 import { ContractStatus } from "../shared/enums/contract-status.enum";
 import { CreateContractDto } from "../dtos/create-contract.dto";

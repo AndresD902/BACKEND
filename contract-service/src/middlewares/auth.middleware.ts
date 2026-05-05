@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { AppError } from "../shared/errors/app-error";
-import { env } from "config/env";
+import { env } from "../config/env";
 
 
 export interface AuthenticatedRequest {

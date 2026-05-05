@@ -3,8 +3,8 @@ import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env';
-import { contractRouter } from 'routes/contract.routes';
-import { errorHandler } from 'middlewares/error-handler.middleware';
+import { contractRouter } from './routes/contract.routes';
+import { errorHandler } from './middlewares/error-handler.middleware';
 
 
 export const app = express();
