@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { ValidationError } from "shared/errors/validation.error";
+import { ValidationError } from "../shared/errors/validation.error";
 import { ZodSchema } from "zod";
 
 export function validateRequest(schema: ZodSchema) {

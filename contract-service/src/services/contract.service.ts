@@ -3,7 +3,7 @@ import { CreateContractAmendmentDto } from "../dtos/create-contract-amendment.dt
 import { CreateContractDto } from "../dtos/create-contract.dto";
 import { UpdateContractStatusDto } from "../dtos/update-contract-status.dto";
 import { ContractRepository, Contract } from "../repositories/contract.repository";
-import { ContractAmendment, ContractAmendmentRepository } from "repositories/contract-amendment.repository";
+import { ContractAmendment, ContractAmendmentRepository } from "../repositories/contract-amendment.repository";
 import { NotFoundError } from "../shared/errors/not-found.error";
 
 

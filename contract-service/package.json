@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "description": "Contract microservice for Employees Administration",
   "main": "dist/server.js",
+  "type": "commonjs",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "migrate": "node-pg-migrate --tsconfig tsconfig.json -m migrations up",
+    "migrate:down": "node-pg-migrate --tsconfig tsconfig.json -m migrations down"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -26,6 +29,7 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^25.6.0",
     "@types/pg": "^8.20.0",
+    "node-pg-migrate": "^8.0.4",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
   }
