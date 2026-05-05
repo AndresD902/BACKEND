@@ -23,7 +23,7 @@ bcrypt@^6.0.0               # Hash seguro de contraseñas (bcrypt, 12 rondas)
 dotenv@^17.3.1              # Carga de variables de entorno desde .env
 
 # Email y comunicación
-nodemailer@^6.10.1          # Envío de correos vía SMTP (Gmail App Password)
+nodemailer@^8.0.7           # Envío de correos vía SMTP (Gmail App Password)
 axios@^1.15.2               # Cliente HTTP para llamadas fire-and-forget a otros servicios
 
 # Validación

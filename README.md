@@ -1605,11 +1605,11 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 |----------|-------|
 | Login | Todos |
 | Dashboard — métricas generales | Admin, RRHH |
-| Lista de Empleados | Todos |
+| Lista de Empleados | Admin, RRHH |
 | Detalle de Empleado — info, cargo/salario histórico, documentos | Todos |
 | Formulario Empleado — registro/edición + upload S3 | Admin, RRHH |
 | Contratos + Adendas | Admin, RRHH |
-| Solicitud de Vacaciones — validaciones en tiempo real + días disponibles | Admin, RRHH |
+| Solicitud de Vacaciones |Empleado| — validaciones en tiempo real + días disponibles | Admin, RRHH, Empleado |
 | Gestión de Vacaciones — aprobación/rechazo | Admin, RRHH |
 | Reportes | Todos |
 | Administración de Usuarios | Admin |
