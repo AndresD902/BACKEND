@@ -19,6 +19,7 @@ import { ConflictError } from '../shared/errors/conflict.error';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { RoleName } from '../entities/role.entity';
 import { env } from '../config/env';
+import { isRegisteredEmployee } from '../clients/employeeServiceClient';
 
 export class AuthService implements IAuthService {
   constructor(
@@ -34,6 +35,15 @@ export class AuthService implements IAuthService {
 
     if (existingUser) {
       throw new ConflictError('User with this email already exists');
+    }
+
+    if (createUserDto.role === RoleName.CONSULTATION) {
+      const exists = await isRegisteredEmployee(normalizedEmail);
+      if (!exists) {
+        throw new ForbiddenError(
+          'Users with CONSULTATION role must be registered employees. Contact HR to register your employee record first.',
+        );
+      }
     }
 
     const hashedPassword = await hashPassword(createUserDto.password);
