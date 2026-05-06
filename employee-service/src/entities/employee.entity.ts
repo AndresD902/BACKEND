@@ -22,6 +22,7 @@ export interface Empleado {
   departamento: string | null;
   nivel_educativo: NivelEducativo | null;
   estado: EstadoEmpleado;
+  razon_estado: string | null;
   fecha_ingreso: Date | null;
   fecha_retiro: Date | null;
   created_at: Date;

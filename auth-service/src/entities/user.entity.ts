@@ -8,6 +8,7 @@ export interface User {
   passwordHash: string;
   role: RoleName;
   isActive: boolean;
+  emailVerified: boolean;
   lastLogin: Date | null;
   notifLogin: boolean;
   notifCambios: boolean;

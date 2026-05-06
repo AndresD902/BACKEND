@@ -2,9 +2,11 @@ import crypto from 'crypto';
 import { userRepository } from '../repositories/user.repository';
 import { refreshTokenRepository } from '../repositories/refreshToken.repository';
 import { passwordResetTokenRepository as defaultPrtRepository } from '../repositories/password-reset-token.repository';
+import { emailVerificationRepository as defaultEvRepository } from '../repositories/email-verification.repository';
 import { IUserRepository } from '../repositories/interfaces/user-repository.interface';
 import { IRefreshTokenRepository } from '../repositories/interfaces/refresh-token-repository.interface';
 import { IPasswordResetTokenRepository } from '../repositories/interfaces/password-reset-token-repository.interface';
+import { IEmailVerificationRepository } from '../repositories/interfaces/email-verification-repository.interface';
 import { IAuthService, LoginResult, UserProfile, NotificationPrefs } from './interfaces/auth-service.interface';
 import { IEmailService } from './interfaces/email-service.interface';
 import { emailService as defaultEmailService } from './email/smtp-email.service';
@@ -27,6 +29,7 @@ export class AuthService implements IAuthService {
     private readonly refreshTokenRepository: IRefreshTokenRepository,
     private readonly passwordResetTokenRepository: IPasswordResetTokenRepository = defaultPrtRepository,
     private readonly emailService: IEmailService = defaultEmailService,
+    private readonly emailVerificationRepository: IEmailVerificationRepository = defaultEvRepository,
   ) {}
 
   public async register(createUserDto: CreateUserDto): Promise<UserProfile> {
@@ -56,6 +59,14 @@ export class AuthService implements IAuthService {
       isActive: true,
     });
 
+    // Send verification email — fire-and-forget, never blocks registration response
+    const rawToken  = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + env.emailVerificationExpiresMinutes * 60 * 1000);
+    await this.emailVerificationRepository.create(createdUser.id, tokenHash, expiresAt);
+    const verificationLink = `${env.frontendUrl}/verify-email?token=${rawToken}`;
+    this.emailService.sendVerificationEmail(createdUser.email, verificationLink).catch(() => {});
+
     return {
       id: createdUser.id,
       firstName: createdUser.firstName,
@@ -63,6 +74,7 @@ export class AuthService implements IAuthService {
       email: createdUser.email,
       role: createdUser.role,
       isActive: createdUser.isActive,
+      emailVerified: createdUser.emailVerified,
       createdAt: createdUser.createdAt,
       updatedAt: createdUser.updatedAt,
     };
@@ -77,6 +89,9 @@ export class AuthService implements IAuthService {
     }
     if (!user.isActive) {
       throw new ForbiddenError('User account is inactive');
+    }
+    if (!user.emailVerified) {
+      throw new ForbiddenError('Email address not verified. Check your inbox for the verification link.');
     }
 
     const isPasswordValid = await comparePassword(loginDto.password, user.passwordHash);
@@ -112,11 +127,12 @@ export class AuthService implements IAuthService {
         email: user.email,
         role: user.role as RoleName,
         isActive: user.isActive,
+        emailVerified: user.emailVerified,
       },
     };
   }
 
-  public async refresh(incomingRefreshToken: string): Promise<{ accessToken: string }> {
+  public async refresh(incomingRefreshToken: string): Promise<{ accessToken: string; email: string; role: string }> {
     const tokenHash = hashToken(incomingRefreshToken);
     const record = await this.refreshTokenRepository.findByHash(tokenHash);
 
@@ -135,12 +151,24 @@ export class AuthService implements IAuthService {
       role: user.role as RoleName,
     });
 
-    return { accessToken };
+    return { accessToken, email: user.email, role: user.role };
   }
 
-  public async logout(incomingRefreshToken: string): Promise<void> {
+  public async logout(incomingRefreshToken: string): Promise<{ email?: string; role?: string }> {
     const tokenHash = hashToken(incomingRefreshToken);
+    const record = await this.refreshTokenRepository.findByHash(tokenHash);
+
+    let email: string | undefined;
+    let role: string | undefined;
+
+    if (record && !record.revoked) {
+      const user = await this.userRepository.findById(record.userId);
+      email = user?.email;
+      role  = user?.role;
+    }
+
     await this.refreshTokenRepository.revokeByHash(tokenHash);
+    return { email, role };
   }
 
   public async logoutAll(userId: string): Promise<void> {
@@ -214,6 +242,18 @@ export class AuthService implements IAuthService {
     const user = await this.userRepository.findByEmail(userEmail);
     if (!user || !user.notifCambios) return;
     this.emailService.sendEmployeeChangeEmail(user.email, action, employeeName).catch(() => {});
+  }
+
+  public async verifyEmail(rawToken: string): Promise<void> {
+    const tokenHash = hashToken(rawToken);
+    const record = await this.emailVerificationRepository.findByHash(tokenHash);
+
+    if (!record || record.used || new Date(record.expiresAt) < new Date()) {
+      throw new UnauthorizedError('El enlace de verificación es inválido o ha expirado');
+    }
+
+    await this.userRepository.updateEmailVerified(record.userId, true);
+    await this.emailVerificationRepository.markUsed(record.id);
   }
 }
 

@@ -20,4 +20,5 @@ export interface IUserRepository {
   updatePassword(id: string, passwordHash: string): Promise<User | null>;
   updatePasswordHash(id: string, passwordHash: string): Promise<void>;
   updateNotificationPrefs(id: string, notifLogin: boolean, notifCambios: boolean): Promise<void>;
+  updateEmailVerified(id: string, verified: boolean): Promise<void>;
 }

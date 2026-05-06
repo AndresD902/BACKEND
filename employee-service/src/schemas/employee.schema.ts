@@ -65,6 +65,7 @@ export const updateEmpleadoSchema = z.object({
   fecha_ingreso:      z.string().optional(),
   fecha_retiro:       z.string().optional(),
   estado:             estadoEmpleadoEnum.optional(),
+  razon_estado:       z.string().max(100).optional(),
 });
 
 export const createCargoSchema = z.object({

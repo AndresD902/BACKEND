@@ -134,7 +134,7 @@ export class EmployeeService implements IEmployeeService {
       'nombre', 'apellido', 'cedula', 'tipo_documento', 'genero', 'fecha_nacimiento',
       'celular', 'telefono_fijo', 'correo_personal', 'correo_corporativo',
       'direccion', 'ciudad', 'departamento', 'nivel_educativo',
-      'fecha_ingreso', 'fecha_retiro', 'estado',
+      'fecha_ingreso', 'fecha_retiro', 'estado', 'razon_estado',
     ] as const;
 
     for (const campo of camposActualizables) {

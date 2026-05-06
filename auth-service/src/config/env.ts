@@ -35,4 +35,7 @@ export const env = {
   // Password reset
   resetTokenExpiresMinutes: Number(process.env.RESET_TOKEN_EXPIRES_MINUTES ?? '15'),
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+
+  // Email verification
+  emailVerificationExpiresMinutes: Number(process.env.EMAIL_VERIFICATION_EXPIRES_MINUTES ?? '1440'),
 };
