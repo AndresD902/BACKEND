@@ -45,6 +45,7 @@ describe('EmployeeController', () => {
       softDelete:                 jest.fn(),
       getCargoActual:             jest.fn(),
       getHistorialCargos:         jest.fn(),
+      getContratoLaboralActivo:   jest.fn(),
       crearCargo:                 jest.fn(),
       getDocumentos:              jest.fn(),
       generarPresignedUrl:        jest.fn(),
@@ -194,6 +195,23 @@ describe('EmployeeController', () => {
       service.getHistorialCargos.mockRejectedValue(new NotFoundError());
       await controller.getHistorialCargos(req({ params: { id: '999' } }), res(), next);
       expect(next).toHaveBeenCalled();
+    });
+  });
+
+  describe('getContratoLaboralActivo', () => {
+    it('returns 200 with active contract from service', async () => {
+      const contrato = { contract: { id: 10 }, document: null };
+      service.getContratoLaboralActivo.mockResolvedValue(contrato);
+      const r = res();
+
+      await controller.getContratoLaboralActivo(req({
+        params: { id: '1' },
+        headers: { authorization: 'Bearer token' },
+      }), r, next);
+
+      expect(r.status).toHaveBeenCalledWith(200);
+      expect(r.json).toHaveBeenCalledWith({ success: true, data: contrato });
+      expect(service.getContratoLaboralActivo).toHaveBeenCalledWith(1, 'Bearer token');
     });
   });
 

@@ -4,6 +4,7 @@ import { employeeService } from '../services/employee.service';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { AuthenticatedUser } from '../types/authenticated-user.type';
 import { asyncHandler } from '../utils/async-handler.util';
+import { UnauthorizedError } from '../shared/errors/unauthorized.error';
 
 function actor(req: AuthenticatedRequest): AuthenticatedUser {
   return req.user as AuthenticatedUser;
@@ -52,6 +53,17 @@ export class EmployeeController {
   public getHistorialCargos = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const historial = await this.service.getHistorialCargos(Number(req.params.id));
     res.status(200).json({ success: true, data: historial });
+  });
+
+  public getContratoLaboralActivo = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const authorizationHeader = req.headers.authorization;
+
+    if (!authorizationHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedError('Token requerido');
+    }
+
+    const contrato = await this.service.getContratoLaboralActivo(Number(req.params.id), authorizationHeader);
+    res.status(200).json({ success: true, data: contrato });
   });
 
   public crearCargo = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

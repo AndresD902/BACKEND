@@ -2,7 +2,7 @@
 
 > Microservicio 2 de 5 · Puerto 3002 · Base de datos: `employee_db`
 
-Gestión completa del ciclo de vida de empleados: CRUD, historial de cargos y salarios, carga de documentos vía S3 con presigned URLs, y registro automático de cambios en history-service (fire-and-forget).
+Gestión completa del ciclo de vida de empleados: CRUD, historial de cargos y salarios, carga de documentos vía S3 con presigned URLs, consulta del contrato activo desde contract-service y registro automático de cambios en history-service (fire-and-forget).
 
 ---
 
@@ -32,6 +32,7 @@ Gestión completa del ciclo de vida de empleados: CRUD, historial de cargos y sa
 | Gestión de documentos | Listar y confirmar documentos asociados a cada empleado |
 | Subida a S3 | Generar presigned URLs para subida directa desde el cliente |
 | Descarga desde S3 | Generar presigned URLs temporales para descarga de archivos |
+| Contrato activo | Consultar el último contrato activo del empleado desde contract-service |
 | Auditoría automática | Enviar cambios a history-service (fire-and-forget, no bloquea la respuesta) |
 | Validación de identidad | Verificar JWT emitidos por auth-service en cada petición |
 
@@ -64,6 +65,7 @@ employee-service/
 ├── src/
 │   ├── clients/
 │   │   ├── historyServiceClient.ts    # Cliente HTTP fire-and-forget → history-service
+│   │   ├── contractServiceClient.ts   # Cliente HTTP → contract-service para contrato activo
 │   │   └── authNotificationClient.ts  # Cliente HTTP fire-and-forget → auth-service (notificaciones)
 │   ├── config/
 │   │   ├── database.ts                # Pool de conexiones PostgreSQL
@@ -153,7 +155,7 @@ employee-service/
 |---------|------|-------------|
 | `id` | BIGSERIAL PK | |
 | `empleado_id` | BIGINT FK → empleados | |
-| `tipo_documento` | VARCHAR(50) | `foto`, `hoja_vida`, `contrato`, etc. |
+| `tipo_documento` | VARCHAR(50) | `foto`, `hoja_vida`, `certificado`, `diploma`, etc. El contrato laboral se consulta desde contract-service. |
 | `s3_key` | TEXT | Ruta del objeto en S3 |
 | `content_type` | VARCHAR(100) | MIME type del archivo |
 | `nombre_original` | VARCHAR(255) | Nombre original del archivo |
@@ -189,6 +191,7 @@ Todos los endpoints requieren `Authorization: Bearer <access_token>` (JWT válid
 |--------|------|-------|-------------|
 | `GET` | `/api/empleados` | Todos | Listar empleados (paginado: `?page=1&limit=20`) |
 | `GET` | `/api/empleados/:id` | Todos | Obtener empleado por ID |
+| `GET` | `/api/empleados/:id/contrato-activo` | Todos | Obtener contrato laboral activo desde contract-service |
 | `POST` | `/api/empleados` | ADMIN, HR | Crear nuevo empleado |
 | `PATCH` | `/api/empleados/:id` | ADMIN, HR | Actualizar datos de empleado |
 | `DELETE` | `/api/empleados/:id` | ADMIN | Soft delete (estado → inactivo) |
@@ -257,6 +260,7 @@ Para descargar, usar `GET /documentos/:docId/url` que devuelve una presigned URL
 | `PORT` | No | `3002` | Puerto del servidor |
 | `NODE_ENV` | No | `development` | `development`, `production`, `test` |
 | `HISTORY_SERVICE_URL` | No | `http://localhost:3006` | URL base de history-service |
+| `CONTRACT_SERVICE_URL` | No | `http://localhost:3003` | URL base de contract-service |
 | `AUTH_SERVICE_URL` | No | `http://localhost:3001/api/v1` | URL base de auth-service (notificaciones) |
 | `INTERNAL_API_KEY` | No | `dev-internal-key-...` | Clave para endpoints internos entre servicios |
 | `AWS_REGION` | No | `us-east-1` | Región del bucket S3 |
@@ -295,6 +299,12 @@ Los roles son validados localmente del JWT — no se consulta auth-service en ca
   - Se hace soft delete (`campo_modificado: "estado"`, nuevo valor: `"inactivo"`)
   - Se crea un nuevo cargo (`campo_modificado: "cargo_salario_creado"`)
 
+### → contract-service (Puerto 3003)
+- `GET /api/empleados/:id/contrato-activo` actua como proxy seguro hacia `contract-service`.
+- `employee-service` verifica que el empleado exista localmente y luego consulta `GET /api/contratos/empleado/:id/activo`.
+- No duplica contratos ni referencias S3 en su base de datos; solo entrega la respuesta del microservicio dueño del contrato.
+- Si contract-service responde 404, el contrato activo se retorna como `null`.
+
 ### → auth-service (Puerto 3001) — notificaciones
 - **Fire-and-forget**: `notifyEmployeeChange()` en `authNotificationClient.ts` llama al endpoint interno `/internal/notify-employee-change` de auth-service
 - auth-service envía un correo al usuario que realizó la acción informando el cambio
@@ -317,6 +327,7 @@ employee-service ──POST /internal/notify-employee-change──► auth-servi
 - Node.js >= 18
 - PostgreSQL >= 14 corriendo
 - auth-service corriendo en puerto 3001 (para generar tokens válidos)
+- contract-service corriendo en puerto 3003 (para consultar contrato activo)
 - history-service corriendo en puerto 3006 (para recibir cambios)
 
 ### Pasos

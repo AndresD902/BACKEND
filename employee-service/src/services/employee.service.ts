@@ -4,7 +4,9 @@ import { documentoRepository } from '../repositories/documento.repository';
 import { generarUrlSubida, generarUrlDescarga } from '../config/s3';
 import { registrarCambio } from '../clients/historyServiceClient';
 import { notificarCambioEmpleado } from '../clients/authNotificationClient';
+import { ActiveContractDocument, contractServiceClient, IContractServiceClient } from '../clients/contractServiceClient';
 import { IEmployeeRepository } from '../repositories/interfaces/employee.repository.interface';
+import { EmployeeFilters } from '../repositories/interfaces/employee.repository.interface';
 import { ICargoSalarioRepository } from '../repositories/interfaces/cargo-salario.repository.interface';
 import { IDocumentoRepository } from '../repositories/interfaces/documento.repository.interface';
 import { IEmployeeService } from './interfaces/employee.service.interface';
@@ -31,6 +33,7 @@ export class EmployeeService implements IEmployeeService {
     private readonly urlDescarga: GenerarUrlDescargaFn = generarUrlDescarga,
     private readonly registrar: RegistrarCambioFn = registrarCambio,
     private readonly notificar: NotificarCambioFn = notificarCambioEmpleado,
+    private readonly contractClient: IContractServiceClient = contractServiceClient,
   ) {}
 
   private async findOrFail(id: number): Promise<Empleado> {
@@ -41,11 +44,11 @@ export class EmployeeService implements IEmployeeService {
 
   // ─── Empleados ─────────────────────────────────────────────────────────────
 
-  async getAll(page: number, limit: number) {
+  async getAll(page: number, limit: number, filters?: EmployeeFilters) {
     const offset = (page - 1) * limit;
     const [empleados, total] = await Promise.all([
-      this.empRepo.findAll(limit, offset),
-      this.empRepo.count(),
+      this.empRepo.findAll(limit, offset, filters),
+      this.empRepo.count(filters),
     ]);
     return { empleados, total, page, limit };
   }
@@ -192,6 +195,11 @@ export class EmployeeService implements IEmployeeService {
   async getHistorialCargos(empleadoId: number): Promise<CargoSalario[]> {
     await this.findOrFail(empleadoId);
     return this.cargoRepo.findAll(empleadoId);
+  }
+
+  async getContratoLaboralActivo(empleadoId: number, authorizationHeader: string): Promise<ActiveContractDocument | null> {
+    await this.findOrFail(empleadoId);
+    return this.contractClient.getActiveContractForEmployee(empleadoId, authorizationHeader);
   }
 
   async crearCargo(empleadoId: number, dto: CreateCargoDto, actor: AuthenticatedUser): Promise<CargoSalario> {

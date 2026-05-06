@@ -6,6 +6,7 @@ import { NotFoundError } from '../../../src/shared/errors/not-found.error';
 import { ConflictError } from '../../../src/shared/errors/conflict.error';
 import { Empleado, CargoSalario, DocumentoEmpleado } from '../../../src/entities/employee.entity';
 import { AuthenticatedUser } from '../../../src/types/authenticated-user.type';
+import { IContractServiceClient } from '../../../src/clients/contractServiceClient';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────
 
@@ -47,6 +48,8 @@ describe('EmployeeService', () => {
   let mockUrlSubida: jest.Mock;
   let mockUrlDescarga: jest.Mock;
   let mockRegistrar: jest.Mock;
+  let mockNotificar: jest.Mock;
+  let contractClient: jest.Mocked<IContractServiceClient>;
 
   beforeEach(() => {
     empRepo = {
@@ -75,8 +78,12 @@ describe('EmployeeService', () => {
     mockUrlSubida  = jest.fn().mockResolvedValue({ url: 'https://s3.presigned', key: 'fotos/1.jpg' });
     mockUrlDescarga = jest.fn().mockResolvedValue('https://s3.download');
     mockRegistrar  = jest.fn();
+    mockNotificar = jest.fn();
+    contractClient = {
+      getActiveContractForEmployee: jest.fn(),
+    };
 
-    service = new EmployeeService(empRepo, cargoRepo, docRepo, mockUrlSubida, mockUrlDescarga, mockRegistrar);
+    service = new EmployeeService(empRepo, cargoRepo, docRepo, mockUrlSubida, mockUrlDescarga, mockRegistrar, mockNotificar, contractClient);
   });
 
   // ─── getAll ─────────────────────────────────────────────────────────────
@@ -87,7 +94,19 @@ describe('EmployeeService', () => {
       empRepo.count.mockResolvedValue(1);
       const result = await service.getAll(2, 10);
       expect(empRepo.findAll).toHaveBeenCalledWith(10, 10, undefined); // offset = (2-1)*10
+      expect(empRepo.count).toHaveBeenCalledWith(undefined);
       expect(result).toEqual({ empleados: [mockEmpleado], total: 1, page: 2, limit: 10 });
+    });
+
+    it('passes filters to repository and count', async () => {
+      const filters = { search: 'juan', estado: 'activo' };
+      empRepo.findAll.mockResolvedValue([mockEmpleado]);
+      empRepo.count.mockResolvedValue(1);
+
+      await service.getAll(1, 20, filters);
+
+      expect(empRepo.findAll).toHaveBeenCalledWith(20, 0, filters);
+      expect(empRepo.count).toHaveBeenCalledWith(filters);
     });
   });
 
@@ -282,6 +301,22 @@ describe('EmployeeService', () => {
     it('throws NotFoundError when employee not found', async () => {
       empRepo.findById.mockResolvedValue(null);
       await expect(service.getHistorialCargos(999)).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('getContratoLaboralActivo', () => {
+    it('validates employee locally and returns active contract from contract-service', async () => {
+      const activeContract = {
+        contract: { id: 10, status: 'activo' },
+        document: { key: 'contratos/10.pdf', url: 'https://signed.url', expiresIn: 3600 },
+      };
+      empRepo.findById.mockResolvedValue(mockEmpleado);
+      contractClient.getActiveContractForEmployee.mockResolvedValue(activeContract);
+
+      const result = await service.getContratoLaboralActivo(1, 'Bearer token');
+
+      expect(result).toBe(activeContract);
+      expect(contractClient.getActiveContractForEmployee).toHaveBeenCalledWith(1, 'Bearer token');
     });
   });
 
