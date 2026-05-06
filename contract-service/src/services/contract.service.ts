@@ -4,7 +4,7 @@ import type { CreateContractDto } from "../dtos/create-contract.dto";
 import type { CreateContractAmendmentFileUploadUrlDto, CreateContractFileUploadUrlDto } from "../dtos/contract-file.dto";
 import type { UpdateContractStatusDto } from "../dtos/update-contract-status.dto";
 import { ContractRepository } from "../repositories/contract.repository";
-import type { Contract, ContractAmendmentPatch, ContractRenewalResult } from "../repositories/contract.repository";
+import type { Contract, ContractAmendmentPatch } from "../repositories/contract.repository";
 import { ContractAmendmentRepository } from "../repositories/contract-amendment.repository";
 import type { ContractAmendment } from "../repositories/contract-amendment.repository";
 import { NotFoundError } from "../shared/errors/not-found.error";
@@ -22,14 +22,25 @@ import { contractAuditService } from "./contract-audit.service";
 import type { ContractAuditService } from "./contract-audit.service";
 import type { SignedUploadUrl } from "../config/s3";
 import type { ContractActor } from "../types/contract-actor.type";
+import { calculatePaymentDistribution } from "./payment-distribution.service";
+import type { PaymentDistribution } from "./payment-distribution.service";
+
+export type ContractWithPaymentDistribution = Contract & {
+    paymentDistribution: PaymentDistribution;
+};
 
 export interface ContractDocumentView {
-    contract: Contract;
+    contract: ContractWithPaymentDistribution;
     document: {
         key: string;
         url: string;
         expiresIn: number;
     } | null;
+}
+
+export interface ContractRenewalView {
+    previousContract: ContractWithPaymentDistribution;
+    contract: ContractWithPaymentDistribution;
 }
 
 export interface ContractRenewalOptions {
@@ -46,7 +57,7 @@ export class ContractService {
         private auditService: ContractAuditService = contractAuditService,
     ) {}
 
-    public async createContract(data: CreateContractDto, authorizationHeader: string, actor: ContractActor): Promise<Contract> {
+    public async createContract(data: CreateContractDto, authorizationHeader: string, actor: ContractActor): Promise<ContractWithPaymentDistribution> {
         await this.employeeClient.verifyEmployeeExists(data.employeeId, authorizationHeader);
         await this.storageService.validateExistingFile(data.fileS3Key);
 
@@ -64,7 +75,7 @@ export class ContractService {
 
         this.auditService.recordContractCreated(contract, actor);
 
-        return contract;
+        return this.withPaymentDistribution(contract);
     }
 
     public async renewContract(
@@ -72,7 +83,7 @@ export class ContractService {
         authorizationHeader: string,
         actor: ContractActor,
         options: ContractRenewalOptions
-    ): Promise<ContractRenewalResult> {
+    ): Promise<ContractRenewalView> {
         await this.employeeClient.verifyEmployeeExists(data.employeeId, authorizationHeader);
         await this.storageService.validateExistingFile(data.fileS3Key);
 
@@ -96,24 +107,29 @@ export class ContractService {
 
         this.auditService.recordContractRenewed(result.previousContract, result.contract, actor);
 
-        return result;
+        return {
+            previousContract: this.withPaymentDistribution(result.previousContract),
+            contract: this.withPaymentDistribution(result.contract),
+        };
     }
 
-    public async findAllContracts(): Promise<Contract[]> {
-        return this.contractRepository.findAll();
+    public async findAllContracts(): Promise<ContractWithPaymentDistribution[]> {
+        const contracts = await this.contractRepository.findAll();
+        return contracts.map((contract) => this.withPaymentDistribution(contract));
     }
 
-    public async findContractById(id: number): Promise<Contract> {
+    public async findContractById(id: number): Promise<ContractWithPaymentDistribution> {
         const contract = await this.contractRepository.findById(id);
 
         if (!contract) {
             throw new NotFoundError("Contract not found by Id");
         }
-        return contract;
+        return this.withPaymentDistribution(contract);
     }
 
-    public async findContractsByEmployeeId(employeeId: number): Promise<Contract[]> {
-        return this.contractRepository.findByEmployeeId(employeeId);
+    public async findContractsByEmployeeId(employeeId: number): Promise<ContractWithPaymentDistribution[]> {
+        const contracts = await this.contractRepository.findByEmployeeId(employeeId);
+        return contracts.map((contract) => this.withPaymentDistribution(contract));
     }
 
     public async findActiveContractByEmployeeId(employeeId: number): Promise<ContractDocumentView> {
@@ -126,7 +142,7 @@ export class ContractService {
         return this.buildContractDocumentView(contract);
     }
 
-    public async updateContractStatus(id: number, data: UpdateContractStatusDto, actor: ContractActor): Promise<Contract> {
+    public async updateContractStatus(id: number, data: UpdateContractStatusDto, actor: ContractActor): Promise<ContractWithPaymentDistribution> {
         const currentContract = await this.contractRepository.findById(id);
 
         if (!currentContract) {
@@ -141,7 +157,7 @@ export class ContractService {
 
         this.auditService.recordStatusUpdated(currentContract, contract, actor);
 
-        return contract;
+        return this.withPaymentDistribution(contract);
     }
 
     public async createContractAmendment(contractId: number, data: CreateContractAmendmentDto, actor: ContractActor): Promise<ContractAmendment> {
@@ -167,15 +183,19 @@ export class ContractService {
             createdBy: data.createdBy ?? actor.email,
         });
 
+        let contractForAudit = contract;
+
         if (contractPatch) {
             const updatedContract = await this.contractRepository.applyAmendmentPatch(contractId, contractPatch);
 
             if (!updatedContract) {
                 throw new NotFoundError("Contract not found");
             }
+
+            contractForAudit = updatedContract;
         }
 
-        this.auditService.recordContractAmendmentCreated(contract, amendment, actor);
+        this.auditService.recordContractAmendmentCreated(contractForAudit, amendment, actor);
 
         return amendment;
     }
@@ -190,14 +210,14 @@ export class ContractService {
         return this.contractAmendmentRepository.findByContractId(contractId);
     }
 
-    public async expireEndedContracts(referenceDate = new Date().toISOString().slice(0, 10)): Promise<Contract[]> {
+    public async expireEndedContracts(referenceDate = new Date().toISOString().slice(0, 10)): Promise<ContractWithPaymentDistribution[]> {
         const expiredContracts = await this.contractRepository.expireEndedContracts(referenceDate);
 
         for (const contract of expiredContracts) {
             this.auditService.recordContractAutoExpired(contract);
         }
 
-        return expiredContracts;
+        return expiredContracts.map((contract) => this.withPaymentDistribution(contract));
     }
 
     public async generateContractUploadUrl(
@@ -285,20 +305,27 @@ export class ContractService {
     private async buildContractDocumentView(contract: Contract): Promise<ContractDocumentView> {
         if (!contract.fileS3Key) {
             return {
-                contract,
-                document: null,
-            };
+            contract: this.withPaymentDistribution(contract),
+            document: null,
+        };
         }
 
         const signedUrl = await this.storageService.createDownloadUrl(contract.fileS3Key);
 
         return {
-            contract,
+            contract: this.withPaymentDistribution(contract),
             document: {
                 key: contract.fileS3Key,
                 url: signedUrl.url,
                 expiresIn: signedUrl.expiresIn,
             },
+        };
+    }
+
+    private withPaymentDistribution(contract: Contract): ContractWithPaymentDistribution {
+        return {
+            ...contract,
+            paymentDistribution: calculatePaymentDistribution(contract.salary, contract.paymentFrequency),
         };
     }
 
