@@ -20,5 +20,6 @@ authRoutes.post('/logout',          validateRequest(logoutSchema),          auth
 authRoutes.post('/logout-all',      authenticate,                           authController.logoutAll);
 authRoutes.post('/forgot-password', validateRequest(forgotPasswordSchema),  authController.forgotPassword);
 authRoutes.post('/reset-password',  validateRequest(resetPasswordSchema),   authController.resetPassword);
+authRoutes.get('/verify-email',                                             authController.verifyEmail);
 
 export default authRoutes;

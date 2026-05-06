@@ -58,6 +58,10 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(8, { message: 'New password must be at least 8 characters long' }).max(100, { message: 'New password must be at most 100 characters long' }),
 });
 
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1, { message: 'Token is required' }),
+});
+
 export type CreateUserSchema = z.infer<typeof createUserSchema>;
 export type LoginUserSchema = z.infer<typeof loginSchema>;
 export type RefreshTokenSchema = z.infer<typeof refreshTokenSchema>;

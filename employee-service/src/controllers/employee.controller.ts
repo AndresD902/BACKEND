@@ -18,9 +18,9 @@ export class EmployeeController {
   public getAll = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const page         = Math.max(1, parseInt(String(req.query.page  ?? '1'), 10));
     const limit        = Math.max(1, parseInt(String(req.query.limit ?? '20'), 10));
-    const search       = req.query.search       ? String(req.query.search)       : undefined;
-    const estado       = req.query.estado       ? String(req.query.estado)       : undefined;
-    const departamento = req.query.departamento ? String(req.query.departamento) : undefined;
+    const search       = req.query.search       ? String(req.query.search).slice(0, 50)       : undefined;
+    const estado       = req.query.estado       ? String(req.query.estado).toLowerCase()       : undefined;
+    const departamento = req.query.departamento ? String(req.query.departamento)               : undefined;
     const result = await this.service.getAll(page, limit, { search, estado, departamento });
     res.status(200).json({ success: true, data: result });
   });

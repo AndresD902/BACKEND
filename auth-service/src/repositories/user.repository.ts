@@ -12,6 +12,7 @@ function mapRowToUser(row: Record<string, unknown>): User {
     passwordHash: row.password_hash as string,
     role: row.role as RoleName,
     isActive: row.is_active as boolean,
+    emailVerified: (row.email_verified as boolean) ?? true,
     lastLogin: row.last_login as Date | null,
     notifLogin: (row.notif_login as boolean) ?? false,
     notifCambios: (row.notif_cambios as boolean) ?? false,
@@ -33,10 +34,10 @@ export class UserRepository implements IUserRepository {
 
   public async create(data: CreateUserData): Promise<User> {
     const result = await pool.query(
-      `INSERT INTO users (first_name, last_name, email, password_hash, role, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (first_name, last_name, email, password_hash, role, is_active, email_verified)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [data.firstName, data.lastName, data.email.toLowerCase(), data.passwordHash, data.role, data.isActive ?? true],
+      [data.firstName, data.lastName, data.email.toLowerCase(), data.passwordHash, data.role, data.isActive ?? true, false],
     );
     return mapRowToUser(result.rows[0]);
   }
@@ -77,6 +78,13 @@ export class UserRepository implements IUserRepository {
     await pool.query(
       'UPDATE users SET notif_login = $1, notif_cambios = $2, updated_at = NOW() WHERE id = $3',
       [notifLogin, notifCambios, id],
+    );
+  }
+
+  public async updateEmailVerified(id: string, verified: boolean): Promise<void> {
+    await pool.query(
+      'UPDATE users SET email_verified = $1, updated_at = NOW() WHERE id = $2',
+      [verified, id],
     );
   }
 }

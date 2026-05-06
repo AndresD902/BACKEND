@@ -49,26 +49,30 @@ export class AuthController {
     const { refreshToken } = req.body;
     const result = await this.authService.refresh(refreshToken);
     registrarAccion({
-      accion:     'token_renovado',
-      resultado:  'exitoso',
-      ip_origen:  req.ip,
-      user_agent: req.headers['user-agent'],
+      usuario_email: result.email,
+      rol:           result.role,
+      accion:        'token_renovado',
+      resultado:     'exitoso',
+      ip_origen:     req.ip,
+      user_agent:    req.headers['user-agent'],
     });
     res.status(200).json({
       success: true,
       message: 'Token refreshed successfully',
-      data: result,
+      data: { accessToken: result.accessToken },
     });
   });
 
   public logout = asyncHandler(async (req: Request, res: Response) => {
     const { refreshToken } = req.body;
-    await this.authService.logout(refreshToken);
+    const info = await this.authService.logout(refreshToken);
     registrarAccion({
-      accion:     'logout',
-      resultado:  'exitoso',
-      ip_origen:  req.ip,
-      user_agent: req.headers['user-agent'],
+      usuario_email: info.email,
+      rol:           info.role,
+      accion:        'logout',
+      resultado:     'exitoso',
+      ip_origen:     req.ip,
+      user_agent:    req.headers['user-agent'],
     });
     res.status(200).json({
       success: true,
@@ -157,6 +161,15 @@ export class AuthController {
     const { userEmail, action, employeeName } = req.body;
     await this.authService.notifyEmployeeChange(userEmail, action, employeeName);
     res.status(200).json({ success: true });
+  });
+
+  public verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+    const token = String(req.query.token ?? '');
+    await this.authService.verifyEmail(token);
+    res.status(200).json({
+      success: true,
+      message: 'Correo verificado correctamente. Ya puedes iniciar sesión.',
+    });
   });
 }
 

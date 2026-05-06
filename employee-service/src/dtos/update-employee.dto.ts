@@ -16,6 +16,7 @@ export interface UpdateEmpleadoDto {
   fecha_ingreso?: string;
   fecha_retiro?: string;
   estado?: string;
+  razon_estado?: string;
 }
 
 export interface CreateCargoDto {

@@ -17,6 +17,63 @@ class SmtpEmailService implements IEmailService {
     });
   }
 
+  public async sendVerificationEmail(toEmail: string, verificationLink: string): Promise<void> {
+    await this.transporter.sendMail({
+      from: `"HR System Admin" <${env.smtpFrom}>`,
+      to: toEmail,
+      subject: 'Verifica tu correo electrónico — HR System',
+      html: `
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0F1117;font-family:'Segoe UI',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0F1117;padding:40px 0">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#161B27;border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;max-width:100%">
+        <tr>
+          <td style="padding:28px 36px;border-bottom:1px solid rgba(255,255,255,0.06)">
+            <span style="font-size:17px;font-weight:700;color:#e2e8f0;letter-spacing:-0.3px">HR System Admin</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:36px 36px 28px">
+            <h1 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#f1f5f9">Confirma tu dirección de correo</h1>
+            <p style="margin:0 0 24px;font-size:14px;color:#94a3b8;line-height:1.7">
+              Gracias por registrarte en HR System. Haz clic en el botón para verificar tu cuenta.<br>
+              El enlace expira en <strong style="color:#e2e8f0">${env.emailVerificationExpiresMinutes} minutos</strong>.
+            </p>
+            <a href="${verificationLink}"
+               style="display:inline-block;padding:13px 28px;
+                      background:linear-gradient(135deg,#22d3ee,#6366f1);
+                      color:#fff;text-decoration:none;border-radius:10px;
+                      font-size:14px;font-weight:600;letter-spacing:0.2px">
+              Verificar correo electrónico
+            </a>
+            <p style="margin:24px 0 0;font-size:12px;color:#64748b;line-height:1.6">
+              Si no creaste esta cuenta, puedes ignorar este correo con seguridad.
+            </p>
+            <p style="margin:16px 0 0;font-size:11px;color:#475569">
+              Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+              <span style="color:#6366f1;word-break:break-all">${verificationLink}</span>
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 36px;border-top:1px solid rgba(255,255,255,0.06)">
+            <p style="margin:0;font-size:11px;color:#475569">
+              © ${new Date().getFullYear()} HR System &middot; Correo generado automáticamente &middot; No respondas este mensaje
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+      text: `Verifica tu correo — HR System\n\nHaz clic en el siguiente enlace para verificar tu cuenta (válido por ${env.emailVerificationExpiresMinutes} min):\n${verificationLink}\n\nSi no creaste esta cuenta, ignora este correo.`,
+    });
+  }
+
   public async sendPasswordResetEmail(toEmail: string, resetLink: string): Promise<void> {
     await this.transporter.sendMail({
       from: `"HR System Admin" <${env.smtpFrom}>`,
@@ -177,6 +234,13 @@ class SmtpEmailService implements IEmailService {
 }
 
 class ConsoleEmailService implements IEmailService {
+  public async sendVerificationEmail(toEmail: string, verificationLink: string): Promise<void> {
+    console.log('\n========== VERIFICATION EMAIL (sin SMTP configurado) ==========');
+    console.log(`Para:   ${toEmail}`);
+    console.log(`Enlace: ${verificationLink}`);
+    console.log('================================================================\n');
+  }
+
   public async sendPasswordResetEmail(toEmail: string, resetLink: string): Promise<void> {
     console.log('\n========== PASSWORD RESET EMAIL (sin SMTP configurado) ==========');
     console.log(`Para:   ${toEmail}`);
