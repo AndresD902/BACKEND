@@ -9,6 +9,7 @@ import { ConflictError } from '../../src/shared/errors/conflict.error';
 
 jest.mock('../../src/clients/historyServiceClient', () => ({
   registrarCambio: jest.fn(),
+  registrarAccion: jest.fn(),
 }));
 
 jest.mock('../../src/config/s3', () => ({
@@ -116,7 +117,15 @@ describe('ContractService', () => {
       { email: 'admin@example.com', role: 'ADMIN' },
     );
 
-    expect(result).toBe(createdContract);
+    expect(result).toEqual(expect.objectContaining({
+      id: createdContract.id,
+      paymentDistribution: {
+        baseMonthlySalary: 5000000,
+        paymentFrequency: PaymentFrequency.MONTHLY,
+        paymentsPerMonth: 1,
+        amountPerPayment: 5000000,
+      },
+    }));
     expect(employeeClient.verifyEmployeeExists).toHaveBeenCalledWith(22, 'Bearer token');
     expect(s3.assertContractObjectExists).toHaveBeenCalledWith('contratos/test.pdf');
     expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({
@@ -179,6 +188,12 @@ describe('ContractService', () => {
     );
 
     expect(result.contract.id).toBe(11);
+    expect(result.contract.paymentDistribution).toEqual({
+      baseMonthlySalary: 5000000,
+      paymentFrequency: PaymentFrequency.MONTHLY,
+      paymentsPerMonth: 1,
+      amountPerPayment: 5000000,
+    });
     expect(repository.renewActiveContract).toHaveBeenCalledWith(
       expect.objectContaining({
         employeeId: 22,
