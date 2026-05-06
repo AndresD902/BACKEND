@@ -35,14 +35,49 @@ export const up = (pgm: MigrationBuilder): void => {
       ),
       "creado_por" VARCHAR(150),
       "fecha_creacion" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      "fecha_actualizacion" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      "fecha_actualizacion" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+      CONSTRAINT "chk_contratos_empleado_id_positive"
+        CHECK ("empleado_id" > 0),
+      CONSTRAINT "chk_contratos_fecha_fin"
+        CHECK ("fecha_fin" IS NULL OR "fecha_fin" >= "fecha_inicio"),
+      CONSTRAINT "chk_contratos_moneda_not_blank"
+        CHECK (BTRIM("moneda") <> ''),
+      CONSTRAINT "chk_contratos_lugar_trabajo_not_blank"
+        CHECK ("lugar_trabajo" IS NULL OR BTRIM("lugar_trabajo") <> ''),
+      CONSTRAINT "chk_contratos_archivo_s3_key_not_blank"
+        CHECK ("archivo_s3_key" IS NULL OR BTRIM("archivo_s3_key") <> ''),
+      CONSTRAINT "chk_contratos_archivo_s3_url_not_blank"
+        CHECK ("archivo_s3_url" IS NULL OR BTRIM("archivo_s3_url") <> ''),
+      CONSTRAINT "chk_contratos_creado_por_email"
+        CHECK (
+          "creado_por" IS NULL
+          OR (BTRIM("creado_por") <> '' AND POSITION('@' IN "creado_por") > 1)
+        )
     );
+
+    COMMENT ON COLUMN "contratos"."empleado_id"
+      IS 'Referencia logica a employee-service.empleados.id; se valida via REST antes de crear el contrato.';
+    COMMENT ON COLUMN "contratos"."creado_por"
+      IS 'Email del usuario autenticado por auth-service que creo o modifico el registro.';
+    COMMENT ON TABLE "contratos"
+      IS 'Contratos laborales por empleado; history-service audita cambios usando entidad=contrato y entidad_id=id.';
+
+    CREATE UNIQUE INDEX "uq_contratos_empleado_activo"
+      ON "contratos" ("empleado_id")
+      WHERE "estado" = 'activo';
 
     CREATE INDEX "idx_contratos_empleado_estado"
       ON "contratos" ("empleado_id", "estado");
 
+    CREATE INDEX "idx_contratos_estado"
+      ON "contratos" ("estado");
+
     CREATE INDEX "idx_contratos_fecha_inicio"
       ON "contratos" ("fecha_inicio" DESC);
+
+    CREATE INDEX "idx_contratos_creado_por"
+      ON "contratos" ("creado_por");
   `);
 };
 

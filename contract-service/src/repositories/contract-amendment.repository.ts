@@ -1,6 +1,6 @@
-import { QueryResult } from 'pg';
+import type { QueryResult } from 'pg';
 import { pool } from '../config/database';
-import { CreateContractAmendmentDto } from '../dtos/create-contract-amendment.dto';
+import type { CreateContractAmendmentDto } from '../dtos/create-contract-amendment.dto';
 
 export interface ContractAmendment {
   id: number;
@@ -16,8 +16,8 @@ export interface ContractAmendment {
 }
 
 interface ContractAmendmentRow {
-  id: number;
-  contrato_id: number;
+  id: number | string;
+  contrato_id: number | string;
   numero_adenda: number;
   descripcion: string;
   cambios_json: unknown | null;
@@ -30,8 +30,8 @@ interface ContractAmendmentRow {
 
 function mapContractAmendmentRow(row: ContractAmendmentRow): ContractAmendment {
   return {
-    id: row.id,
-    contractId: row.contrato_id,
+    id: Number(row.id),
+    contractId: Number(row.contrato_id),
     amendmentNumber: row.numero_adenda,
     description: row.descripcion,
     changes: row.cambios_json,
@@ -99,7 +99,7 @@ export class ContractAmendmentRepository {
       [contractId],
     );
 
-    return result.rows[0].next_number;
+    return Number(result.rows[0].next_number);
   }
 
   public async findById(id: number): Promise<ContractAmendment | null> {
