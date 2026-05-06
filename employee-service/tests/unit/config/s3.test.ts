@@ -22,7 +22,7 @@ describe('S3 helpers', () => {
       mockGetSignedUrl.mockResolvedValue('https://presigned.url/signed');
       const result = await generarUrlSubida(1, 'foto', 'image/jpeg');
       expect(result.url).toBe('https://presigned.url/signed');
-      expect(result.key).toMatch(/^fotos\/1_\d+\.jpeg$/);
+      expect(result.key).toMatch(/^fotos\/1_\d+\.jpg$/);
     });
 
     it('uses bin extension for unknown content type', async () => {
