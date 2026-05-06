@@ -1,7 +1,7 @@
 export type TipoDocumento = 'cedula_ciudadania' | 'cedula_extranjeria' | 'pasaporte' | 'tarjeta_identidad';
 export type Genero = 'masculino' | 'femenino' | 'otro' | 'prefiero_no_decir';
 export type EstadoEmpleado = 'activo' | 'inactivo' | 'vacaciones' | 'licencia' | 'retirado';
-export type NivelEducativo = 'bachiller' | 'tecnico' | 'tecnologo' | 'universitario' | 'posgrado';
+export type NivelEducativo = 'bachiller' | 'tecnico' | 'tecnologo' | 'universitario' | 'posgrado' | 'especialista' | 'magister' | 'doctorado';
 export type TipoSalario = 'fijo' | 'variable' | 'por_hora';
 export type TipoDocumentoS3 = 'foto' | 'hoja_vida' | 'certificado' | 'diploma' | 'contrato_firmado' | 'otro';
 

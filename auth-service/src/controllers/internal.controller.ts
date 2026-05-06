@@ -2,9 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../utils/async-handler.util';
 import { env } from '../config/env';
 import { UnauthorizedError } from '../shared/errors/unauthorized.error';
+import { authService as defaultAuthService } from '../services/auth.service';
+import { IAuthService } from '../services/interfaces/auth-service.interface';
 
 export class InternalController {
-  public notifyEmployeeChange = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+  constructor(private readonly authService: IAuthService = defaultAuthService) {}
+
+  public notifyEmployeeChange = asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
     const headerKey = req.headers['x-internal-key'];
 
     if (typeof headerKey !== 'string' || headerKey !== env.internalApiKey) {
@@ -13,16 +17,11 @@ export class InternalController {
 
     const { userEmail, action, employeeName } = req.body;
 
-    console.info('[Internal] notifyEmployeeChange received', {
-      userEmail,
-      action,
-      employeeName,
-    });
+    await this.authService.notifyEmployeeChange(userEmail, action, employeeName);
 
     res.status(200).json({
       success: true,
-      message: 'Employee change notification received',
-      data: { userEmail, action, employeeName },
+      message: 'Employee change notification processed',
     });
   });
 }

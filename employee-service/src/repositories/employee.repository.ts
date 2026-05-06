@@ -67,6 +67,15 @@ export class EmployeeRepository {
     return rows[0] ?? null;
   }
 
+  async findByAnyEmail(email: string): Promise<Empleado | null> {
+    const normalized = email.toLowerCase();
+    const { rows } = await pool.query<Empleado>(
+      'SELECT * FROM empleados WHERE correo_corporativo = $1 OR correo_personal = $1 LIMIT 1',
+      [normalized],
+    );
+    return rows[0] ?? null;
+  }
+
   async create(data: Record<string, unknown>): Promise<Empleado> {
     const keys = Object.keys(data);
     const values = Object.values(data);

@@ -22,6 +22,7 @@ export const env = {
   databaseUrl: getEnVariable('DATABASE_URL'),
   refreshTokenExpiresDays: Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS ?? '7'),
   historyServiceUrl: process.env.HISTORY_SERVICE_URL ?? 'http://localhost:3006',
+  employeeServiceUrl: process.env.EMPLOYEE_SERVICE_URL ?? 'http://localhost:3002/api',
   internalApiKey: process.env.INTERNAL_API_KEY ?? 'dev-internal-key-change-in-prod',
 
   // Email SMTP
