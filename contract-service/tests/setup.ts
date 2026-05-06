@@ -1,0 +1,12 @@
+process.env.NODE_ENV = 'test';
+process.env.PORT = '3003';
+process.env.SERVICE_NAME = 'contract-service';
+process.env.JWT_SECRET = 'test-secret-key-for-contract-service-32chars';
+process.env.JWT_EXPIRES_IN = '1h';
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/contract_test_db';
+process.env.EMPLOYEE_SERVICE_URL = 'http://localhost:3002';
+process.env.HISTORY_SERVICE_URL = 'http://localhost:3006';
+process.env.AWS_REGION = 'us-east-1';
+process.env.AWS_ACCESS_KEY_ID = 'AKIATEST';
+process.env.AWS_SECRET_ACCESS_KEY = 'test-secret';
+process.env.S3_BUCKET_NAME = 'contract-test-bucket';

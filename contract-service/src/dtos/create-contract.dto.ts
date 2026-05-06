@@ -6,8 +6,35 @@ import { PaymentMethodValues } from '../shared/enums/payment-method.enum';
 import { WorkMode, WorkModeValues } from '../shared/enums/work-mode.enum';
 import { WorkSchedule, WorkScheduleValues } from '../shared/enums/work-schedule.enum';
 
-export const createContractSchema = z.object({
+function normalizeCreateContractInput(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+
+  const input = value as Record<string, unknown>;
+
+  return {
+    employeeId: input.employeeId ?? input.empleado_id,
+    type: input.type ?? input.tipo,
+    salary: input.salary ?? input.salario,
+    currency: input.currency ?? input.moneda,
+    startDate: input.startDate ?? input.fecha_inicio,
+    endDate: input.endDate ?? input.fecha_fin,
+    paymentMethod: input.paymentMethod ?? input.metodo_pago,
+    paymentFrequency: input.paymentFrequency ?? input.periodicidad_pago,
+    workplace: input.workplace ?? input.lugar_trabajo,
+    workMode: input.workMode ?? input.modalidad,
+    workSchedule: input.workSchedule ?? input.jornada,
+    fileS3Key: input.fileS3Key ?? input.archivo_s3_key,
+    fileS3Url: input.fileS3Url ?? input.fileS3URL ?? input.archivo_s3_url,
+    status: input.status ?? input.estado,
+    createdBy: input.createdBy ?? input.creado_por,
+  };
+}
+
+export const createContractSchema = z.preprocess(normalizeCreateContractInput, z.object({
   employeeId: z
+    .coerce
     .number()
     .int({ message: 'Employee id must be an integer' })
     .positive({ message: 'Employee id must be greater than zero' }),
@@ -16,7 +43,7 @@ export const createContractSchema = z.object({
     message: 'Invalid contract type',
   }),
 
-  salary: z.number().positive({ message: 'Salary must be greater than zero' }),
+  salary: z.coerce.number().positive({ message: 'Salary must be greater than zero' }),
 
   currency: z
     .string()
@@ -78,6 +105,6 @@ export const createContractSchema = z.object({
     .max(150, { message: 'Created by must be at most 150 characters long' })
     .optional()
     .nullable(),
-});
+}));
 
 export type CreateContractDto = z.infer<typeof createContractSchema>;

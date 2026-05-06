@@ -15,6 +15,8 @@ app.use(express.json());
 app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 
 app.use('/contracts', contractRouter);
+app.use('/api/contracts', contractRouter);
+app.use('/api/contratos', contractRouter);
 
 
 app.get('/health', (_request, response) => {
