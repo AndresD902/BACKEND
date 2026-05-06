@@ -1,6 +1,6 @@
 # 📋 Wiki — Sistema Administrador de Empleados
 
-> Documentación completa del proyecto final · Versión 1.0 — Modelo de datos profesional
+> Documentación completa del proyecto final · Versión 4.0 — Modelo de datos profesional con mejoras e implementaciones
 
 ---
 
@@ -43,81 +43,109 @@ La empresa gestiona la información de sus empleados de manera **descentralizada
 | Contratos laborales | Sin trazabilidad, registros en papel |
 | Gestión de vacaciones | Sin validaciones automáticas, sin control de días disponibles |
 | Cambios laborales | Sin historial de cargo/salario |
-| Control de acceso | Sin separación de roles |
+| Control de acceso | Sin separación de roles ni validación de identidad del usuario |
 | Sesiones de usuario | Sin control real de logout ni expiración de sesión |
 | Reportes | Información dispersa, no confiable |
+| Auditoría | Sin trazabilidad de qué cambió, quién lo cambió ni desde dónde |
+| Administración multiempresa | Sin herramienta centralizada para gestionar múltiples empresas clientes |
 
 ### Solución Propuesta
 
-Sistema web centralizado basado en **arquitectura de microservicios**, con modelo de datos robusto diseñado para uso empresarial real, control estricto por roles, trazabilidad completa, gestión de sesiones segura y cálculo automático de vacaciones disponibles.
+Sistema web centralizado basado en **arquitectura de microservicios**, con modelo de datos robusto diseñado para uso empresarial real, control estricto por roles, trazabilidad completa, gestión de sesiones segura, cálculo automático de vacaciones disponibles y un nuevo microservicio de administración centralizada para escalar la solución a múltiples empresas.
 
 ---
 
 ## 2. Usuario Final
 
+### Roles estándar por empresa
+
 | Rol | Descripción | Acceso |
 |-----|-------------|--------|
 | **Administrador** | Acceso total al sistema | CRUD completo en todos los módulos |
 | **RRHH** | Gestión operativa de empleados | Registro, edición parcial, aprobación de vacaciones |
-| **Consulta** | Solo lectura | Visualización de información y reportes |
+| **Consulta** | Solo lectura | Visualización de información y reportes. **Solo puede crearse si el usuario está registrado como empleado** (correo empresarial o personal) |
+
+### Rol global
+
+| Rol | Descripción | Acceso |
+|-----|-------------|--------|
+| **Super Administrador** | Gestión centralizada de todas las empresas registradas en la plataforma | Administra empresas, asigna administradores, accede a auditoría global |
 
 ---
 
 ## 3. Caso de Uso Principal
 
 ```
-1. [RRHH] Registra nuevo empleado
+1. [Super Admin] Registra empresa y asigna 2 administradores
        ↓
-2. [Sistema] Sube foto y CV a AWS S3 via presigned URL
+2. [Admin] Crea usuarios de RRHH y empleados (consultantes)
        ↓
-3. [RRHH] Asigna contrato laboral
+3. [RRHH] Registra nuevo empleado
+       ↓
+4. [Sistema] Sube foto y CV a AWS S3 via presigned URL
+       ↓
+5. [RRHH] Asigna contrato laboral
        (Contract Service valida empleado via HTTP REST)
        ↓
-4. [Sistema] Crea registro inicial en dias_disponibles para el año actual
+6. [Sistema] Crea registro inicial en dias_disponibles para el año actual
        ↓
-5. [RRHH] Solicita vacaciones para el empleado
+7. [RRHH] Solicita vacaciones para el empleado
        ↓
-6. [Sistema] Valida: días hábiles, anticipación 1 mes, festivos CO, días disponibles
+8. [Sistema] Valida: días hábiles, anticipación 1 mes, festivos CO, días disponibles
        ↓
-7. [Sistema] Envía correo automático a RRHH
+9. [Sistema] Envía correo real a RRHH con detalles
        ↓
-8. [RRHH] Aprueba o rechaza en 3 días hábiles
+10. [RRHH] Aprueba o rechaza en 3 días hábiles
        ↓
-9. [Sistema] Actualiza dias_disponibles; registra en History Service
+11. [Sistema] Actualiza dias_disponibles; registra en History Service
+       (qué empleado fue modificado, qué cambios se hicieron, quién los realizó)
        ↓
-10. [Admin/RRHH] Genera reporte consolidado
+12. [Admin/RRHH] Genera reporte consolidado
 ```
 
 ### Casos de Uso por Servicio
 
 | # | Servicio | Responsabilidad clave |
 |---|----------|-----------------------|
-| 1 | **Auth Service** | Hasheo bcrypt + JWT + refresh tokens + logout real |
-| 2 | **Employee Service** | Empleados + historial de cargo/salario + archivos en S3 |
+| 1 | **Auth Service** | Hasheo bcrypt + JWT + refresh tokens + logout real + validación de correo real |
+| 2 | **Employee Service** | Empleados + historial de cargo/salario + archivos en S3 + departamentos CO |
 | 3 | **Contract Service** | Contratos + adendas + validación REST al Employee Service |
-| 4 | **Vacation Service** | Solicitudes + días disponibles por año + festivos en BD + email |
+| 4 | **Vacation Service** | Solicitudes + días disponibles por año + festivos en BD + email + justificaciones de estado |
 | 5 | **Report Service** | Agrega datos de 3 servicios via REST — sin BD propia |
-| 6 | **History Service** | Trazabilidad completa de cambios por entidad, campo y usuario |
+| 6 | **History Service** | Trazabilidad completa: tipo de acción, empleado afectado, cambios, usuario responsable, IP, user agent |
+| 7 | **Super Admin Service** *(nuevo)* | Registro de empresas, asignación de administradores, auditoría global |
 
 ---
 
 ## 4. Alcance del Proyecto
 
-### ✅ Incluye (MVP)
+### ✅ Incluye (MVP v2)
 
 - Autenticación con JWT + refresh tokens + logout real (revocación de tokens).
+- **Validación de correo real al crear cuentas** (no se permiten correos inexistentes).
 - Registro completo de empleados con historial de cargo y salario.
+- **Preservación de datos del formulario de empleado** si la ventana se cierra accidentalmente.
 - Almacenamiento de foto y CV en **AWS S3** (presigned URLs).
+- **Subida temporal de documentos con aprobación de RRHH** antes de confirmar en S3.
+- **Formato y límite de tamaño definido** para documentos (PDF/JPG/PNG, máx. 5 MB).
 - Gestión de contratos con adendas y validación REST cruzada.
 - Vacaciones con cálculo automático de días disponibles por año.
+- **Lista de justificaciones para estado inactivo** (incapacidad, vacaciones, suspensión, etc.).
+- **Estado "transición"** para empleados cuyo contrato está por finalizar pero puede renovarse.
 - Festivos colombianos almacenados en BD (actualizables sin redesplegar).
-- Notificación por correo a RRHH en cada solicitud.
+- **Importación de JSON con departamentos de Colombia**.
+- **Módulo de departamentos del cargo** accesible solo por administrador.
+- Notificación por **correo real** a RRHH en cambios de empleados y solicitudes.
+- **Correo a RRHH cuando los datos de un empleado son incorrectos**.
 - Reportes consolidados sin BD propia.
-- Trazabilidad de cambios con auditoría completa.
+- **Exportación CSV con formato estático y organizado** (cada campo en su celda).
+- Trazabilidad de cambios con auditoría completa: tipo de acción, IP de origen, user agent.
+- **Registros correctos de logout y logout-all** en el historial.
 - Migraciones versionadas automáticas en Docker.
 - Análisis de calidad con SonarCloud (cobertura mínima 60%).
 - Pruebas E2E e integración con Playwright.
 - Pruebas de carga y estrés con Grafana k6.
+- **Super Admin Service**: administración centralizada multiempresa.
 
 ### ❌ No Incluye en MVP
 
@@ -128,11 +156,12 @@ Sistema web centralizado basado en **arquitectura de microservicios**, con model
 
 ### Supuestos Técnicos
 
-- Los empleados **NO** son usuarios del sistema; son entidades gestionadas por Admin/RRHH.
+- Los empleados **NO** son usuarios del sistema por defecto; son entidades gestionadas por Admin/RRHH. Un empleado puede tener rol "consulta" solo si está registrado con su correo empresarial o personal.
 - Cada microservicio tiene su propia BD independiente; las relaciones entre servicios son **lógicas via REST**.
 - Festivos colombianos se cargan como datos semilla (seed) al iniciar por primera vez.
 - Los días de vacaciones legales son 15 días hábiles por año (Código Sustantivo del Trabajo Colombia).
 - Las migraciones corren automáticamente al iniciar cada contenedor Docker.
+- El estado **"transición"** indica que el contrato del empleado está próximo a vencer pero puede renovarse; es diferente a "inactivo" (ausentismo temporal) y "retirado" (desvinculado definitivamente).
 
 ---
 
@@ -142,7 +171,7 @@ Sistema web centralizado basado en **arquitectura de microservicios**, con model
 |---|--------|-------------|---------|------------|
 | 1 | Pérdida de datos en BD | Media | Alto | Backups automáticos diarios en servicio administrado |
 | 2 | Token JWT comprometido | Baja | Alto | Refresh tokens + tabla `refresh_tokens` para revocación real |
-| 3 | Sesión activa tras logout | Media | Alto | `refresh_tokens.revocado = true` al hacer logout |
+| 3 | Sesión activa tras logout | Media | Alto | `refresh_tokens.revocado = true` al hacer logout; registrar en history |
 | 4 | Inconsistencia en días disponibles | Media | Alto | Tabla `dias_disponibles` como fuente de verdad; actualización transaccional |
 | 5 | Festivos hardcodeados desactualizados | Alta | Medio | Tabla `festivos` en BD; seed anual actualizable sin redespliegue |
 | 6 | Fallo en comunicación entre microservicios | Media | Alto | Timeouts + reintentos + errores 503 controlados |
@@ -150,12 +179,16 @@ Sistema web centralizado basado en **arquitectura de microservicios**, con model
 | 8 | Deuda técnica acumulada | Alta | Medio | SonarCloud en cada PR + cobertura mínima 60% |
 | 9 | Migración de BD falla en Docker | Media | Alto | `depends_on: condition: service_healthy` + migraciones idempotentes |
 | 10 | Despliegue fallido en producción | Media | Alto | CI/CD con GitHub Actions + ambiente de staging |
+| 11 | Creación de cuentas con correos inexistentes | Media | Alto | Validación de correo real al registrar (SMTP verify o servicio externo) |
+| 12 | Pérdida de datos del formulario de empleado | Alta | Medio | Persistencia en localStorage mientras el formulario esté abierto |
+| 13 | Documentos subidos sin control | Media | Alto | Flujo de aprobación RRHH antes de confirmar subida definitiva en S3 |
+| 14 | Auditoría incompleta (sin IP, sin user agent) | Media | Alto | History Service captura siempre `ip_origen` y `user_agent` en cada registro |
 
 ---
 
 ## 6. Arquitectura del Sistema
 
-### Tecnologías por Capa por cada microservicio
+### Tecnologías por Capa
 
 | Capa | Tecnología | Justificación |
 |------|-----------|--------------|
@@ -163,10 +196,10 @@ Sistema web centralizado basado en **arquitectura de microservicios**, con model
 | **Backend** | Node.js + Express | Liviano, ideal para microservicios REST |
 | **Base de Datos** | PostgreSQL | Relacional, ACID, una instancia por servicio |
 | **Migraciones** | node-pg-migrate | Versionado de esquema, idempotente en Docker |
-| **Seeds** | Scripts SQL / node-pg-migrate | Datos iniciales (festivos, configuración) |
-| **Almacenamiento** | AWS S3 | Escalable para binarios (fotos, CVs) |
+| **Seeds** | Scripts SQL / node-pg-migrate | Datos iniciales (festivos, departamentos CO, configuración) |
+| **Almacenamiento** | AWS S3 | Escalable para binarios (fotos, CVs, documentos) |
 | **Autenticación** | JWT + Refresh Tokens | Stateless + logout real con revocación |
-| **Notificaciones** | Nodemailer + SMTP | Correos automáticos de vacaciones |
+| **Notificaciones** | Nodemailer + SMTP | Correos reales para cambios de empleados, vacaciones, solicitudes de corrección |
 | **Contenedores** | Docker + Docker Compose | Portabilidad y consistencia |
 | **CI/CD** | GitHub Actions | Automatización de pruebas y despliegue |
 | **Calidad** | SonarCloud | Análisis estático, cobertura mínima 60% |
@@ -178,7 +211,7 @@ Sistema web centralizado basado en **arquitectura de microservicios**, con model
 
 ## 6.1 Documentación Interna de cada Microservicio
 
-Esta sección detalla la lógica interna, responsabilidades, flujos y estructura de código de cada uno de los 6 microservicios del sistema. Es la guía de referencia antes de comenzar a programar.
+Esta sección detalla la lógica interna, responsabilidades, flujos y estructura de código de cada uno de los 7 microservicios del sistema. Es la guía de referencia antes de comenzar a programar.
 
 ---
 
@@ -188,10 +221,21 @@ Esta sección detalla la lógica interna, responsabilidades, flujos y estructura
 
 #### Responsabilidades
 - Registrar usuarios con contraseña hasheada en bcrypt.
+- **Validar que el correo electrónico es real** antes de completar el registro (verificación SMTP o servicio de validación externo). No se permite crear cuentas con correos inexistentes.
 - Autenticar usuarios y emitir `access_token` (JWT, 1h) + `refresh_token` (opaco, 7 días).
 - Renovar el `access_token` sin pedir contraseña nuevamente, usando el `refresh_token`.
-- Revocar tokens en logout (individual y global).
+- Revocar tokens en logout (individual y global) y **registrar correctamente ambas acciones en History Service**.
+- **Permitir creación de usuario tipo "consulta" solo si el correo está registrado como empleado** (correo empresarial o personal).
 - Proveer middleware `verifyToken` reutilizable por los demás servicios.
+
+#### Reglas de negocio — Campos de usuario
+
+| Campo | Regla |
+|-------|-------|
+| `celular` | Máximo **10 caracteres** |
+| `salario` | Tope máximo de **100.000.000 COP** |
+| `nivel_educativo` | Valores permitidos: `bachiller`, `tecnico`, `universitario`, `especialista`, `magister`, `doctorado` |
+| `rol = consulta` | Solo se puede crear si el correo existe en `empleados.correo_personal` o `empleados.correo_corporativo` |
 
 #### Flujo de Login
 ```
@@ -200,9 +244,10 @@ POST /api/auth/login
   2. Verifica contraseña con bcrypt.compare()
   3. Genera access_token (JWT firmado con JWT_SECRET, exp: 1h)
   4. Genera refresh_token (crypto.randomBytes(64).toString('hex'))
-  5. Guarda hash SHA-256 del refresh_token en tabla refresh_tokens
+  5. Guarda hash SHA-256 del refresh_token en tabla refresh_tokens (con ip_origen y user_agent)
   6. Actualiza usuarios.ultimo_login
-  7. Retorna { access_token, refresh_token, usuario: { id, email, rol } }
+  7. Registra acción 'login' en History Service con ip_origen y user_agent
+  8. Retorna { access_token, refresh_token, usuario: { id, email, rol } }
 ```
 
 #### Flujo de Refresh
@@ -213,8 +258,9 @@ POST /api/auth/refresh
   3. Busca en refresh_tokens por token_hash
   4. Verifica: ¿existe? ¿revocado = false? ¿expires_at > ahora?
   5. Si todo OK → genera nuevo access_token
-  6. Retorna { access_token }
-  7. Si falla → 401 "Token inválido o revocado"
+  6. Registra acción 'token_renovado' en History Service con ip_origen y user_agent
+  7. Retorna { access_token }
+  8. Si falla → 401 "Token inválido o revocado"
 ```
 
 #### Flujo de Logout
@@ -223,12 +269,29 @@ POST /api/auth/logout
   1. Recibe { refresh_token } en el body
   2. Calcula SHA-256 del token
   3. Busca en refresh_tokens y marca revocado = TRUE
-  4. Retorna 200 { message: "Sesión cerrada correctamente" }
+  4. Registra acción 'logout' en History Service con ip_origen y user_agent
+  5. Retorna 200 { message: "Sesión cerrada correctamente" }
 
 POST /api/auth/logout-all
   1. Extrae usuario_id del access_token (JWT)
   2. Marca revocado = TRUE en TODOS los refresh_tokens del usuario
-  3. Útil cuando se sospecha de acceso no autorizado
+  3. Registra acción 'logout_all' en History Service
+  4. Útil cuando se sospecha de acceso no autorizado
+```
+
+#### Flujo de Registro con validación de correo real
+```
+POST /api/auth/register
+  1. Valida campos (cedula, email, password, rol)
+  2. Verifica que el email no exista en BD
+  3. Verifica que el correo sea real (SMTP check o servicio de validación)
+     → Si no existe: 400 "El correo electrónico no es válido o no existe"
+  4. Si rol = 'consulta':
+     → Verifica que el correo esté registrado en employee-service como empleado
+     → Si no existe: 403 "El rol consulta requiere estar registrado como empleado"
+  5. Hashea la contraseña con bcrypt (12 rounds)
+  6. Crea el usuario en BD
+  7. Retorna 201 con datos básicos del usuario
 ```
 
 #### Estructura interna
@@ -239,6 +302,8 @@ const crypto    = require('crypto');
 const jwt       = require('jsonwebtoken');
 const userRepo  = require('../repositories/user.repository');
 const tokenRepo = require('../repositories/refreshToken.repository');
+const historyClient = require('../clients/historyServiceClient');
+const employeeClient = require('../clients/employeeServiceClient');
 
 const SALT_ROUNDS    = 12;
 const JWT_SECRET     = process.env.JWT_SECRET;
@@ -248,6 +313,17 @@ const REFRESH_DAYS   = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS || '7');
 const registrar = async ({ cedula, email, password, rol }) => {
   const existe = await userRepo.findByEmail(email);
   if (existe) throw { status: 409, message: 'El email ya está registrado' };
+
+  // Validar que el correo sea real (servicio externo o SMTP check)
+  const correoValido = await verificarCorreoReal(email);
+  if (!correoValido) throw { status: 400, message: 'El correo electrónico no es válido o no existe' };
+
+  // Si rol = consulta, verificar que el correo esté registrado como empleado
+  if (rol === 'consulta') {
+    const esEmpleado = await employeeClient.verificarCorreoEmpleado(email);
+    if (!esEmpleado) throw { status: 403, message: 'El rol consulta requiere estar registrado como empleado' };
+  }
+
   const hash = await bcrypt.hash(password, SALT_ROUNDS);
   return userRepo.create({ cedula, email, password: hash, rol });
 };
@@ -257,7 +333,14 @@ const login = async ({ email, password }, ipOrigen, userAgent) => {
   if (!usuario || !usuario.activo)
     throw { status: 401, message: 'Credenciales inválidas' };
   const valido = await bcrypt.compare(password, usuario.password);
-  if (!valido) throw { status: 401, message: 'Credenciales inválidas' };
+  if (!valido) {
+    // Registrar intento fallido
+    historyClient.registrarAccion({
+      usuario_email: email, accion: 'login', resultado: 'fallido',
+      ip_origen: ipOrigen, user_agent: userAgent
+    }).catch(() => {});
+    throw { status: 401, message: 'Credenciales inválidas' };
+  }
 
   const accessToken = jwt.sign(
     { id: usuario.id, email: usuario.email, rol: usuario.rol },
@@ -271,11 +354,18 @@ const login = async ({ email, password }, ipOrigen, userAgent) => {
   await tokenRepo.create({ usuarioId: usuario.id, tokenHash, expiresAt, ipOrigen, userAgent });
   await userRepo.updateUltimoLogin(usuario.id);
 
+  // Registrar login exitoso en History Service
+  historyClient.registrarAccion({
+    usuario_email: usuario.email, rol: usuario.rol,
+    accion: 'login', resultado: 'exitoso',
+    ip_origen: ipOrigen, user_agent: userAgent
+  }).catch(() => {});
+
   return { access_token: accessToken, refresh_token: refreshToken,
            usuario: { id: usuario.id, email: usuario.email, rol: usuario.rol } };
 };
 
-const refresh = async (refreshToken) => {
+const refresh = async (refreshToken, ipOrigen, userAgent) => {
   const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
   const registro  = await tokenRepo.findByHash(tokenHash);
   if (!registro || registro.revocado || new Date(registro.expires_at) < new Date())
@@ -287,16 +377,38 @@ const refresh = async (refreshToken) => {
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
+
+  // Registrar renovación de token en History Service
+  historyClient.registrarAccion({
+    usuario_email: usuario.email, rol: usuario.rol,
+    accion: 'token_renovado', resultado: 'exitoso',
+    ip_origen: ipOrigen, user_agent: userAgent
+  }).catch(() => {});
+
   return { access_token: accessToken };
 };
 
-const logout = async (refreshToken) => {
+const logout = async (refreshToken, ipOrigen, userAgent) => {
   const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+  const registro  = await tokenRepo.findByHash(tokenHash);
   await tokenRepo.revocarPorHash(tokenHash);
+
+  if (registro) {
+    const usuario = await userRepo.findById(registro.usuario_id);
+    historyClient.registrarAccion({
+      usuario_email: usuario?.email, accion: 'logout', resultado: 'exitoso',
+      ip_origen: ipOrigen, user_agent: userAgent
+    }).catch(() => {});
+  }
 };
 
-const logoutAll = async (usuarioId) => {
+const logoutAll = async (usuarioId, ipOrigen, userAgent) => {
   await tokenRepo.revocarTodosPorUsuario(usuarioId);
+  const usuario = await userRepo.findById(usuarioId);
+  historyClient.registrarAccion({
+    usuario_email: usuario?.email, accion: 'logout_all', resultado: 'exitoso',
+    ip_origen: ipOrigen, user_agent: userAgent
+  }).catch(() => {});
 };
 
 module.exports = { registrar, login, refresh, logout, logoutAll };
@@ -304,7 +416,6 @@ module.exports = { registrar, login, refresh, logout, logoutAll };
 
 ```javascript
 // src/middlewares/verifyToken.js
-// Este middleware se copia en cada microservicio para validar el JWT localmente
 const jwt = require('jsonwebtoken');
 
 const verifyToken = (rolesPermitidos = []) => (req, res, next) => {
@@ -334,30 +445,63 @@ DATABASE_URL=postgres://postgres:password@postgres-auth:5432/auth_db
 JWT_SECRET=minimo_32_caracteres_muy_seguro_aqui
 JWT_EXPIRES_IN=1h
 REFRESH_TOKEN_EXPIRES_DAYS=7
+EMPLOYEE_SERVICE_URL=http://employee-service:3002
+HISTORY_SERVICE_URL=http://history-service:3006
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=correo@gmail.com
+SMTP_PASS=app_password_gmail
 ```
 
 ---
 
 ### Microservicio 2 — Employee Service
 
-**Puerto:** 3002 | **Base de datos:** `employee_db` | **Tablas:** `empleados`, `cargos_salarios`, `documentos_empleado`
+**Puerto:** 3002 | **Base de datos:** `employee_db` | **Tablas:** `empleados`, `cargos_salarios`, `documentos_empleado`, `departamentos`
 
 #### Responsabilidades
 - Registrar y gestionar el ciclo de vida completo de los empleados.
 - Mantener historial de cargos y salarios (promociones, aumentos).
-- Gestionar documentos del empleado (foto, CV, certificados) via AWS S3.
-- Notificar al History Service cuando se modifican datos sensibles.
+- Gestionar documentos del empleado (foto, CV, certificados) via AWS S3 con **flujo de aprobación RRHH**.
+- Notificar al History Service cuando se modifican datos sensibles, incluyendo **qué empleado fue modificado, qué campos cambiaron y quién realizó el cambio**.
+- Enviar **correo real a RRHH** cuando se detectan datos incorrectos de un empleado.
+- **Importar y gestionar departamentos de Colombia** desde JSON semilla.
+- Proveer módulo de departamentos del cargo accesible solo por administrador.
 - Validar JWT en cada operación mediante middleware local.
 
-#### Flujo: Registrar nuevo empleado
+#### Estados de empleado
+
+| Estado | Descripción |
+|--------|-------------|
+| `activo` | Trabajando actualmente |
+| `inactivo` | Ausentismo temporal (ver lista de justificaciones abajo) |
+| `transicion` | Contrato próximo a vencer, pendiente de renovación |
+| `retirado` | Desvinculado definitivamente de la empresa |
+
+#### Justificaciones para estado inactivo
+
+Cuando un empleado pasa a estado `inactivo`, el sistema muestra una lista de justificaciones:
+- Incapacidad médica
+- Vacaciones aprobadas
+- Suspensión disciplinaria
+- Licencia de maternidad / paternidad
+- Licencia no remunerada
+- Calamidad doméstica
+- Otro (especificar)
+
+#### Flujo: Registrar nuevo empleado (con preservación de formulario)
 ```
 POST /api/empleados
   1. Verifica JWT (middleware verifyToken → roles: admin, rrhh)
-  2. Valida que la cédula no exista
-  3. Crea registro en tabla empleados
-  4. Si viene cargo y salario → crea registro en cargos_salarios con activo=TRUE
-  5. Notifica a History Service: POST /api/historial/cambios
-  6. Retorna empleado creado con 201
+  2. El frontend guarda el estado del formulario en localStorage mientras el usuario llena datos.
+     Si la ventana se cierra, los datos se restauran automáticamente al volver al formulario.
+  3. Valida que la cédula no exista
+  4. Crea registro en tabla empleados
+  5. Si viene cargo y salario → crea registro en cargos_salarios con activo=TRUE
+  6. Notifica a History Service: POST /api/historial/cambios
+     (incluye: empleado_id afectado, tipo_accion='creacion_empleado',
+      campos creados, usuario_modificador, ip_origen, user_agent)
+  7. Retorna empleado creado con 201
 ```
 
 #### Flujo: Cambiar cargo y salario
@@ -366,29 +510,68 @@ POST /api/empleados/:id/cargo
   1. Verifica JWT (roles: admin, rrhh)
   2. Busca cargo activo actual → UPDATE activo=FALSE, fecha_fin=hoy
   3. Crea nuevo registro en cargos_salarios con activo=TRUE, fecha_inicio=hoy
-  4. Notifica a History Service con campo_modificado='cargo' y 'salario'
+  4. Notifica a History Service con tipo_accion='cambio_cargo_salario',
+     campo_modificado='cargo' y 'salario', ip_origen, user_agent
   5. Retorna nuevo cargo con 201
 ```
 
-#### Flujo: Subir documento a S3
+#### Flujo: Subir documento a S3 (con aprobación RRHH)
 ```
-POST /api/empleados/presigned-url
+[Fase 1 — Subida temporal]
+POST /api/empleados/:id/documentos/temporal
   1. Verifica JWT (roles: admin, rrhh)
-  2. Genera presigned URL de subida con AWS SDK (expira en 5 min)
-  3. Retorna { presigned_url, key }
+  2. Valida formato: solo PDF, JPG, PNG
+  3. Valida tamaño: máximo 5 MB
+  4. Genera presigned URL de subida con AWS SDK (expira en 5 min), destino /temporal/
+  5. Guarda registro en documentos_empleado con estado='pendiente_aprobacion'
+  6. Envía correo real a RRHH notificando el documento pendiente
 
-[Frontend sube el archivo directamente a S3]
+[Fase 2 — Aprobación RRHH]
+PATCH /api/empleados/:id/documentos/:docId/aprobar
+  1. Mueve el archivo de /temporal/ a la ruta definitiva en S3
+  2. Actualiza documentos_empleado: estado='activo', s3_key y s3_url definitivos
+  3. Notifica en History Service: tipo_accion='aprobacion_documento'
 
-POST /api/empleados/:id/documentos
-  1. Verifica JWT
-  2. Si ya existe un documento activo del mismo tipo → UPDATE activo=FALSE
-  3. Guarda nuevo registro en documentos_empleado con s3_key, s3_url, activo=TRUE
-  4. Retorna documento creado con 201
+PATCH /api/empleados/:id/documentos/:docId/rechazar
+  1. Elimina el archivo temporal de S3
+  2. Actualiza documentos_empleado: estado='rechazado'
+  3. Notifica al empleado con motivo de rechazo
 
+[Descarga — sin cambios]
 GET /api/empleados/documentos/:docId/url
   1. Busca el documento en documentos_empleado
   2. Genera presigned URL de descarga (expira en 1h)
   3. Retorna { url, expires_in: 3600 }
+```
+
+#### Flujo: Exportar empleados a CSV (formato organizado)
+```
+GET /api/empleados/export/csv
+  1. Verifica JWT (roles: admin, rrhh)
+  2. Obtiene lista de empleados con todos los campos
+  3. Genera CSV con cabeceras fijas, cada campo en su columna correspondiente
+     (sin mezcla de datos, sin columnas vacías, formato legible en Excel)
+  4. Retorna archivo con Content-Disposition: attachment; filename="empleados_YYYY-MM-DD.csv"
+```
+
+#### Flujo: Solicitar corrección de datos
+```
+POST /api/empleados/:id/solicitar-correccion
+  1. Verifica JWT (cualquier rol)
+  2. Recibe { campo, descripcion_error, valor_incorrecto, valor_sugerido }
+  3. Envía correo real a RRHH con los detalles de la corrección solicitada
+  4. Registra en History Service: tipo_accion='solicitud_correccion'
+  5. Retorna 200 { message: "Solicitud enviada a RRHH" }
+```
+
+#### Flujo: Filtros y búsqueda de empleados (corregidos)
+```
+GET /api/empleados?estado=activo&q=Juan&limit=50
+  Filtros disponibles (todos corregidos y funcionales):
+  - estado: activo | inactivo | transicion | retirado
+  - q: búsqueda por nombre, apellido o cédula (máximo 50 caracteres)
+  - departamento_id, cargo, fecha_ingreso_desde, fecha_ingreso_hasta
+  - limit (máx. 100), offset
 ```
 
 #### Variables de entorno
@@ -401,6 +584,11 @@ AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=...
 S3_BUCKET_NAME=hr-system-empleados
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=correo@gmail.com
+SMTP_PASS=app_password_gmail
+RRHH_EMAIL=rrhh@empresa.com
 ```
 
 ---
@@ -425,11 +613,9 @@ POST /api/contratos
        - Si responde 200: el empleado existe, continúa
        - Si responde 404: retorna 404 "El empleado no existe en el sistema"
        - Si falla conexión: retorna 503 "Employee Service no disponible"
-  4. Verifica que el empleado no tenga ya un contrato activo (opcional: una empresa
-     puede tener política de un solo contrato activo por empleado)
-  5. Crea registro en tabla contratos
-  6. Notifica a History Service: entidad='contrato', accion='creado'
-  7. Retorna contrato creado con 201
+  4. Crea registro en tabla contratos
+  5. Notifica a History Service: tipo_accion='creacion_contrato'
+  6. Retorna contrato creado con 201
 ```
 
 #### Flujo: Agregar adenda
@@ -439,12 +625,9 @@ POST /api/contratos/:id/adendas
   2. Verifica que el contrato existe y está activo
   3. Calcula numero_adenda = (COUNT de adendas existentes del contrato) + 1
   4. Construye cambios_json comparando valores anteriores vs nuevos
-     Ejemplo: { "modalidad": { "antes": "presencial", "despues": "hibrido" } }
   5. Crea registro en adendas_contratos
-  6. Si la adenda modifica campos del contrato (salario, fecha_fin, etc.)
-     → actualiza también el registro en contratos
-  7. Notifica a History Service
-  8. Retorna adenda creada con 201
+  6. Notifica a History Service: tipo_accion='adenda_contrato'
+  7. Retorna adenda creada con 201
 ```
 
 #### Estructura interna — cliente REST al Employee Service
@@ -453,7 +636,7 @@ POST /api/contratos/:id/adendas
 const axios = require('axios');
 
 const EMPLOYEE_URL = process.env.EMPLOYEE_SERVICE_URL;
-const TIMEOUT_MS   = 5000; // 5 segundos máximo de espera
+const TIMEOUT_MS   = 5000;
 
 const verificarEmpleado = async (empleadoId, token) => {
   try {
@@ -461,11 +644,10 @@ const verificarEmpleado = async (empleadoId, token) => {
       headers:  { Authorization: `Bearer ${token}` },
       timeout:  TIMEOUT_MS
     });
-    return response.data; // retorna el empleado si existe
+    return response.data;
   } catch (error) {
     if (error.response?.status === 404)
       throw { status: 404, message: `El empleado con id ${empleadoId} no existe en el sistema` };
-    // Cualquier otro error (timeout, conexión rechazada, etc.) → 503
     throw { status: 503, message: 'No se pudo verificar el empleado. Intente nuevamente.' };
   }
 };
@@ -475,20 +657,19 @@ module.exports = { verificarEmpleado };
 
 ```javascript
 // contract-service/src/services/contract.service.js
-const contratoRepo = require('../repositories/contract.repository');
-const adendaRepo   = require('../repositories/adenda.repository');
+const contratoRepo   = require('../repositories/contract.repository');
+const adendaRepo     = require('../repositories/adenda.repository');
 const employeeClient = require('../clients/employeeServiceClient');
 const historyClient  = require('../clients/historyServiceClient');
 
 const crearContrato = async (datos, token, usuarioEmail) => {
-  // Validación cruzada via REST
   await employeeClient.verificarEmpleado(datos.empleado_id, token);
 
   const contrato = await contratoRepo.create({ ...datos, creadoPor: usuarioEmail });
 
-  // Notificar al History Service (fire-and-forget: no bloqueamos si falla)
   historyClient.registrarCambio({
     empleado_id:         datos.empleado_id,
+    tipo_accion:         'creacion_contrato',
     entidad:             'contrato',
     entidad_id:          contrato.id,
     campo_modificado:    'contrato_creado',
@@ -504,14 +685,13 @@ const agregarAdenda = async (contratoId, datos, token, usuarioEmail) => {
   if (!contrato) throw { status: 404, message: 'Contrato no encontrado' };
   if (contrato.estado !== 'activo') throw { status: 400, message: 'Solo se pueden adendas a contratos activos' };
 
-  const count         = await adendaRepo.countByContrato(contratoId);
-  const numeroAdenda  = count + 1;
-  const adenda        = await adendaRepo.create({
-    contratoId, numeroAdenda, creadoPor: usuarioEmail, ...datos
-  });
+  const count        = await adendaRepo.countByContrato(contratoId);
+  const numeroAdenda = count + 1;
+  const adenda       = await adendaRepo.create({ contratoId, numeroAdenda, creadoPor: usuarioEmail, ...datos });
 
   historyClient.registrarCambio({
     empleado_id:         contrato.empleado_id,
+    tipo_accion:         'adenda_contrato',
     entidad:             'contrato',
     entidad_id:          contratoId,
     campo_modificado:    `adenda_${numeroAdenda}`,
@@ -544,7 +724,7 @@ HISTORY_SERVICE_URL=http://history-service:3006
 - Gestionar solicitudes de vacaciones con validaciones estrictas de negocio.
 - Calcular días hábiles excluyendo fines de semana y festivos de la tabla `festivos`.
 - Mantener actualizada la tabla `dias_disponibles` por empleado por año.
-- Enviar notificaciones por correo a RRHH al crear una solicitud.
+- Enviar notificaciones por **correo real** a RRHH al crear una solicitud.
 - Enviar confirmación por correo cuando se aprueba o rechaza.
 - Crear automáticamente el registro de `dias_disponibles` para el año actual cuando se solicita por primera vez.
 
@@ -569,9 +749,10 @@ POST /api/vacaciones
   7. Valida regla 4: no solapamiento con otras solicitudes activas
   8. Crea registro en vacaciones con estado='pendiente'
   9. UPDATE dias_disponibles: dias_pendientes += dias_habiles
-  10. Envía correo a RRHH con detalles de la solicitud (Nodemailer)
+  10. Envía correo real a RRHH con detalles de la solicitud (Nodemailer)
   11. UPDATE vacaciones: notificado=TRUE
-  12. Retorna solicitud con 201
+  12. Registra en History Service: tipo_accion='solicitud_vacaciones'
+  13. Retorna solicitud con 201
 ```
 
 #### Flujo: Aprobar vacaciones
@@ -583,8 +764,8 @@ PATCH /api/vacaciones/:id/aprobar
   4. UPDATE dias_disponibles:
        dias_usados     += dias_habiles
        dias_pendientes -= dias_habiles
-  5. Notifica a History Service
-  6. Envía correo de confirmación al RRHH/solicitante
+  5. Registra en History Service: tipo_accion='aprobacion_vacaciones'
+  6. Envía correo de confirmación
   7. Retorna solicitud actualizada con 200
 ```
 
@@ -595,8 +776,7 @@ PATCH /api/vacaciones/:id/rechazar
   2. Verifica que la solicitud esté en 'pendiente'
   3. UPDATE vacaciones: estado='rechazada', motivo_rechazo, aprobado_por
   4. UPDATE dias_disponibles: dias_pendientes -= dias_habiles
-     (los días vuelven a estar disponibles)
-  5. Notifica a History Service
+  5. Registra en History Service: tipo_accion='rechazo_vacaciones'
   6. Envía correo de rechazo con motivo
   7. Retorna solicitud actualizada con 200
 ```
@@ -613,7 +793,7 @@ const calcularDiasHabiles = async (fechaInicio, fechaFin) => {
   let diasHabiles = 0;
   const cursor = new Date(fechaInicio);
   while (cursor <= fechaFin) {
-    const diaSemana   = cursor.getDay(); // 0=domingo, 6=sábado
+    const diaSemana   = cursor.getDay();
     const fechaStr    = cursor.toISOString().split('T')[0];
     const esFestivo   = fechasFestivos.has(fechaStr);
     const esFinSemana = diaSemana === 0 || diaSemana === 6;
@@ -624,8 +804,8 @@ const calcularDiasHabiles = async (fechaInicio, fechaFin) => {
 };
 
 const validarAnticipacion = (fechaInicio) => {
-  const hoy        = new Date();
-  const unMes      = new Date(hoy);
+  const hoy   = new Date();
+  const unMes = new Date(hoy);
   unMes.setMonth(unMes.getMonth() + 1);
   if (fechaInicio < unMes)
     throw { status: 400, message: 'La solicitud debe realizarse con al menos 1 mes de anticipación' };
@@ -654,10 +834,7 @@ const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST,
   port:   parseInt(process.env.SMTP_PORT),
   secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
 });
 
 const notificarSolicitudRRHH = async ({ empleadoNombre, fechaInicio, fechaFin, diasHabiles, emailRRHH }) => {
@@ -707,19 +884,16 @@ DIAS_LEGALES_ANUALES=15
 - Garantizar que si uno de los servicios dependientes falla, el reporte parcial igual se retorne con advertencia.
 
 #### ¿Por qué sin base de datos?
-Si el Report Service tuviera su propia BD, tendría que sincronizarla constantemente con los demás servicios, creando duplicación de datos y riesgo de inconsistencias. Al agregar en tiempo real via REST, los reportes siempre muestran la información más actualizada, sin lógica de sincronización.
+Si el Report Service tuviera su propia BD, tendría que sincronizarla constantemente con los demás servicios, creando duplicación de datos y riesgo de inconsistencias. Al agregar en tiempo real via REST, los reportes siempre muestran la información más actualizada.
 
 #### Flujo: Reporte de estado laboral
 ```
 GET /api/reportes/estado-laboral
   1. Verifica JWT
   2. GET http://employee-service/api/empleados?estado=activo
-     → Lista de empleados activos
   3. Para cada empleado:
      GET http://employee-service/api/empleados/:id/cargo-actual
-     → Cargo y salario actual
   4. GET http://vacation-service/api/vacaciones/empleado/:id/disponibles
-     → Días de vacaciones disponibles
   5. Combina y retorna lista consolidada
 ```
 
@@ -728,13 +902,13 @@ GET /api/reportes/estado-laboral
 GET /api/reportes/empleado/:id
   1. Verifica JWT (roles: admin, rrhh)
   2. En paralelo (Promise.allSettled):
-     a. GET /employee-service/api/empleados/:id           → datos del empleado
-     b. GET /employee-service/api/empleados/:id/historial-cargo → historial de carrera
-     c. GET /contract-service/api/contratos/empleado/:id  → contratos y adendas
-     d. GET /vacation-service/api/vacaciones/empleado/:id → vacaciones históricas
-     e. GET /vacation-service/api/vacaciones/empleado/:id/disponibles → días disponibles
+     a. GET /employee-service/api/empleados/:id
+     b. GET /employee-service/api/empleados/:id/historial-cargo
+     c. GET /contract-service/api/contratos/empleado/:id
+     d. GET /vacation-service/api/vacaciones/empleado/:id
+     e. GET /vacation-service/api/vacaciones/empleado/:id/disponibles
   3. Consolida todos los datos en un único objeto de respuesta
-  4. Si alguna llamada falla, incluye el campo con null y agrega advertencia en la respuesta
+  4. Si alguna llamada falla, incluye el campo con null y agrega advertencia
 ```
 
 #### Manejo de fallos parciales
@@ -745,10 +919,10 @@ const obtenerReporteEmpleado = async (empleadoId, token) => {
 
   const [empleado, historialCargo, contratos, vacaciones, disponibles] =
     await Promise.allSettled([
-      axios.get(`${EMPLOYEE_URL}/api/empleados/${empleadoId}`,               { headers }),
+      axios.get(`${EMPLOYEE_URL}/api/empleados/${empleadoId}`,                { headers }),
       axios.get(`${EMPLOYEE_URL}/api/empleados/${empleadoId}/historial-cargo`, { headers }),
-      axios.get(`${CONTRACT_URL}/api/contratos/empleado/${empleadoId}`,       { headers }),
-      axios.get(`${VACATION_URL}/api/vacaciones/empleado/${empleadoId}`,      { headers }),
+      axios.get(`${CONTRACT_URL}/api/contratos/empleado/${empleadoId}`,        { headers }),
+      axios.get(`${VACATION_URL}/api/vacaciones/empleado/${empleadoId}`,       { headers }),
       axios.get(`${VACATION_URL}/api/vacaciones/empleado/${empleadoId}/disponibles`, { headers }),
     ]);
 
@@ -760,26 +934,26 @@ const obtenerReporteEmpleado = async (empleadoId, token) => {
   };
 
   return {
-    empleado:       extraer(empleado,       'datos del empleado'),
+    empleado:        extraer(empleado,       'datos del empleado'),
     historial_cargo: extraer(historialCargo, 'historial de cargos'),
-    contratos:      extraer(contratos,      'contratos'),
-    vacaciones:     extraer(vacaciones,     'vacaciones'),
-    disponibles:    extraer(disponibles,    'días disponibles'),
-    advertencias,   // vacío si todo salió bien
-    generado_en:    new Date().toISOString(),
+    contratos:       extraer(contratos,      'contratos'),
+    vacaciones:      extraer(vacaciones,     'vacaciones'),
+    disponibles:     extraer(disponibles,    'días disponibles'),
+    advertencias,
+    generado_en:     new Date().toISOString(),
   };
 };
 ```
 
-#### Reportes disponibles y qué servicios consulta cada uno
+#### Reportes disponibles
 
 | Endpoint | Servicios consultados | Datos combinados |
 |----------|----------------------|-----------------|
-| `GET /estado-laboral` | Employee (lista + cargos) + Vacation (disponibles) | Empleados activos con cargo actual y días disponibles |
-| `GET /vacaciones` | Vacation (solicitudes) + Employee (nombre empleado) | Resumen de solicitudes por estado y empleado |
-| `GET /contratos` | Contract (contratos) + Employee (nombre empleado) | Contratos agrupados por tipo y estado |
+| `GET /estado-laboral` | Employee + Vacation | Empleados activos con cargo actual y días disponibles |
+| `GET /vacaciones` | Vacation + Employee | Resumen de solicitudes por estado y empleado |
+| `GET /contratos` | Contract + Employee | Contratos agrupados por tipo y estado |
 | `GET /empleado/:id` | Employee + Contract + Vacation | Ficha completa del empleado |
-| `GET /turnover` | Employee (retirados) + Contract (terminados) | Empleados retirados en un rango de fechas |
+| `GET /turnover` | Employee + Contract | Empleados retirados en un rango de fechas |
 
 #### Variables de entorno
 ```env
@@ -799,18 +973,40 @@ REQUEST_TIMEOUT_MS=8000
 
 #### Responsabilidades
 - Recibir y persistir registros de cambios enviados por los demás microservicios.
-- Registrar acciones de seguridad del sistema (login, logout, token renovado, reportes generados).
-- Proveer endpoints de consulta para auditoría, filtrados por empleado, usuario, entidad y rango de fechas.
+- Registrar acciones de seguridad del sistema (login, logout, logout-all, token renovado, reportes generados).
+- **Especificar el tipo de acción en cada registro** (catálogo completo abajo).
+- **Incluir siempre `ip_origen` y `user_agent`** en todos los registros relevantes.
+- **Registrar correctamente logout y logout-all** como acciones diferenciadas.
+- Proveer endpoints de consulta para auditoría, filtrados por empleado, usuario, entidad, tipo de acción y rango de fechas.
 - Ser un servicio **pasivo**: no llama a ningún otro servicio, solo recibe y almacena.
 
-#### ¿Quién llama al History Service?
-Todos los demás servicios hacen llamadas **fire-and-forget** al History Service cuando ocurre un evento relevante. "Fire-and-forget" significa que el servicio origen no espera la respuesta ni falla si el History Service está caído — la operación principal ya se completó:
+#### Catálogo de tipos de acción
 
+| Tipo de acción | Disparado por |
+|---------------|--------------|
+| `login` | Auth Service |
+| `logout` | Auth Service |
+| `logout_all` | Auth Service |
+| `token_renovado` | Auth Service |
+| `creacion_empleado` | Employee Service |
+| `modificacion_empleado` | Employee Service |
+| `cambio_cargo_salario` | Employee Service |
+| `subida_documento` | Employee Service |
+| `aprobacion_documento` | Employee Service |
+| `solicitud_correccion` | Employee Service |
+| `creacion_contrato` | Contract Service |
+| `adenda_contrato` | Contract Service |
+| `solicitud_vacaciones` | Vacation Service |
+| `aprobacion_vacaciones` | Vacation Service |
+| `rechazo_vacaciones` | Vacation Service |
+| `reporte_generado` | Report Service |
+
+#### ¿Quién llama al History Service?
 ```
 Employee Service  → POST /api/historial/cambios  (al crear/editar empleado, al cambiar cargo)
 Contract Service  → POST /api/historial/cambios  (al crear contrato, al agregar adenda)
 Vacation Service  → POST /api/historial/cambios  (al aprobar/rechazar vacaciones)
-Auth Service      → POST /api/historial/acciones (al hacer login, logout, refresh)
+Auth Service      → POST /api/historial/acciones (al hacer login, logout, logout-all, refresh)
 Report Service    → POST /api/historial/acciones (al generar reportes)
 ```
 
@@ -818,9 +1014,9 @@ Report Service    → POST /api/historial/acciones (al generar reportes)
 ```
 POST /api/historial/cambios
 Body: {
-  empleado_id, entidad, entidad_id,
+  empleado_id, tipo_accion, entidad, entidad_id,
   campo_modificado, valor_anterior, valor_nuevo,
-  usuario_modificador, rol_modificador, ip_origen
+  usuario_modificador, rol_modificador, ip_origen, user_agent
 }
   1. Valida que los campos requeridos estén presentes
   2. Inserta en historial_cambios
@@ -831,27 +1027,11 @@ Body: {
 ```
 POST /api/historial/acciones
 Body: {
-  usuario_email, rol, accion, entidad, entidad_id,
+  usuario_email, rol, tipo_accion, entidad, entidad_id,
   resultado, detalle, ip_origen, user_agent
 }
   1. Inserta en acciones_sistema
   2. Retorna 201 { id, fecha }
-```
-
-#### Flujo: Consultar historial de un empleado
-```
-GET /api/historial/cambios/empleado/:id?entidad=contrato&desde=2025-01-01&hasta=2025-12-31
-  1. Verifica JWT (roles: admin, rrhh)
-  2. Construye query con filtros opcionales: entidad, entidad_id, rango de fechas
-  3. Retorna lista de cambios ordenada por fecha_modificacion DESC
-```
-
-#### Flujo: Consultar log de auditoría de seguridad
-```
-GET /api/historial/acciones?accion=login&resultado=fallido&desde=2025-01-01
-  1. Verifica JWT (rol: admin únicamente)
-  2. Aplica filtros: accion, resultado, usuario_email, rango de fechas
-  3. Retorna lista de acciones con paginación
 ```
 
 #### Estructura interna
@@ -861,41 +1041,41 @@ const historialRepo = require('../repositories/historialCambios.repository');
 const accionesRepo  = require('../repositories/accionesSistema.repository');
 
 const registrarCambio = async (datos) => {
-  const { empleado_id, entidad, entidad_id, campo_modificado,
+  const { empleado_id, tipo_accion, entidad, entidad_id, campo_modificado,
           valor_anterior, valor_nuevo, usuario_modificador,
-          rol_modificador, ip_origen } = datos;
+          rol_modificador, ip_origen, user_agent } = datos;
 
-  if (!empleado_id || !entidad || !campo_modificado || !usuario_modificador)
-    throw { status: 400, message: 'Campos requeridos: empleado_id, entidad, campo_modificado, usuario_modificador' };
+  if (!empleado_id || !entidad || !campo_modificado || !usuario_modificador || !tipo_accion)
+    throw { status: 400, message: 'Campos requeridos: empleado_id, tipo_accion, entidad, campo_modificado, usuario_modificador' };
 
   return historialRepo.create({
-    empleado_id, entidad, entidad_id, campo_modificado,
+    empleado_id, tipo_accion, entidad, entidad_id, campo_modificado,
     valor_anterior: valor_anterior?.toString() ?? null,
     valor_nuevo:    valor_nuevo?.toString()    ?? null,
-    usuario_modificador, rol_modificador, ip_origen
+    usuario_modificador, rol_modificador, ip_origen, user_agent
   });
 };
 
 const registrarAccion = async (datos) => {
-  const { usuario_email, rol, accion, entidad, entidad_id,
+  const { usuario_email, rol, tipo_accion, entidad, entidad_id,
           resultado = 'exitoso', detalle, ip_origen, user_agent } = datos;
 
-  if (!accion) throw { status: 400, message: 'Campo requerido: accion' };
+  if (!tipo_accion) throw { status: 400, message: 'Campo requerido: tipo_accion' };
 
   return accionesRepo.create({
-    usuario_email, rol, accion, entidad, entidad_id,
+    usuario_email, rol, tipo_accion, entidad, entidad_id,
     resultado, detalle, ip_origen, user_agent
   });
 };
 
 const obtenerCambiosPorEmpleado = async (empleadoId, filtros = {}) => {
-  const { entidad, entidad_id, desde, hasta, limit = 50, offset = 0 } = filtros;
-  return historialRepo.findByEmpleado(empleadoId, { entidad, entidad_id, desde, hasta, limit, offset });
+  const { tipo_accion, entidad, entidad_id, desde, hasta, limit = 50, offset = 0 } = filtros;
+  return historialRepo.findByEmpleado(empleadoId, { tipo_accion, entidad, entidad_id, desde, hasta, limit, offset });
 };
 
 const obtenerAcciones = async (filtros = {}) => {
-  const { accion, resultado, usuario_email, desde, hasta, limit = 50, offset = 0 } = filtros;
-  return accionesRepo.findAll({ accion, resultado, usuario_email, desde, hasta, limit, offset });
+  const { tipo_accion, resultado, usuario_email, desde, hasta, limit = 50, offset = 0 } = filtros;
+  return accionesRepo.findAll({ tipo_accion, resultado, usuario_email, desde, hasta, limit, offset });
 };
 
 module.exports = { registrarCambio, registrarAccion, obtenerCambiosPorEmpleado, obtenerAcciones };
@@ -903,10 +1083,7 @@ module.exports = { registrarCambio, registrarAccion, obtenerCambiosPorEmpleado, 
 
 ```javascript
 // Cliente reutilizable que usan los demás servicios para notificar al History Service
-// Cada microservicio tiene una copia de este cliente
-// history-service-client.js
 const axios = require('axios');
-
 const HISTORY_URL = process.env.HISTORY_SERVICE_URL;
 
 const registrarCambio = (datos) =>
@@ -924,25 +1101,32 @@ module.exports = { registrarCambio, registrarAccion };
 
 ```sql
 -- ¿Quién modificó el salario de un empleado y cuándo?
-SELECT usuario_modificador, rol_modificador, valor_anterior, valor_nuevo, fecha_modificacion
+SELECT usuario_modificador, rol_modificador, valor_anterior, valor_nuevo, ip_origen, fecha_modificacion
 FROM historial_cambios
 WHERE empleado_id = $1 AND campo_modificado = 'salario'
 ORDER BY fecha_modificacion DESC;
 
 -- Intentos de login fallidos en las últimas 24 horas
-SELECT usuario_email, ip_origen, COUNT(*) as intentos, MAX(fecha) as ultimo_intento
+SELECT usuario_email, ip_origen, user_agent, COUNT(*) as intentos, MAX(fecha) as ultimo_intento
 FROM acciones_sistema
-WHERE accion = 'login'
+WHERE tipo_accion = 'login'
   AND resultado = 'fallido'
   AND fecha >= NOW() - INTERVAL '24 hours'
-GROUP BY usuario_email, ip_origen
+GROUP BY usuario_email, ip_origen, user_agent
 ORDER BY intentos DESC;
 
+-- Todos los logout y logout-all del último mes
+SELECT usuario_email, tipo_accion, ip_origen, fecha
+FROM acciones_sistema
+WHERE tipo_accion IN ('logout', 'logout_all')
+  AND fecha >= NOW() - INTERVAL '30 days'
+ORDER BY fecha DESC;
+
 -- Resumen de actividad del sistema por usuario en el último mes
-SELECT usuario_email, rol, accion, COUNT(*) as total
+SELECT usuario_email, rol, tipo_accion, COUNT(*) as total
 FROM acciones_sistema
 WHERE fecha >= NOW() - INTERVAL '30 days'
-GROUP BY usuario_email, rol, accion
+GROUP BY usuario_email, rol, tipo_accion
 ORDER BY total DESC;
 ```
 
@@ -955,33 +1139,192 @@ JWT_SECRET=minimo_32_caracteres_muy_seguro_aqui
 
 ---
 
+### Microservicio 7 — Super Admin Service *(nuevo)*
+
+**Puerto:** 3007 | **Base de datos:** `superadmin_db` | **Tablas:** `super_admins`, `empresas`, `admins_empresa`, `refresh_tokens_superadmin`
+
+#### Responsabilidades
+- Gestionar el registro, login y recuperación de contraseña del super administrador.
+- Administrar empresas registradas en la plataforma (alta, baja, edición).
+- Asignar hasta **2 administradores por empresa** que actúan como soporte técnico para problemas con microservicios.
+- Crear usuarios de RRHH y empleados (consultantes) en nombre de las empresas.
+- Acceder a información de auditoría global: logins, renovaciones de token, logout, creación de empleados, cambios de datos, solicitudes de vacaciones, subida de documentos, consultas de contrato.
+- Proveer dashboard y lista de empleados con **detalles de estado**.
+
+#### Rol único
+
+| Rol | Descripción |
+|-----|-------------|
+| `super_admin` | Rol único del microservicio. No puede existir otro tipo de rol aquí. |
+
+#### Detalle de estados en lista de empleados
+
+| Estado | Descripción visible |
+|--------|---------------------|
+| `activo` | Trabajando actualmente |
+| `inactivo` | Ausentismo temporal (incapacidad, suspensión, vacaciones, etc.) |
+| `transicion` | Contrato próximo a vencer, en proceso de renovación |
+| `retirado` | Ya no forma parte de la empresa |
+
+#### Flujo: Registro y acceso de super administrador
+```
+POST /api/super-admin/register
+  1. Solo accesible desde entorno seguro (endpoint protegido por IP o CLI)
+  2. Crea el super_admin con contraseña hasheada en bcrypt
+  3. Envía correo de confirmación
+
+POST /api/super-admin/login
+  1. Autenticación igual al Auth Service (bcrypt + JWT + refresh_token)
+  2. Registra login con ip_origen y user_agent
+
+POST /api/super-admin/recover-password
+  1. Recibe email del super admin
+  2. Genera token temporal y envía correo con enlace de recuperación
+```
+
+#### Flujo: Administración de empresas
+```
+POST /api/super-admin/empresas
+  1. Registra nueva empresa con datos básicos (nombre, NIT, correo, plan)
+  2. Crea 2 administradores asignados a la empresa (correo + contraseña temporal)
+  3. Notifica a los administradores por correo con credenciales iniciales
+
+GET /api/super-admin/empresas
+  1. Lista todas las empresas con estado, número de empleados y admins asignados
+
+POST /api/super-admin/empresas/:id/admins
+  1. Agrega o reemplaza uno de los 2 administradores de la empresa
+```
+
+#### Flujo: Creación de usuarios en nombre de una empresa
+```
+POST /api/super-admin/empresas/:id/usuarios
+  1. Crea usuario RRHH o consulta para la empresa indicada
+  2. Llama al Auth Service de esa empresa via REST para registrar el usuario
+  3. Registra la acción en historial de auditoría
+```
+
+#### Flujo: Auditoría global
+```
+GET /api/super-admin/auditoria
+  1. Verifica JWT con rol super_admin
+  2. Llama al History Service para obtener el log global
+  3. Filtra por: empresa, tipo_accion, rango de fechas, usuario_email
+  4. Retorna lista paginada con todos los eventos
+  Tipos accesibles: login, logout, logout_all, token_renovado,
+  creacion_empleado, modificacion_empleado, aprobacion_vacaciones,
+  subida_documento, consulta_contrato, etc.
+```
+
+#### Estructura interna
+```javascript
+// super-admin-service/src/services/empresa.service.js
+const empresaRepo     = require('../repositories/empresa.repository');
+const adminRepo       = require('../repositories/adminEmpresa.repository');
+const authClient      = require('../clients/authServiceClient');
+const employeeClient  = require('../clients/employeeServiceClient');
+const historyClient   = require('../clients/historyServiceClient');
+const emailService    = require('./email.service');
+const bcrypt          = require('bcrypt');
+const crypto          = require('crypto');
+
+const crearEmpresa = async ({ nombre, nit, correo, plan }, superAdminEmail) => {
+  const existente = await empresaRepo.findByNit(nit);
+  if (existente) throw { status: 409, message: 'Ya existe una empresa con ese NIT' };
+
+  const empresa = await empresaRepo.create({ nombre, nit, correo, plan });
+
+  // Crear 2 administradores con contraseña temporal
+  const admins = [];
+  for (let i = 1; i <= 2; i++) {
+    const passwordTemporal = crypto.randomBytes(8).toString('hex');
+    const adminEmail = `admin${i}.${nit.toLowerCase()}@${correo.split('@')[1]}`;
+
+    await authClient.registrarUsuario({
+      email: adminEmail, password: passwordTemporal, rol: 'admin', cedula: `ADMIN${nit}${i}`
+    });
+
+    await adminRepo.create({ empresa_id: empresa.id, email: adminEmail, nombre: `Administrador ${i}` });
+
+    // Enviar credenciales al correo de la empresa
+    await emailService.enviarCredencialesAdmin({
+      to: correo, adminEmail, passwordTemporal, nombreEmpresa: nombre
+    });
+
+    admins.push({ email: adminEmail });
+  }
+
+  return { empresa, admins };
+};
+
+const obtenerEmpleadosConEstado = async (empresaId, token) => {
+  const empleados = await employeeClient.listarEmpleados(token);
+  return empleados.map(emp => ({
+    ...emp,
+    detalle_estado: {
+      activo:     'Trabajando actualmente',
+      inactivo:   `Ausentismo temporal${emp.justificacion_inactivo ? ': ' + emp.justificacion_inactivo : ''}`,
+      transicion: 'Contrato próximo a vencer, en proceso de renovación',
+      retirado:   'Ya no forma parte de la empresa',
+    }[emp.estado] || emp.estado
+  }));
+};
+
+module.exports = { crearEmpresa, obtenerEmpleadosConEstado };
+```
+
+#### Variables de entorno
+```env
+PORT=3007
+DATABASE_URL=postgres://postgres:password@postgres-superadmin:5432/superadmin_db
+JWT_SECRET=minimo_32_caracteres_superadmin_aqui
+JWT_EXPIRES_IN=1h
+REFRESH_TOKEN_EXPIRES_DAYS=7
+AUTH_SERVICE_URL=http://auth-service:3001
+EMPLOYEE_SERVICE_URL=http://employee-service:3002
+HISTORY_SERVICE_URL=http://history-service:3006
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=correo@gmail.com
+SMTP_PASS=app_password_gmail
+```
+
+---
+
 ### Comunicación entre microservicios — Resumen visual
 
 ```
+Super Admin Service (3007)
+  └─→ Auth Service:     crea usuarios para empresas
+  └─→ Employee Service: consulta lista de empleados y estados
+  └─→ History Service:  consulta auditoría global
+
 Auth Service (3001)
-  └─→ History Service: registra login, logout, token_renovado
+  └─→ History Service:  registra login, logout, logout_all, token_renovado
+  └─→ Employee Service: verifica si correo existe como empleado (para rol consulta)
 
 Employee Service (3002)
-  └─→ History Service: registra cambios de empleado, cargo, salario
-  └─→ AWS S3: sube/descarga archivos via presigned URL
+  └─→ History Service:  registra cambios (tipo_accion, empleado_id, quién, ip, user_agent)
+  └─→ AWS S3:           sube/descarga archivos via presigned URL
+  └─→ SMTP:             correos a RRHH por datos incorrectos o documentos pendientes
 
 Contract Service (3003)
   └─→ Employee Service: verifica que el empleado existe (GET)
-  └─→ History Service: registra creación de contrato y adendas
+  └─→ History Service:  registra creación de contrato y adendas
 
 Vacation Service (3004)
-  └─→ Employee Service: verifica que el empleado existe (GET)  [opcional, buena práctica]
-  └─→ History Service: registra aprobación/rechazo de vacaciones
-  └─→ SMTP: envía correos a RRHH
+  └─→ Employee Service: verifica que el empleado existe (GET)
+  └─→ History Service:  registra solicitud, aprobación/rechazo de vacaciones
+  └─→ SMTP:             envía correos reales a RRHH
 
 Report Service (3005)
   └─→ Employee Service: obtiene empleados, cargos (GET)
   └─→ Contract Service: obtiene contratos (GET)
   └─→ Vacation Service: obtiene vacaciones y disponibles (GET)
-  └─→ History Service: registra generación de reportes (acción)
+  └─→ History Service:  registra generación de reportes (acción)
 
 History Service (3006)
-  └─→ No llama a ningún otro servicio (solo recibe)
+  └─→ No llama a ningún otro servicio (solo recibe y almacena)
 ```
 
 ---
@@ -992,19 +1335,22 @@ History Service (3006)
 
 ### 7.1 Auth Service — `DB Auth`
 
-**¿Por qué estas tablas?**
-`usuarios` maneja la identidad. `refresh_tokens` permite logout real: al hacer logout se marca el token como revocado, impidiendo que aunque alguien tenga el token físico, pueda usarlo. Sin esta tabla, un JWT robado es válido hasta que expire naturalmente.
-
 ```sql
 -- Tabla 1: Usuarios del sistema
 CREATE TABLE usuarios (
     id              SERIAL PRIMARY KEY,
     cedula          VARCHAR(20)  UNIQUE NOT NULL,
     email           VARCHAR(150) UNIQUE NOT NULL,
-    password        VARCHAR(200) NOT NULL,          -- bcrypt hash, nunca texto plano
-    rol             VARCHAR(50)  NOT NULL            -- 'admin' | 'rrhh' | 'consulta'
+    password        VARCHAR(200) NOT NULL,
+    rol             VARCHAR(50)  NOT NULL
                     CHECK (rol IN ('admin', 'rrhh', 'consulta')),
-    activo          BOOLEAN DEFAULT TRUE,            -- permite suspender acceso sin eliminar
+    celular         VARCHAR(10),                    -- máximo 10 caracteres
+    salario         DECIMAL(12,2)
+                    CHECK (salario IS NULL OR salario <= 100000000), -- tope 100M COP
+    nivel_educativo VARCHAR(50)
+                    CHECK (nivel_educativo IN ('bachiller','tecnico','universitario',
+                                               'especialista','magister','doctorado')),
+    activo          BOOLEAN DEFAULT TRUE,
     ultimo_login    TIMESTAMP,
     fecha_creacion  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -1014,117 +1360,110 @@ CREATE TABLE usuarios (
 CREATE TABLE refresh_tokens (
     id              SERIAL PRIMARY KEY,
     usuario_id      INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    token_hash      VARCHAR(255) UNIQUE NOT NULL,   -- hash SHA-256 del token, nunca el token crudo
-    expires_at      TIMESTAMP NOT NULL,             -- cuándo expira este refresh token
-    revocado        BOOLEAN DEFAULT FALSE,          -- true al hacer logout
-    ip_origen       VARCHAR(45),                    -- IP desde donde se generó
-    user_agent      TEXT,                           -- navegador/cliente que lo generó
+    token_hash      VARCHAR(255) UNIQUE NOT NULL,
+    expires_at      TIMESTAMP NOT NULL,
+    revocado        BOOLEAN DEFAULT FALSE,
+    ip_origen       VARCHAR(45),
+    user_agent      TEXT,
     fecha_creacion  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices de rendimiento
 CREATE INDEX idx_refresh_tokens_usuario_id ON refresh_tokens(usuario_id);
 CREATE INDEX idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
 CREATE INDEX idx_refresh_tokens_revocado   ON refresh_tokens(revocado, expires_at);
-```
-
-**Flujo de autenticación con refresh tokens:**
-```
-Login
-  → genera access_token (JWT, expira en 1h)
-  → genera refresh_token (opaco, expira en 7d)
-  → guarda hash del refresh_token en refresh_tokens
-  → retorna ambos al cliente
-
-Cuando access_token expira
-  → cliente envía refresh_token al endpoint POST /auth/refresh
-  → servidor verifica: ¿existe en BD? ¿no está revocado? ¿no expiró?
-  → genera nuevo access_token sin pedirle la contraseña al usuario
-
-Logout
-  → marca refresh_tokens.revocado = TRUE para ese token
-  → el access_token queda inválido al expirar (máx 1h de ventana)
 ```
 
 ---
 
 ### 7.2 Employee Service — `DB Employee`
 
-**¿Por qué estas tablas?**
-`empleados` guarda datos de identidad. `cargos_salarios` mantiene el historial de cambios de cargo y salario con fechas exactas — si solo guardas cargo y salario en `empleados`, pierdes todo el historial de promociones y aumentos. `documentos_empleado` centraliza los archivos del empleado con tipo, descripción y URL en S3, en lugar de solo dos columnas fijas.
-
 ```sql
--- Tabla 1: Datos de identidad del empleado
-CREATE TABLE empleados (
-    id                  SERIAL PRIMARY KEY,
-    nombre              VARCHAR(100) NOT NULL,
-    apellido            VARCHAR(100) NOT NULL,
-    cedula              VARCHAR(20)  UNIQUE NOT NULL,
-    tipo_documento      VARCHAR(30)  DEFAULT 'cedula_ciudadania'
-                        CHECK (tipo_documento IN ('cedula_ciudadania', 'cedula_extranjeria',
-                                                   'pasaporte', 'tarjeta_identidad')),
-    genero              VARCHAR(20)  CHECK (genero IN ('masculino', 'femenino', 'otro', 'prefiero_no_decir')),
-    fecha_nacimiento    DATE,
-    celular             VARCHAR(20),
-    telefono_fijo       VARCHAR(20),
-    correo_personal     VARCHAR(150),
-    correo_corporativo  VARCHAR(150),
-    direccion           TEXT,
-    ciudad              VARCHAR(100),
-    departamento        VARCHAR(100),
-    nivel_educativo     VARCHAR(50),                -- 'bachiller' | 'tecnico' | 'universitario' | 'posgrado'
-    estado              VARCHAR(20)  DEFAULT 'activo'
-                        CHECK (estado IN ('activo', 'inactivo', 'vacaciones', 'licencia', 'retirado')),
-    fecha_ingreso       DATE,                       -- fecha en que entró a la empresa
-    fecha_retiro        DATE,                       -- null si aún está activo
-    fecha_creacion      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- Tabla 0: Departamentos de Colombia (importados desde JSON semilla)
+CREATE TABLE departamentos (
+    id          SERIAL PRIMARY KEY,
+    nombre      VARCHAR(100) NOT NULL UNIQUE,
+    codigo_dane VARCHAR(10),
+    activo      BOOLEAN DEFAULT TRUE
 );
 
--- Tabla 2: Historial de cargo y salario (fuente de verdad de promociones y aumentos)
+-- Tabla 1: Datos de identidad del empleado
+CREATE TABLE empleados (
+    id                     SERIAL PRIMARY KEY,
+    nombre                 VARCHAR(100) NOT NULL,
+    apellido               VARCHAR(100) NOT NULL,
+    cedula                 VARCHAR(20)  UNIQUE NOT NULL,
+    tipo_documento         VARCHAR(30)  DEFAULT 'cedula_ciudadania'
+                           CHECK (tipo_documento IN ('cedula_ciudadania', 'cedula_extranjeria',
+                                                      'pasaporte', 'tarjeta_identidad')),
+    genero                 VARCHAR(20)  CHECK (genero IN ('masculino', 'femenino', 'otro', 'prefiero_no_decir')),
+    fecha_nacimiento       DATE,
+    celular                VARCHAR(10),                  -- máximo 10 caracteres
+    telefono_fijo          VARCHAR(20),
+    correo_personal        VARCHAR(150),
+    correo_corporativo     VARCHAR(150),
+    direccion              TEXT,
+    ciudad                 VARCHAR(100),
+    departamento_id        INT REFERENCES departamentos(id),  -- referencia a tabla departamentos CO
+    nivel_educativo        VARCHAR(50)
+                           CHECK (nivel_educativo IN ('bachiller','tecnico','universitario',
+                                                       'especialista','magister','doctorado')),
+    estado                 VARCHAR(20) DEFAULT 'activo'
+                           CHECK (estado IN ('activo', 'inactivo', 'transicion', 'retirado')),
+    justificacion_inactivo VARCHAR(100),                 -- requerido cuando estado = 'inactivo'
+    fecha_ingreso          DATE,
+    fecha_retiro           DATE,
+    fecha_creacion         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla 2: Historial de cargo y salario
 CREATE TABLE cargos_salarios (
     id              SERIAL PRIMARY KEY,
     empleado_id     INT NOT NULL REFERENCES empleados(id) ON DELETE RESTRICT,
     cargo           VARCHAR(100) NOT NULL,
-    departamento    VARCHAR(100),
-    salario         DECIMAL(12,2) NOT NULL,
+    departamento_id INT REFERENCES departamentos(id),
+    salario         DECIMAL(12,2) NOT NULL
+                    CHECK (salario <= 100000000),        -- tope 100M COP
     tipo_salario    VARCHAR(30) DEFAULT 'fijo'
                     CHECK (tipo_salario IN ('fijo', 'variable', 'por_hora')),
-    fecha_inicio    DATE NOT NULL,                  -- desde cuándo aplica este cargo/salario
-    fecha_fin       DATE,                           -- null = cargo/salario actual
-    activo          BOOLEAN DEFAULT TRUE,           -- solo uno puede estar activo a la vez
-    motivo_cambio   TEXT,                           -- ej: "Promoción a Senior", "Ajuste salarial anual"
-    registrado_por  VARCHAR(150),                   -- email del usuario RRHH que hizo el cambio
+    fecha_inicio    DATE NOT NULL,
+    fecha_fin       DATE,
+    activo          BOOLEAN DEFAULT TRUE,
+    motivo_cambio   TEXT,
+    registrado_por  VARCHAR(150),
     fecha_creacion  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla 3: Documentos del empleado (foto, CV, y cualquier archivo futuro)
+-- Tabla 3: Documentos del empleado (con flujo de aprobación RRHH)
 CREATE TABLE documentos_empleado (
     id              SERIAL PRIMARY KEY,
     empleado_id     INT NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
     tipo            VARCHAR(50) NOT NULL
                     CHECK (tipo IN ('foto', 'hoja_vida', 'certificado', 'diploma',
                                     'contrato_firmado', 'otro')),
-    nombre_archivo  VARCHAR(255),                   -- nombre original del archivo
-    s3_key          TEXT NOT NULL,                  -- clave del objeto en S3
-    s3_url          TEXT NOT NULL,                  -- URL completa del objeto
-    mime_type       VARCHAR(100),                   -- 'image/jpeg', 'application/pdf'
-    tamano_bytes    BIGINT,
-    activo          BOOLEAN DEFAULT TRUE,           -- false = versión anterior del mismo tipo
+    nombre_archivo  VARCHAR(255),
+    s3_key          TEXT NOT NULL,
+    s3_url          TEXT NOT NULL,
+    mime_type       VARCHAR(100)
+                    CHECK (mime_type IN ('image/jpeg','image/png','application/pdf')),
+    tamano_bytes    BIGINT CHECK (tamano_bytes <= 5242880),  -- máximo 5 MB
+    estado          VARCHAR(30) DEFAULT 'pendiente_aprobacion'
+                    CHECK (estado IN ('pendiente_aprobacion', 'activo', 'rechazado')),
+    motivo_rechazo  TEXT,
+    aprobado_por    VARCHAR(150),
     subido_por      VARCHAR(150),
     fecha_subida    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices de rendimiento
 CREATE INDEX idx_empleados_cedula         ON empleados(cedula);
 CREATE INDEX idx_empleados_estado         ON empleados(estado);
 CREATE INDEX idx_cargos_salarios_emp      ON cargos_salarios(empleado_id, activo);
-CREATE INDEX idx_documentos_empleado_tipo ON documentos_empleado(empleado_id, tipo, activo);
+CREATE INDEX idx_documentos_empleado_tipo ON documentos_empleado(empleado_id, tipo, estado);
 ```
 
 **Consulta: cargo y salario actual de un empleado**
 ```sql
-SELECT cargo, departamento, salario, fecha_inicio
+SELECT cargo, departamento_id, salario, fecha_inicio
 FROM cargos_salarios
 WHERE empleado_id = $1 AND activo = TRUE
 LIMIT 1;
@@ -1142,31 +1481,26 @@ ORDER BY fecha_inicio DESC;
 
 ### 7.3 Contract Service — `DB Contract`
 
-**¿Por qué estas tablas?**
-`contratos` guarda el contrato base. `adendas_contratos` registra cualquier modificación posterior (cambio de condiciones, extensión de plazo, etc.) sin alterar el contrato original, manteniendo trazabilidad legal completa. Esto es fundamental si el producto se va a usar en empresas reales.
-
 ```sql
--- Tabla 1: Contratos laborales
 CREATE TABLE contratos (
     id                  SERIAL PRIMARY KEY,
-    empleado_id         INT NOT NULL,               -- referencia lógica (validada via REST)
+    empleado_id         INT NOT NULL,
     tipo                VARCHAR(50) NOT NULL
                         CHECK (tipo IN ('indefinido', 'fijo', 'obra_labor',
                                         'aprendizaje', 'prestacion_servicios')),
-    salario             DECIMAL(12,2) NOT NULL,
+    salario             DECIMAL(12,2) NOT NULL
+                        CHECK (salario <= 100000000),
     moneda              VARCHAR(10) DEFAULT 'COP',
     fecha_inicio        DATE NOT NULL,
-    fecha_fin           DATE,                       -- null para contratos indefinidos
-    metodo_pago         VARCHAR(50)
-                        CHECK (metodo_pago IN ('transferencia', 'cheque', 'efectivo')),
-    periodicidad_pago   VARCHAR(50)
-                        CHECK (periodicidad_pago IN ('mensual', 'quincenal', 'semanal')),
-    lugar_trabajo       VARCHAR(150),               -- ciudad/ubicación
+    fecha_fin           DATE,
+    metodo_pago         VARCHAR(50) CHECK (metodo_pago IN ('transferencia', 'cheque', 'efectivo')),
+    periodicidad_pago   VARCHAR(50) CHECK (periodicidad_pago IN ('mensual', 'quincenal', 'semanal')),
+    lugar_trabajo       VARCHAR(150),
     modalidad           VARCHAR(50) DEFAULT 'presencial'
                         CHECK (modalidad IN ('presencial', 'remoto', 'hibrido')),
     jornada             VARCHAR(50) DEFAULT 'completa'
                         CHECK (jornada IN ('completa', 'medio_tiempo', 'flexible')),
-    archivo_s3_key      TEXT,                       -- contrato firmado en S3 (opcional)
+    archivo_s3_key      TEXT,
     archivo_s3_url      TEXT,
     estado              VARCHAR(20) DEFAULT 'activo'
                         CHECK (estado IN ('activo', 'vencido', 'terminado', 'suspendido')),
@@ -1175,89 +1509,71 @@ CREATE TABLE contratos (
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla 2: Adendas o modificaciones al contrato
 CREATE TABLE adendas_contratos (
     id              SERIAL PRIMARY KEY,
     contrato_id     INT NOT NULL REFERENCES contratos(id) ON DELETE RESTRICT,
-    numero_adenda   INT NOT NULL,                   -- correlativo por contrato: 1, 2, 3...
-    descripcion     TEXT NOT NULL,                  -- qué cambió y por qué
-    cambios_json    JSONB,                          -- snapshot de los cambios {campo: {antes, despues}}
-    archivo_s3_key  TEXT,                           -- adenda firmada en S3 (opcional)
+    numero_adenda   INT NOT NULL,
+    descripcion     TEXT NOT NULL,
+    cambios_json    JSONB,
+    archivo_s3_key  TEXT,
     archivo_s3_url  TEXT,
-    fecha_vigencia  DATE NOT NULL,                  -- desde cuándo aplica la adenda
+    fecha_vigencia  DATE NOT NULL,
     creado_por      VARCHAR(150),
     fecha_creacion  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (contrato_id, numero_adenda)             -- no puede haber dos adendas con el mismo número
+    UNIQUE (contrato_id, numero_adenda)
 );
 
--- Índices
 CREATE INDEX idx_contratos_empleado_id ON contratos(empleado_id, estado);
 CREATE INDEX idx_adendas_contrato_id   ON adendas_contratos(contrato_id);
-```
-
-**Ejemplo de `cambios_json` en una adenda:**
-```json
-{
-  "salario":   { "antes": 4000000, "despues": 4500000 },
-  "modalidad": { "antes": "presencial", "despues": "hibrido" }
-}
 ```
 
 ---
 
 ### 7.4 Vacation Service — `DB Vacation`
 
-**¿Por qué estas tablas?**
-`vacaciones` registra cada solicitud. `dias_disponibles` es la **fuente de verdad** de cuántos días tiene disponibles cada empleado por año — sin esta tabla, calcular disponibilidad requiere recorrer todas las vacaciones históricas en tiempo real. `festivos` almacena los festivos en BD para que sean actualizables sin modificar código ni redesplegar (clave para producción real).
-
 ```sql
--- Tabla 1: Solicitudes de vacaciones
 CREATE TABLE vacaciones (
     id               SERIAL PRIMARY KEY,
-    empleado_id      INT NOT NULL,                  -- referencia lógica (validada via REST)
+    empleado_id      INT NOT NULL,
     fecha_inicio     DATE NOT NULL,
     fecha_fin        DATE NOT NULL,
-    dias_habiles     INT NOT NULL,                  -- calculado automáticamente (excluye festivos y fines de semana)
-    dias_calendario  INT NOT NULL,                  -- fecha_fin - fecha_inicio + 1
+    dias_habiles     INT NOT NULL,
+    dias_calendario  INT NOT NULL,
     estado           VARCHAR(20) DEFAULT 'pendiente'
                      CHECK (estado IN ('pendiente', 'aprobada', 'rechazada', 'cancelada')),
-    justificacion    TEXT,                          -- motivo del empleado al solicitar
-    motivo_rechazo   TEXT,                          -- motivo si RRHH rechaza
-    aprobado_por     VARCHAR(150),                  -- email del RRHH que aprobó/rechazó
+    justificacion    TEXT,
+    motivo_rechazo   TEXT,
+    aprobado_por     VARCHAR(150),
     fecha_aprobacion TIMESTAMP,
-    notificado       BOOLEAN DEFAULT FALSE,         -- ¿se envió el correo a RRHH?
+    notificado       BOOLEAN DEFAULT FALSE,
     fecha_solicitud  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla 2: Días de vacaciones disponibles por empleado por año
--- Esta tabla es la fuente de verdad para saber cuántos días le quedan a un empleado
 CREATE TABLE dias_disponibles (
-    id              SERIAL PRIMARY KEY,
-    empleado_id     INT NOT NULL,
-    anio            INT NOT NULL,                   -- año calendario: 2024, 2025...
-    dias_totales    DECIMAL(5,1) NOT NULL,          -- días legales asignados (ej: 15.0)
-    dias_usados     DECIMAL(5,1) DEFAULT 0,         -- días aprobados y tomados
-    dias_pendientes DECIMAL(5,1) DEFAULT 0,         -- días en solicitudes pendientes
+    id               SERIAL PRIMARY KEY,
+    empleado_id      INT NOT NULL,
+    anio             INT NOT NULL,
+    dias_totales     DECIMAL(5,1) NOT NULL,
+    dias_usados      DECIMAL(5,1) DEFAULT 0,
+    dias_pendientes  DECIMAL(5,1) DEFAULT 0,
     dias_disponibles DECIMAL(5,1) GENERATED ALWAYS AS
-                    (dias_totales - dias_usados - dias_pendientes) STORED,
-    fecha_creacion  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                     (dias_totales - dias_usados - dias_pendientes) STORED,
+    fecha_creacion   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (empleado_id, anio)                      -- un solo registro por empleado por año
+    UNIQUE (empleado_id, anio)
 );
 
--- Tabla 3: Festivos colombianos (actualizables desde la BD, sin tocar el código)
 CREATE TABLE festivos (
     id          SERIAL PRIMARY KEY,
     fecha       DATE NOT NULL UNIQUE,
-    descripcion VARCHAR(150) NOT NULL,              -- ej: "Día de la Independencia"
-    anio        INT NOT NULL,                       -- año al que pertenece
+    descripcion VARCHAR(150) NOT NULL,
+    anio        INT NOT NULL,
     tipo        VARCHAR(50) DEFAULT 'nacional'
                 CHECK (tipo IN ('nacional', 'regional', 'empresarial')),
     activo      BOOLEAN DEFAULT TRUE
 );
 
--- Índices
 CREATE INDEX idx_vacaciones_empleado_estado ON vacaciones(empleado_id, estado);
 CREATE INDEX idx_vacaciones_fechas          ON vacaciones(fecha_inicio, fecha_fin);
 CREATE INDEX idx_dias_disponibles_emp_anio  ON dias_disponibles(empleado_id, anio);
@@ -1265,22 +1581,7 @@ CREATE INDEX idx_festivos_fecha             ON festivos(fecha, activo);
 CREATE INDEX idx_festivos_anio              ON festivos(anio, activo);
 ```
 
-**Consulta: días disponibles de un empleado para el año actual**
-```sql
-SELECT dias_totales, dias_usados, dias_pendientes, dias_disponibles
-FROM dias_disponibles
-WHERE empleado_id = $1 AND anio = EXTRACT(YEAR FROM CURRENT_DATE);
-```
-
-**Consulta: verificar si una fecha es festivo**
-```sql
-SELECT EXISTS (
-    SELECT 1 FROM festivos
-    WHERE fecha = $1 AND activo = TRUE
-);
-```
-
-**Seed de festivos colombianos 2025 (ejemplo):**
+**Seed de festivos colombianos 2025:**
 ```sql
 INSERT INTO festivos (fecha, descripcion, anio) VALUES
 ('2025-01-01', 'Año Nuevo',                               2025),
@@ -1307,59 +1608,107 @@ INSERT INTO festivos (fecha, descripcion, anio) VALUES
 
 ### 7.5 History Service — `DB History`
 
-**¿Por qué estas tablas?**
-`historial_cambios` es suficiente y correcta para auditoría, pero `acciones_sistema` captura eventos de alto nivel que no son cambios de campo (login, logout, generación de reportes), lo cual es valioso para auditorías de seguridad en empresas.
-
 ```sql
--- Tabla 1: Historial de cambios en campos específicos
+-- Tabla 1: Historial detallado de cambios
 CREATE TABLE historial_cambios (
     id                   SERIAL PRIMARY KEY,
-    empleado_id          INT NOT NULL,              -- empleado afectado por el cambio
-    entidad              VARCHAR(50) NOT NULL,       -- 'empleado' | 'contrato' | 'vacaciones'
-    entidad_id           INT,                        -- id del registro modificado
+    empleado_id          INT NOT NULL,
+    tipo_accion          VARCHAR(100) NOT NULL,     -- ver catálogo en sección 6.1
+    entidad              VARCHAR(50) NOT NULL,
+    entidad_id           INT,
     campo_modificado     VARCHAR(100) NOT NULL,
     valor_anterior       TEXT,
     valor_nuevo          TEXT,
-    usuario_modificador  VARCHAR(150) NOT NULL,      -- email del usuario que hizo el cambio
-    rol_modificador      VARCHAR(50),                -- rol del usuario en ese momento
-    ip_origen            VARCHAR(45),
+    usuario_modificador  VARCHAR(150) NOT NULL,
+    rol_modificador      VARCHAR(50),
+    ip_origen            VARCHAR(45),               -- siempre requerido
+    user_agent           TEXT,                      -- siempre requerido
     fecha_modificacion   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla 2: Log de acciones generales del sistema (auditoría de seguridad)
+-- Tabla 2: Log de acciones generales del sistema
 CREATE TABLE acciones_sistema (
     id              SERIAL PRIMARY KEY,
-    usuario_email   VARCHAR(150),                   -- null si es acción del sistema
+    usuario_email   VARCHAR(150),
     rol             VARCHAR(50),
-    accion          VARCHAR(100) NOT NULL,           -- 'login' | 'logout' | 'reporte_generado' | 'token_renovado'
-    entidad         VARCHAR(50),                    -- módulo afectado
+    tipo_accion     VARCHAR(100) NOT NULL,           -- ver catálogo en sección 6.1
+    entidad         VARCHAR(50),
     entidad_id      INT,
     resultado       VARCHAR(20) DEFAULT 'exitoso'
                     CHECK (resultado IN ('exitoso', 'fallido', 'denegado')),
-    detalle         TEXT,                           -- información adicional
-    ip_origen       VARCHAR(45),
-    user_agent      TEXT,
+    detalle         TEXT,
+    ip_origen       VARCHAR(45),                     -- siempre requerido
+    user_agent      TEXT,                            -- siempre requerido
     fecha           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices
 CREATE INDEX idx_historial_empleado_id ON historial_cambios(empleado_id, fecha_modificacion DESC);
+CREATE INDEX idx_historial_tipo_accion  ON historial_cambios(tipo_accion);
 CREATE INDEX idx_historial_entidad      ON historial_cambios(entidad, entidad_id);
 CREATE INDEX idx_historial_usuario      ON historial_cambios(usuario_modificador);
 CREATE INDEX idx_acciones_usuario       ON acciones_sistema(usuario_email, fecha DESC);
-CREATE INDEX idx_acciones_accion        ON acciones_sistema(accion, resultado);
+CREATE INDEX idx_acciones_tipo          ON acciones_sistema(tipo_accion, resultado);
 ```
 
 ---
 
 ### 7.6 Report Service — Sin base de datos
 
-El Report Service **no tiene base de datos propia**. Agrega datos en tiempo real llamando via HTTP REST a:
-- Employee Service → lista de empleados y cargo/salario actual
-- Contract Service → contratos por empleado
-- Vacation Service → días disponibles y vacaciones por estado
+El Report Service **no tiene base de datos propia**. Agrega datos en tiempo real via REST desde Employee, Contract y Vacation Services.
 
-Esto garantiza que los reportes siempre muestren datos frescos sin duplicar información.
+---
+
+### 7.7 Super Admin Service — `DB Super Admin`
+
+```sql
+-- Tabla 1: Super administradores de la plataforma
+CREATE TABLE super_admins (
+    id              SERIAL PRIMARY KEY,
+    email           VARCHAR(150) UNIQUE NOT NULL,
+    password        VARCHAR(200) NOT NULL,
+    nombre          VARCHAR(150),
+    activo          BOOLEAN DEFAULT TRUE,
+    ultimo_login    TIMESTAMP,
+    fecha_creacion  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla 2: Empresas registradas en la plataforma
+CREATE TABLE empresas (
+    id              SERIAL PRIMARY KEY,
+    nombre          VARCHAR(200) NOT NULL,
+    nit             VARCHAR(20)  UNIQUE NOT NULL,
+    correo          VARCHAR(150),
+    plan            VARCHAR(50)  DEFAULT 'basico'
+                    CHECK (plan IN ('basico', 'profesional', 'empresarial')),
+    activa          BOOLEAN DEFAULT TRUE,
+    fecha_registro  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla 3: Administradores asignados a cada empresa (máximo 2 por empresa)
+CREATE TABLE admins_empresa (
+    id               SERIAL PRIMARY KEY,
+    empresa_id       INT NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    email            VARCHAR(150) NOT NULL,
+    nombre           VARCHAR(150),
+    activo           BOOLEAN DEFAULT TRUE,
+    fecha_asignacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (empresa_id, email)
+);
+
+-- Tabla 4: Refresh tokens del super admin
+CREATE TABLE refresh_tokens_superadmin (
+    id             SERIAL PRIMARY KEY,
+    super_admin_id INT NOT NULL REFERENCES super_admins(id) ON DELETE CASCADE,
+    token_hash     VARCHAR(255) UNIQUE NOT NULL,
+    expires_at     TIMESTAMP NOT NULL,
+    revocado       BOOLEAN DEFAULT FALSE,
+    ip_origen      VARCHAR(45),
+    user_agent     TEXT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_admins_empresa_id ON admins_empresa(empresa_id);
+```
 
 ---
 
@@ -1367,13 +1716,14 @@ Esto garantiza que los reportes siempre muestren datos frescos sin duplicar info
 
 | Servicio | Tablas | Propósito |
 |----------|--------|-----------|
-| **Auth** | `usuarios`, `refresh_tokens` | Identidad + sesiones seguras con logout real |
-| **Employee** | `empleados`, `cargos_salarios`, `documentos_empleado` | Datos de empleados + historial de carrera + archivos |
+| **Auth** | `usuarios`, `refresh_tokens` | Identidad + sesiones seguras + validación de correo real |
+| **Employee** | `empleados`, `cargos_salarios`, `documentos_empleado`, `departamentos` | Datos + carrera + archivos con aprobación + departamentos CO |
 | **Contract** | `contratos`, `adendas_contratos` | Contratos + modificaciones con trazabilidad legal |
-| **Vacation** | `vacaciones`, `dias_disponibles`, `festivos` | Solicitudes + disponibilidad por año + festivos en BD |
-| **History** | `historial_cambios`, `acciones_sistema` | Auditoría de campos + log de seguridad |
+| **Vacation** | `vacaciones`, `dias_disponibles`, `festivos` | Solicitudes + disponibilidad + festivos en BD |
+| **History** | `historial_cambios`, `acciones_sistema` | Auditoría con tipo_accion, IP y user agent |
 | **Report** | — | Agrega via REST, sin BD propia |
-| **Total** | **12 tablas** | Modelo profesional para uso empresarial real |
+| **Super Admin** | `super_admins`, `empresas`, `admins_empresa`, `refresh_tokens_superadmin` | Administración centralizada multiempresa |
+| **Total** | **17 tablas** | Modelo profesional para uso empresarial real multiempresa |
 
 ---
 
@@ -1389,9 +1739,11 @@ auth-service/migrations/
 └── 002_create_refresh_tokens.js
 
 employee-service/migrations/
-├── 001_create_empleados.js
-├── 002_create_cargos_salarios.js
-└── 003_create_documentos_empleado.js
+├── 001_create_departamentos.js
+├── 002_seed_departamentos_colombia.js     ← JSON con 32 departamentos de Colombia
+├── 003_create_empleados.js
+├── 004_create_cargos_salarios.js
+└── 005_create_documentos_empleado.js
 
 contract-service/migrations/
 ├── 001_create_contratos.js
@@ -1401,11 +1753,17 @@ vacation-service/migrations/
 ├── 001_create_festivos.js
 ├── 002_create_vacaciones.js
 ├── 003_create_dias_disponibles.js
-└── 004_seed_festivos_2025.js          ← datos iniciales de festivos
+└── 004_seed_festivos_2025.js
 
 history-service/migrations/
 ├── 001_create_historial_cambios.js
 └── 002_create_acciones_sistema.js
+
+super-admin-service/migrations/
+├── 001_create_super_admins.js
+├── 002_create_empresas.js
+├── 003_create_admins_empresa.js
+└── 004_create_refresh_tokens_superadmin.js
 ```
 
 ### Ejemplo — Auth Service
@@ -1419,6 +1777,9 @@ exports.up = (pgm) => {
     email:               { type: 'varchar(150)', unique: true, notNull: true },
     password:            { type: 'varchar(200)', notNull: true },
     rol:                 { type: 'varchar(50)', notNull: true },
+    celular:             { type: 'varchar(10)' },
+    salario:             { type: 'decimal(12,2)' },
+    nivel_educativo:     { type: 'varchar(50)' },
     activo:              { type: 'boolean', default: true },
     ultimo_login:        { type: 'timestamp' },
     fecha_creacion:      { type: 'timestamp', default: pgm.func('current_timestamp') },
@@ -1426,6 +1787,10 @@ exports.up = (pgm) => {
   });
   pgm.addConstraint('usuarios', 'chk_rol',
     "rol IN ('admin', 'rrhh', 'consulta')");
+  pgm.addConstraint('usuarios', 'chk_nivel_educativo',
+    "nivel_educativo IN ('bachiller','tecnico','universitario','especialista','magister','doctorado')");
+  pgm.addConstraint('usuarios', 'chk_salario_max',
+    'salario IS NULL OR salario <= 100000000');
   pgm.createIndex('usuarios', 'email');
 };
 exports.down = (pgm) => { pgm.dropTable('usuarios'); };
@@ -1476,9 +1841,7 @@ exports.up = (pgm) => {
     `);
   });
 };
-exports.down = (pgm) => {
-  pgm.sql("DELETE FROM festivos WHERE anio = 2025;");
-};
+exports.down = (pgm) => { pgm.sql("DELETE FROM festivos WHERE anio = 2025;"); };
 ```
 
 ### Script de inicio en `package.json`
@@ -1520,15 +1883,18 @@ postgres-auth:
     timeout: 5s
     retries: 10
 
+# Agregar bloques análogos para employee, contract, vacation, history, super-admin
+
 volumes:
   postgres_auth_data:
   postgres_employee_data:
   postgres_contract_data:
   postgres_vacation_data:
   postgres_history_data:
+  postgres_superadmin_data:
 ```
 
-> **Importante:** los `volumes` garantizan que los datos persisten aunque el contenedor se reinicie. Sin ellos, cada `docker-compose down` borrará toda la información.
+> **Importante:** los `volumes` garantizan que los datos persisten aunque el contenedor se reinicie.
 
 ---
 
@@ -1544,27 +1910,38 @@ volumes:
 | Tipos de archivo | Ninguno | Soporte nativo de MIME |
 | Backups | BD más pesada | Independiente de la BD |
 
-### Flujo de Subida via Presigned URL
+### Flujo de Subida con Aprobación RRHH
 
 ```
 Frontend
-  → POST /empleados/presigned-url  (solicita URL de subida)
+  → POST /empleados/:id/documentos/temporal  (solicita URL de subida temporal)
 Employee Service
-  → genera presigned URL con SDK AWS (válida 5 min)
-  → retorna { presigned_url, key }
-Frontend
-  → PUT directamente a S3 usando la presigned URL (binario nunca pasa por el backend)
-Frontend
-  → POST /empleados/:id/documentos  (confirma la subida con la key)
-Employee Service
-  → guarda en documentos_empleado: { tipo, s3_key, s3_url, mime_type, ... }
+  → Valida formato (PDF/JPG/PNG) y tamaño (máx. 5 MB)
+  → Genera presigned URL con destino /temporal/ en S3 (válida 5 min)
+  → Guarda en documentos_empleado: estado='pendiente_aprobacion'
+  → Envía correo real a RRHH para revisión
+RRHH
+  → PATCH /empleados/:id/documentos/:docId/aprobar
+  → Employee Service mueve de /temporal/ a ruta definitiva en S3
+  → Actualiza estado='activo' en documentos_empleado
+```
+
+### Estructura de carpetas S3
+
+```
+hr-system-empleados/
+├── fotos/
+├── hojas-de-vida/
+├── contratos-firmados/
+├── certificados/
+└── temporal/            ← documentos pendientes de aprobación RRHH
 ```
 
 ### Configuración S3
 
 ```javascript
 // employee-service/src/config/s3.js
-const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const s3 = new S3Client({
@@ -1575,24 +1952,34 @@ const s3 = new S3Client({
   }
 });
 
-const generarUrlSubida = async (empleadoId, tipo, contentType) => {
-  const extension = contentType.split('/')[1];
-  const key = `${tipo}s/${empleadoId}_${Date.now()}.${extension}`;
+const generarUrlSubidaTemporal = async (empleadoId, tipo, contentType) => {
+  const ext = contentType.split('/')[1];
+  const key = `temporal/${empleadoId}_${tipo}_${Date.now()}.${ext}`;
   const url = await getSignedUrl(s3, new PutObjectCommand({
-    Bucket:      process.env.S3_BUCKET_NAME,
-    Key:         key,
-    ContentType: contentType
+    Bucket: process.env.S3_BUCKET_NAME, Key: key, ContentType: contentType
   }), { expiresIn: 300 });
   return { url, key };
 };
 
+const moverADefinitivo = async (keyTemporal, tipo) => {
+  const keyDefinitivo = keyTemporal.replace('temporal/', `${tipo}s/`);
+  await s3.send(new CopyObjectCommand({
+    Bucket: process.env.S3_BUCKET_NAME,
+    CopySource: `${process.env.S3_BUCKET_NAME}/${keyTemporal}`,
+    Key: keyDefinitivo
+  }));
+  await s3.send(new DeleteObjectCommand({
+    Bucket: process.env.S3_BUCKET_NAME, Key: keyTemporal
+  }));
+  return keyDefinitivo;
+};
+
 const generarUrlDescarga = async (key) =>
   getSignedUrl(s3, new GetObjectCommand({
-    Bucket: process.env.S3_BUCKET_NAME,
-    Key:    key
+    Bucket: process.env.S3_BUCKET_NAME, Key: key
   }), { expiresIn: 3600 });
 
-module.exports = { generarUrlSubida, generarUrlDescarga };
+module.exports = { generarUrlSubidaTemporal, moverADefinitivo, generarUrlDescarga };
 ```
 
 ---
@@ -1604,16 +1991,20 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 | Pantalla | Roles |
 |----------|-------|
 | Login | Todos |
-| Dashboard — métricas generales | Admin, RRHH |
-| Lista de Empleados | Admin, RRHH |
-| Detalle de Empleado — info, cargo/salario histórico, documentos | Todos |
-| Formulario Empleado — registro/edición + upload S3 | Admin, RRHH |
+| Dashboard — métricas generales | Admin, RRHH, Super Admin |
+| Lista de Empleados (filtros de estado corregidos) | Todos |
+| Detalle de Empleado — info, cargo/salario histórico, documentos, estado con justificación | Todos |
+| Formulario Empleado — con preservación de datos y upload S3 | Admin, RRHH |
+| Módulo de Departamentos del Cargo | Admin |
 | Contratos + Adendas | Admin, RRHH |
-| Solicitud de Vacaciones |Empleado| — validaciones en tiempo real + días disponibles | Admin, RRHH, Empleado |
+| Solicitud de Vacaciones — validaciones en tiempo real + días disponibles | Admin, RRHH |
 | Gestión de Vacaciones — aprobación/rechazo | Admin, RRHH |
-| Reportes | Todos |
+| Documentos de Empleado — subida temporal + bandeja de aprobación RRHH | Admin, RRHH |
+| Solicitud de Corrección de Datos | Todos |
+| Reportes + Exportación CSV organizada | Todos |
 | Administración de Usuarios | Admin |
-| Log de Auditoría | Admin |
+| Log de Auditoría (con tipo de acción, IP, user agent) | Admin |
+| **Portal Super Admin** — empresas, administradores, auditoría global | Super Admin |
 
 ---
 
@@ -1625,17 +2016,17 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 
 | Método | Endpoint | Descripción | Auth |
 |--------|----------|-------------|------|
-| POST | `/register` | Registrar usuario (bcrypt hash) | ❌ |
+| POST | `/register` | Registrar usuario (con validación de correo real) | ❌ |
 | POST | `/login` | Login → access_token + refresh_token | ❌ |
 | POST | `/refresh` | Renovar access_token con refresh_token | ❌ |
-| POST | `/logout` | Revocar refresh_token actual | ✅ |
-| POST | `/logout-all` | Revocar todos los refresh_tokens del usuario | ✅ |
+| POST | `/logout` | Revocar refresh_token actual (registra en history) | ✅ |
+| POST | `/logout-all` | Revocar todos los refresh_tokens del usuario (registra en history) | ✅ |
 
 ```json
 // POST /api/auth/login — Response 200
 {
-  "access_token":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",  // expira en 1h
-  "refresh_token": "d4f8a9b2c1e3...",                            // expira en 7 días
+  "access_token":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "d4f8a9b2c1e3...",
   "usuario": { "id": 1, "email": "admin@empresa.com", "rol": "admin" }
 }
 
@@ -1651,30 +2042,23 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 
 | Método | Endpoint | Descripción | Rol | Auth |
 |--------|----------|-------------|-----|------|
-| GET | `/` | Listar empleados (paginado) | Todos | ✅ |
+| GET | `/` | Listar empleados (filtros y búsqueda corregidos, máx 50 chars) | Todos | ✅ |
 | GET | `/:id` | Detalle del empleado | Todos | ✅ |
-| POST | `/` | Registrar empleado | Admin, RRHH | ✅ |
+| POST | `/` | Registrar empleado (formulario con preservación de datos) | Admin, RRHH | ✅ |
 | PATCH | `/:id` | Actualizar datos de identidad | Admin, RRHH | ✅ |
 | DELETE | `/:id` | Desactivar empleado | Admin | ✅ |
+| POST | `/:id/solicitar-correccion` | Enviar solicitud de corrección a RRHH por correo | Todos | ✅ |
 | GET | `/:id/cargo-actual` | Cargo y salario actual | Todos | ✅ |
 | GET | `/:id/historial-cargo` | Historial de cargos y salarios | Admin, RRHH | ✅ |
 | POST | `/:id/cargo` | Registrar nuevo cargo/salario | Admin, RRHH | ✅ |
 | GET | `/:id/documentos` | Listar documentos del empleado | Todos | ✅ |
-| POST | `/presigned-url` | Obtener URL de subida a S3 | Admin, RRHH | ✅ |
-| POST | `/:id/documentos` | Confirmar subida de documento | Admin, RRHH | ✅ |
+| POST | `/:id/documentos/temporal` | Subir documento temporal (pendiente aprobación RRHH) | Admin, RRHH | ✅ |
+| PATCH | `/:id/documentos/:docId/aprobar` | Aprobar documento y moverlo a S3 definitivo | Admin, RRHH | ✅ |
+| PATCH | `/:id/documentos/:docId/rechazar` | Rechazar documento temporal | Admin, RRHH | ✅ |
 | GET | `/documentos/:docId/url` | Obtener URL de descarga S3 | Todos | ✅ |
-
-```json
-// POST /api/empleados/:id/cargo — nuevo cargo/salario
-{
-  "cargo": "Desarrollador Senior",
-  "departamento": "Tecnología",
-  "salario": 6000000,
-  "fecha_inicio": "2025-01-01",
-  "motivo_cambio": "Promoción por desempeño anual"
-}
-// Response 201: registro creado; el anterior se marca activo=false
-```
+| GET | `/export/csv` | Exportar tabla con formato estático organizado (cada campo en su celda) | Admin, RRHH | ✅ |
+| GET | `/departamentos` | Listar departamentos de Colombia | Todos | ✅ |
+| GET | `/departamentos/cargos` | Módulo de departamentos del cargo (solo admin) | Admin | ✅ |
 
 ---
 
@@ -1688,17 +2072,6 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 | PATCH | `/:id` | Actualizar contrato | Admin | ✅ |
 | POST | `/:id/adendas` | Agregar adenda al contrato | Admin, RRHH | ✅ |
 | GET | `/:id/adendas` | Listar adendas del contrato | Todos | ✅ |
-
-```json
-// POST /api/contratos/:id/adendas
-{
-  "descripcion": "Cambio a modalidad híbrida por acuerdo mutuo",
-  "cambios_json": {
-    "modalidad": { "antes": "presencial", "despues": "hibrido" }
-  },
-  "fecha_vigencia": "2025-02-01"
-}
-```
 
 ---
 
@@ -1715,30 +2088,6 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 | GET | `/festivos/:anio` | Festivos de un año | Todos | ✅ |
 | POST | `/festivos` | Agregar festivo | Admin | ✅ |
 
-**Reglas de Negocio:**
-- Mínimo **5 días hábiles** por solicitud.
-- Anticipación mínima de **1 mes**.
-- Excluye **fines de semana y festivos** de la tabla `festivos`.
-- Se valida que el empleado tenga **días disponibles** suficientes.
-- Al aprobar → `dias_disponibles.dias_usados += dias_habiles`.
-- Al poner en pendiente → `dias_disponibles.dias_pendientes += dias_habiles`.
-- RRHH tiene **3 días hábiles** para responder.
-
-```json
-// GET /api/vacaciones/empleado/15/disponibles — Response 200
-{
-  "empleado_id": 15,
-  "anio": 2025,
-  "dias_totales": 15,
-  "dias_usados": 5,
-  "dias_pendientes": 0,
-  "dias_disponibles": 10
-}
-
-// POST /api/vacaciones — Response 400 (sin días disponibles)
-{ "error": "El empleado solo tiene 3 días disponibles y solicitó 5" }
-```
-
 ---
 
 ### Report Service — `/api/reportes`
@@ -1746,7 +2095,7 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 | Método | Endpoint | Descripción | Rol | Auth |
 |--------|----------|-------------|-----|------|
 | GET | `/estado-laboral` | Empleados activos con cargo actual | Todos | ✅ |
-| GET | `/vacaciones` | Resumen de vacaciones (disponibles, usadas, pendientes) | Todos | ✅ |
+| GET | `/vacaciones` | Resumen de vacaciones | Todos | ✅ |
 | GET | `/contratos` | Contratos por tipo y estado | Todos | ✅ |
 | GET | `/empleado/:id` | Reporte completo de un empleado | Admin, RRHH | ✅ |
 | GET | `/turnover` | Empleados retirados en un período | Admin | ✅ |
@@ -1757,11 +2106,28 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 
 | Método | Endpoint | Descripción | Rol | Auth |
 |--------|----------|-------------|-----|------|
-| POST | `/cambios` | Registrar cambio (llamado por otros servicios) | Interno | ✅ |
-| GET | `/cambios/empleado/:id` | Historial de un empleado | Admin, RRHH | ✅ |
+| POST | `/cambios` | Registrar cambio (con tipo_accion, ip_origen, user_agent) | Interno | ✅ |
+| GET | `/cambios/empleado/:id` | Historial de un empleado (filtro por tipo_accion) | Admin, RRHH | ✅ |
 | GET | `/cambios` | Listado general con filtros | Admin | ✅ |
 | POST | `/acciones` | Registrar acción del sistema | Interno | ✅ |
-| GET | `/acciones` | Log de acciones con filtros | Admin | ✅ |
+| GET | `/acciones` | Log de acciones con filtros (tipo, IP, rango de fechas) | Admin | ✅ |
+
+---
+
+### Super Admin Service — `/api/super-admin`
+
+| Método | Endpoint | Descripción | Auth |
+|--------|----------|-------------|------|
+| POST | `/register` | Registrar super admin | 🔒 Interno |
+| POST | `/login` | Login super admin | ❌ |
+| POST | `/recover-password` | Recuperación de contraseña | ❌ |
+| GET | `/empresas` | Listar todas las empresas | ✅ |
+| POST | `/empresas` | Registrar nueva empresa + 2 admins | ✅ |
+| GET | `/empresas/:id` | Detalle de empresa + admins | ✅ |
+| POST | `/empresas/:id/admins` | Asignar/reemplazar administrador | ✅ |
+| POST | `/empresas/:id/usuarios` | Crear usuario RRHH o consulta | ✅ |
+| GET | `/empresas/:id/empleados` | Lista de empleados con detalle de estado | ✅ |
+| GET | `/auditoria` | Log global de auditoría | ✅ |
 
 ---
 
@@ -1799,7 +2165,7 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 
 > Las pruebas del **Auth Service ya fueron implementadas por el compañero** (unitarias + E2E + integración). Los demás servicios se implementan en el repositorio `hr-system-tests`.
 
-### Casos de Prueba — Auth Service ✅ (ya implementado)
+### Casos de Prueba — Auth Service
 
 | ID | Caso | Tipo |
 |----|------|------|
@@ -1807,8 +2173,14 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 | TC-AUTH-002 | Login con contraseña incorrecta retorna 401 | Negativo |
 | TC-AUTH-003 | Refresh token válido retorna nuevo access_token | Positivo |
 | TC-AUTH-004 | Refresh token revocado retorna 401 | Negativo |
-| TC-AUTH-005 | Logout revoca el refresh_token en BD | Positivo |
-| TC-AUTH-006 | Acceso a endpoint protegido sin token retorna 401 | Negativo |
+| TC-AUTH-005 | Logout revoca el refresh_token y registra en History como 'logout' | Positivo |
+| TC-AUTH-006 | Logout-all revoca todos los tokens y registra en History como 'logout_all' | Positivo |
+| TC-AUTH-007 | Acceso a endpoint protegido sin token retorna 401 | Negativo |
+| TC-AUTH-008 | Registro con correo inexistente retorna 400 | Negativo |
+| TC-AUTH-009 | Registro con rol consulta sin ser empleado retorna 403 | Negativo |
+| TC-AUTH-010 | Registro con celular de más de 10 caracteres retorna 400 | Negativo |
+| TC-AUTH-011 | Registro con salario mayor a 100M COP retorna 400 | Negativo |
+| TC-AUTH-012 | nivel_educativo = 'magister' se guarda correctamente | Positivo |
 
 ### Casos de Prueba — Employee Service
 
@@ -1817,9 +2189,18 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 | TC-EMP-001 | Registrar empleado completo | Positivo | 201 Created |
 | TC-EMP-002 | Registrar con cédula duplicada | Negativo | 409 Conflict |
 | TC-EMP-003 | Registrar cargo nuevo → cierra el anterior | Positivo | activo=false en cargo anterior |
-| TC-EMP-004 | Consultar historial de cargos | Positivo | Lista ordenada por fecha |
-| TC-EMP-005 | Solicitar presigned URL para foto | Positivo | URL S3 válida |
-| TC-EMP-006 | Editar con rol Consulta | Negativo | 403 Forbidden |
+| TC-EMP-004 | Filtro estado=activo retorna solo activos | Positivo | Lista filtrada correctamente |
+| TC-EMP-005 | Filtro estado=inactivo retorna solo inactivos | Positivo | Lista filtrada correctamente |
+| TC-EMP-006 | Filtro estado=transicion retorna solo en transición | Positivo | Lista filtrada correctamente |
+| TC-EMP-007 | Búsqueda con más de 50 caracteres retorna 400 | Negativo | 400 Bad Request |
+| TC-EMP-008 | Subida de documento mayor a 5 MB retorna 400 | Negativo | 400 Bad Request |
+| TC-EMP-009 | Subida de documento con formato inválido retorna 400 | Negativo | 400 Bad Request |
+| TC-EMP-010 | Documento temporal queda en estado pendiente_aprobacion | Positivo | 201 + estado correcto |
+| TC-EMP-011 | Aprobación de documento lo mueve a estado activo | Positivo | estado='activo' en BD y en S3 definitivo |
+| TC-EMP-012 | Exportación CSV genera cada campo en su celda | Positivo | Archivo legible en Excel |
+| TC-EMP-013 | Formulario preserva datos si se cierra la ventana | Positivo | Datos restaurados al volver |
+| TC-EMP-014 | Solicitud de corrección envía correo a RRHH | Positivo | Correo recibido en SMTP |
+| TC-EMP-015 | Editar con rol Consulta retorna 403 | Negativo | 403 Forbidden |
 
 ### Casos de Prueba — Vacation Service
 
@@ -1834,14 +2215,25 @@ module.exports = { generarUrlSubida, generarUrlDescarga };
 | TC-VAC-007 | Rechazar solicitud → libera dias_pendientes | Positivo | dias_pendientes -= dias_habiles |
 | TC-VAC-008 | Consultar días disponibles retorna cálculo correcto | Positivo | dias_disponibles = totales - usados - pendientes |
 
+### Casos de Prueba — History Service
+
+| ID | Caso | Tipo | Resultado Esperado |
+|----|------|------|-------------------|
+| TC-HIST-001 | Login registra tipo_accion='login', ip_origen, user_agent | Positivo | Registro completo en BD |
+| TC-HIST-002 | Logout registra tipo_accion='logout' | Positivo | Tipo correcto en BD |
+| TC-HIST-003 | Logout-all registra tipo_accion='logout_all' | Positivo | Tipo correcto diferenciado |
+| TC-HIST-004 | Refresh registra tipo_accion='token_renovado' | Positivo | Tipo correcto en BD |
+| TC-HIST-005 | Cambio de empleado incluye empleado_id, tipo_accion, usuario | Positivo | Registro completo |
+| TC-HIST-006 | Filtro por tipo_accion retorna solo esa categoría | Positivo | Lista filtrada |
+
 ### Ejemplo — Prueba Unitaria (Jest)
 
 ```javascript
 describe('Vacation Service — Validaciones de negocio', () => {
 
   test('TC-VAC-002: Rechaza con menos de 5 días hábiles', () => {
-    const inicio = new Date('2025-03-03'); // lunes
-    const fin    = new Date('2025-03-05'); // miércoles = 3 días hábiles
+    const inicio = new Date('2025-03-03');
+    const fin    = new Date('2025-03-05');
     expect(() => validarDiasHabiles(inicio, fin, festivos2025))
       .toThrow('Mínimo 5 días hábiles requeridos');
   });
@@ -1905,9 +2297,9 @@ const errorRate = new Rate('errors');
 
 export const options = {
   stages: [
-    { duration: '1m', target: 10 },   // rampa de subida
-    { duration: '3m', target: 30 },   // carga sostenida — 30 usuarios
-    { duration: '1m', target: 0  },   // bajada gradual
+    { duration: '1m', target: 10 },
+    { duration: '3m', target: 30 },
+    { duration: '1m', target: 0  },
   ],
   thresholds: {
     http_req_duration: ['p(95)<500', 'p(99)<1000'],
@@ -1931,21 +2323,19 @@ export default function (data) {
     'Authorization': `Bearer ${data.token}`,
   };
 
-  // Listar empleados
   const listar = http.get(`${__ENV.BASE_URL}/api/empleados`, { headers });
   check(listar, {
-    'status 200':           (r) => r.status === 200,
-    'respuesta < 500ms':    (r) => r.timings.duration < 500,
-    'retorna array':        (r) => Array.isArray(r.json()),
+    'status 200':        (r) => r.status === 200,
+    'respuesta < 500ms': (r) => r.timings.duration < 500,
+    'retorna array':     (r) => Array.isArray(r.json()),
   });
   errorRate.add(listar.status !== 200);
   sleep(1);
 
-  // Consultar cargo actual
   const cargo = http.get(`${__ENV.BASE_URL}/api/empleados/1/cargo-actual`, { headers });
   check(cargo, {
-    'status 200 o 404':     (r) => [200, 404].includes(r.status),
-    'respuesta < 500ms':    (r) => r.timings.duration < 500,
+    'status 200 o 404':  (r) => [200, 404].includes(r.status),
+    'respuesta < 500ms': (r) => r.timings.duration < 500,
   });
   sleep(1);
 }
@@ -1960,11 +2350,11 @@ import { check, sleep } from 'k6';
 
 export const options = {
   stages: [
-    { duration: '2m', target: 20  },   // nivel normal
-    { duration: '5m', target: 50  },   // carga alta
-    { duration: '2m', target: 100 },   // estrés — punto de quiebre
-    { duration: '5m', target: 100 },   // mantener estrés
-    { duration: '2m', target: 0   },   // recuperación
+    { duration: '2m', target: 20  },
+    { duration: '5m', target: 50  },
+    { duration: '2m', target: 100 },
+    { duration: '5m', target: 100 },
+    { duration: '2m', target: 0   },
   ],
   thresholds: {
     http_req_duration: ['p(95)<2000'],
@@ -1987,13 +2377,12 @@ export default function (data) {
     'Authorization': `Bearer ${data.token}`,
   };
 
-  // Consultar disponibilidad de vacaciones
   const res = http.get(`${__ENV.BASE_URL}/api/vacaciones/empleado/1/disponibles`, { headers });
   check(res, {
     'status 200':        (r) => r.status === 200,
     'latencia < 2000ms': (r) => r.timings.duration < 2000,
     'sin error 500':     (r) => r.status !== 500,
-    'tiene campo dias_disponibles': (r) => r.json('dias_disponibles') !== undefined,
+    'tiene dias_disponibles': (r) => r.json('dias_disponibles') !== undefined,
   });
   sleep(0.5);
 }
@@ -2007,11 +2396,8 @@ export default function (data) {
 ✓ retorna array
 
 checks.........................: 100.00% ✓ 9012   ✗ 0
-data_received..................: 1.6 MB  5.3 kB/s
-data_sent......................: 980 kB  3.3 kB/s
 http_req_duration..............: avg=141ms  p(90)=169ms  p(95)=175ms  p(99)=238ms
 http_req_failed................: 0.00%   ✓ 0      ✗ 5004
-http_req_waiting...............: avg=141ms
 http_reqs......................: 5004    27.12/s
 iteration_duration.............: avg=1.28s
 vus............................: 30      min=10   max=30
@@ -2024,31 +2410,17 @@ vus............................: 30      min=10   max=30
 | `checks=100%` | ✅ | Toda la lógica funciona bajo carga |
 | `iteration_duration avg=1.28s` | ✅ | Buena experiencia de usuario |
 
-**Señales de alerta:**
-- `p(95) > 500ms` → revisar índices en BD, optimizar queries lentas.
-- `http_req_failed > 1%` → revisar logs y timeouts entre microservicios.
-- `checks < 100%` → hay errores funcionales bajo carga.
-
 ### Comandos de Ejecución
 
 ```bash
-# Instalar k6
 brew install k6          # macOS
 sudo apt install k6      # Ubuntu/Debian
 
-# Prueba de carga
 k6 run \
   --env BASE_URL=http://localhost:3002 \
   --env AUTH_URL=http://localhost:3001 \
   tests/performance/load/employees-load.js
 
-# Prueba de estrés
-k6 run \
-  --env BASE_URL=http://localhost:3004 \
-  --env AUTH_URL=http://localhost:3001 \
-  tests/performance/stress/vacations-stress.js
-
-# Con reporte JSON para evidencia
 k6 run --out json=tests/performance/results/load-result.json \
   tests/performance/load/employees-load.js
 ```
@@ -2077,6 +2449,12 @@ DATABASE_URL=postgres://postgres:password@postgres-auth:5432/auth_db
 JWT_SECRET=min_32_caracteres_aqui_muy_seguro_1234
 JWT_EXPIRES_IN=1h
 REFRESH_TOKEN_EXPIRES_DAYS=7
+EMPLOYEE_SERVICE_URL=http://employee-service:3002
+HISTORY_SERVICE_URL=http://history-service:3006
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=correo@gmail.com
+SMTP_PASS=app_password_gmail
 ```
 
 **employee-service/.env**
@@ -2084,12 +2462,16 @@ REFRESH_TOKEN_EXPIRES_DAYS=7
 PORT=3002
 DATABASE_URL=postgres://postgres:password@postgres-employee:5432/employee_db
 JWT_SECRET=min_32_caracteres_aqui_muy_seguro_1234
-AUTH_SERVICE_URL=http://auth-service:3001
 HISTORY_SERVICE_URL=http://history-service:3006
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=...
 S3_BUCKET_NAME=hr-system-empleados
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=correo@gmail.com
+SMTP_PASS=app_password_gmail
+RRHH_EMAIL=rrhh@empresa.com
 ```
 
 **contract-service/.env**
@@ -2130,40 +2512,48 @@ DATABASE_URL=postgres://postgres:password@postgres-history:5432/history_db
 JWT_SECRET=min_32_caracteres_aqui_muy_seguro_1234
 ```
 
+**super-admin-service/.env**
+```env
+PORT=3007
+DATABASE_URL=postgres://postgres:password@postgres-superadmin:5432/superadmin_db
+JWT_SECRET=min_32_caracteres_superadmin_muy_seguro
+JWT_EXPIRES_IN=1h
+REFRESH_TOKEN_EXPIRES_DAYS=7
+AUTH_SERVICE_URL=http://auth-service:3001
+EMPLOYEE_SERVICE_URL=http://employee-service:3002
+HISTORY_SERVICE_URL=http://history-service:3006
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=correo@gmail.com
+SMTP_PASS=app_password_gmail
+```
+
 ### Levantar con Docker Compose
 
 ```bash
 git clone https://github.com/tu-usuario/hr-system-backend.git
 cd hr-system-backend
 
-# Copiar y configurar variables de entorno
-for svc in auth employee contract vacation report history; do
+for svc in auth employee contract vacation report history super-admin; do
   cp ${svc}-service/.env.example ${svc}-service/.env
 done
-# Editar cada .env con valores reales
 
-# Levantar (migraciones y seeds corren automáticamente)
 docker-compose up --build
 
-# Verificar
 docker-compose ps
-docker-compose logs vacation-service | grep -i "seed\|migrat"
+docker-compose logs employee-service | grep -i "seed\|migrat"
 ```
 
 ### Ejecutar Pruebas
 
 ```bash
-# Unitarias por servicio
 cd vacation-service && npm test
 cd contract-service && npm test
 
-# Con cobertura
 npm run test:coverage
 
-# E2E Playwright (sistema levantado)
 cd ../hr-system-tests && npx playwright test
 
-# Performance k6
 k6 run --env BASE_URL=http://localhost:3002 \
         --env AUTH_URL=http://localhost:3001 \
         performance/load/employees-load.js
@@ -2177,18 +2567,18 @@ k6 run --env BASE_URL=http://localhost:3002 \
 |------|-----------|-----------|----------------|
 | **Básico** | $49.000 COP | Hasta 20 | Auth, Empleados, Contratos |
 | **Profesional** | $129.000 COP | Hasta 100 | + Vacaciones, Reportes, Historial |
-| **Empresarial** | $299.000 COP | Ilimitados | + Soporte prioritario, SLA, log de auditoría |
+| **Empresarial** | $299.000 COP | Ilimitados | + Soporte prioritario, SLA, log de auditoría, Super Admin |
 
 ### Costos de Infraestructura (Mensual)
 
 | Servicio | Estimado |
 |---------|---------|
-| Backend microservicios (Render/Railway) | $15–40 USD |
+| Backend microservicios (Render/Railway) | $20–50 USD |
 | Frontend (Vercel) | $0–20 USD |
-| PostgreSQL administrado | $10–25 USD |
+| PostgreSQL administrado | $10–30 USD |
 | AWS S3 | $1–5 USD |
 | SMTP (SendGrid) | $0–15 USD |
-| **Total** | **$26–105 USD/mes** |
+| **Total** | **$31–120 USD/mes** |
 
 ---
 
@@ -2213,13 +2603,13 @@ k6 run --env BASE_URL=http://localhost:3002 \
 | Siigo Nómina (CO) | Desde $79K COP/mes | Solo nómina |
 | Excel/Sheets | Gratis | Sin validaciones, roles ni trazabilidad |
 
-**Nuestra ventaja:** precio fijo por empresa (no por empleado), 100% español, festivos y legislación colombiana integrados, historial de carrera real, gestión de sesiones segura con refresh tokens.
+**Nuestra ventaja:** precio fijo por empresa (no por empleado), 100% español, festivos y legislación colombiana integrados, historial de carrera real, gestión de sesiones segura con refresh tokens, administración multiempresa centralizada y flujo de aprobación de documentos.
 
 ---
 
 ## 18. Roadmap y Mejoras Futuras
 
-### v1.0 — MVP Actual
+### v1.0 — MVP Original
 - [x] Auth con JWT + refresh tokens + logout real
 - [x] Empleados con historial de cargo/salario y documentos en S3
 - [x] Contratos con adendas y validación REST
@@ -2229,20 +2619,39 @@ k6 run --env BASE_URL=http://localhost:3002 \
 - [x] Migraciones + seeds automáticos en Docker
 - [x] Pruebas unitarias, E2E (Playwright), Performance (k6)
 
-### v1.1 — Q2 2025
+### v2.0 — Mejoras implementadas (ciclo actual)
+- [x] Validación de correo real al registrar cuentas
+- [x] Campos corregidos: celular (10 chars), salario (tope 100M COP), nivel educativo ampliado (especialista, magíster, doctorado)
+- [x] Correos reales en cambios de empleados y solicitudes
+- [x] Auditoría detallada: tipo_accion, IP, user_agent, empleado afectado, quién cambió qué
+- [x] Registros correctos de logout y logout-all en historial (diferenciados)
+- [x] Renovación de token registrada correctamente en historial
+- [x] Rol consulta restringido a empleados registrados
+- [x] Preservación de datos del formulario de empleado en localStorage
+- [x] Filtro de estado corregido (activo, inactivo, transición, retirado)
+- [x] Búsqueda de empleados limitada a 50 caracteres
+- [x] Subida temporal de documentos con aprobación RRHH (formato PDF/JPG/PNG, máx 5MB)
+- [x] Exportación CSV con formato estático y organizado (cada campo en su celda)
+- [x] Solicitud de corrección de datos via correo a RRHH
+- [x] Lista de justificaciones para estado inactivo
+- [x] Estado "transición" para empleados con contrato próximo a vencer
+- [x] Importación de departamentos de Colombia desde JSON
+- [x] Módulo de departamentos del cargo (solo admin)
+- [x] **Super Admin Service** — administración centralizada multiempresa
+
+### v2.1 — Q3 2025
 - [ ] Portal de autoservicio para empleados
 - [ ] Exportación de reportes a Excel/PDF
 - [ ] Notificaciones push + email para aprobaciones
 
-### v1.2 — Q3 2025
+### v2.2 — Q4 2025
 - [ ] Módulo de nómina básica
 - [ ] Firma digital de contratos
 - [ ] Dashboard con gráficas de rotación y vacaciones
 
-### v2.0 — Q4 2025
+### v3.0 — 2026
 - [ ] App móvil (React Native)
 - [ ] Integración con Siigo / Alegra
-- [ ] Multi-empresa (multi-tenant)
 - [ ] IA para predicción de rotación de personal
 
 ---
@@ -2250,8 +2659,6 @@ k6 run --env BASE_URL=http://localhost:3002 \
 ## 19. Diagramas Obligatorios
 
 > Versiones editables en `/docs/diagrams/` (draw.io / PlantUML).
-
----
 
 ### 19.1 Diagrama de Secuencia — Flujo Principal Completo
 
@@ -2261,48 +2668,45 @@ RRHH/Admin  Frontend   AuthSvc   EmployeeSvc  S3 Bucket  ContractSvc  VacationSv
     │──Login───►│          │           │            │            │            │            │        │
     │           │──POST /login─────────►│           │            │            │            │        │
     │           │◄──access+refresh token│           │            │            │            │        │
+    │           │          │──registra 'login' ip+ua────────────────────────────────────►│        │
     │◄──tokens──│          │           │            │            │            │            │        │
     │           │          │           │            │            │            │            │        │
     │──Reg. empleado──────►│           │            │            │            │            │        │
     │           │──POST /empleados──────────────────►            │            │            │        │
-    │           │          │           │──Valida JWT│            │            │            │        │
     │           │          │           │──Guarda en BD           │            │            │        │
+    │           │          │           │──POST /historial (tipo_accion='creacion_empleado')►       │
     │           │◄──201 + empleado_id───│           │            │            │            │        │
     │           │          │           │            │            │            │            │        │
-    │──Subir foto─────────►│           │            │            │            │            │        │
-    │           │──POST /presigned-url──────────────►            │            │            │        │
-    │           │          │           │──genera presigned URL────────────────────────────────────► │
-    │           │◄──presigned_url + key─│           │            │            │            │        │
-    │──Sube foto directo a S3──────────────────────────────────►│            │            │        │
-    │           │──POST /empleados/:id/documentos────────────────►            │            │        │
-    │           │          │           │──guarda en documentos_empleado       │            │        │
-    │           │          │           │──POST /historial──────────────────────────────────►       │
-    │           │◄──201─────────────────│           │            │            │            │        │
+    │──Subir doc temporal─►│           │            │            │            │            │        │
+    │           │──POST /documentos/temporal────────►            │            │            │        │
+    │           │          │           │──valida formato+tamaño  │            │            │        │
+    │           │          │           │──genera presigned URL → S3 /temporal/───────────►│        │
+    │           │          │           │──correo real a RRHH──────────────────────────────────────►│
+    │           │◄──201 estado='pendiente'           │            │            │            │        │
+    │──Aprobar doc─────────►            │            │            │            │            │        │
+    │           │──PATCH /documentos/aprobar─────────►            │            │            │        │
+    │           │          │           │──mueve /temporal/ → S3 definitivo──────────────►│        │
+    │           │◄──200─────────────────│           │            │            │            │        │
     │           │          │           │            │            │            │            │        │
     │──Crear contrato─────►│           │            │            │            │            │        │
     │           │──POST /contratos──────────────────────────────►│            │            │        │
     │           │          │           │◄──GET /empleados/:id────►            │            │        │
     │           │          │           │──200 empleado existe────►            │            │        │
-    │           │          │           │            │            │──guarda contrato        │        │
     │           │◄──201 contrato────────────────────────────────│            │            │        │
     │           │          │           │            │            │            │            │        │
     │──Solicitar vacaciones►│           │            │            │            │            │        │
     │           │──POST /vacaciones──────────────────────────────────────────►│            │        │
     │           │          │           │            │            │            │──Valida reglas       │
-    │           │          │           │            │            │            │──Verifica festivos BD│
-    │           │          │           │            │            │            │──Verifica días dispon│
     │           │          │           │            │            │            │──dias_pendientes += N│
-    │           │          │           │            │            │            │──Email a RRHH───────►│
+    │           │          │           │            │            │            │──Correo real RRHH───►│
+    │           │          │           │            │            │            │──POST /historial─────►
     │           │◄──201 solicitud────────────────────────────────────────────│            │        │
     │           │          │           │            │            │            │            │        │
-    │──Aprobar─────────────►│           │            │            │            │            │        │
-    │           │──PATCH /vacaciones/:id/aprobar──────────────────────────────────────────►│        │
-    │           │          │           │            │            │            │──actualiza estado    │
-    │           │          │           │            │            │            │──dias_usados += N    │
-    │           │          │           │            │            │            │──dias_pendientes -= N│
-    │           │          │           │            │            │            │──POST /historial─────►
-    │           │          │           │            │            │            │──Email aprobación───►│
-    │           │◄──200 aprobada──────────────────────────────────────────────│            │        │
+    │──Logout──►│          │           │            │            │            │            │        │
+    │           │──POST /logout─────────►           │            │            │            │        │
+    │           │          │──revoca token           │            │            │            │        │
+    │           │          │──registra 'logout' ip+ua───────────────────────────────────►│        │
+    │           │◄──200─────│           │            │            │            │            │        │
 ```
 
 ---
@@ -2310,55 +2714,38 @@ RRHH/Admin  Frontend   AuthSvc   EmployeeSvc  S3 Bucket  ContractSvc  VacationSv
 ### 19.2 Diagrama de Componentes — Arquitectura Completa
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  CLIENTE (Navegador)                                                                  │
-│  ┌─────────────────────────────────────────────────────────────────────────────────┐ │
-│  │  FRONTEND — React + Vite + TailwindCSS  [Vercel]                                │ │
-│  │  ┌──────────┐  ┌────────────┐  ┌─────────────┐  ┌──────────┐  ┌─────────────┐  │ │
-│  │  │   Auth   │  │ Employees  │  │  Vacations  │  │Contracts │  │   Reports   │  │ │
-│  │  │ - Login  │  │ - CRUD     │  │ - Solicitar │  │ - CRUD   │  │ - Vistas    │  │ │
-│  │  │ - JWT    │  │ - S3 upload│  │ - Aprobar   │  │ - Adendas│  │ - Filtros   │  │ │
-│  │  │ - Refresh│  │ - Historial│  │ - Días disp.│  │          │  │ - Auditoría │  │ │
-│  │  └──────────┘  └────────────┘  └─────────────┘  └──────────┘  └─────────────┘  │ │
-│  └──────────────────────────────────────┬──────────────────────────────────────────┘ │
-└─────────────────────────────────────────│──────────────────────────────────────────── ┘
-                                          │ HTTPS + Bearer Token (JWT)
-┌─────────────────────────────────────────▼──────────────────────────────────────────── ┐
-│  BACKEND — Microservicios [Railway / Render]                                            │
-│                                                                                         │
-│  ┌──────────────────────┐    ┌──────────────────────────────┐                          │
-│  │  Auth Service :3001  │    │  Employee Service :3002       │                          │
-│  │──────────────────────│    │──────────────────────────────│                          │
-│  │ usuarios             │    │ empleados                     │                          │
-│  │ refresh_tokens       │    │ cargos_salarios               │    ┌───────────────────┐ │
-│  │                      │    │ documentos_empleado           │───►│   AWS S3          │ │
-│  │ POST /login          │    │                               │    │   /fotos/         │ │
-│  │ POST /refresh        │    │ GET/POST /empleados           │    │   /hojas-de-vida/ │ │
-│  │ POST /logout         │    │ POST /:id/cargo               │    │   presigned URLs  │ │
-│  │ bcrypt + JWT         │    │ POST /presigned-url           │    └───────────────────┘ │
-│  └──────────────────────┘    └────────────────┬─────────────┘                          │
-│                                               │ REST                                    │
-│  ┌──────────────────────┐    ┌───────────────▼──────────────┐                          │
-│  │  Contract Svc :3003  │    │  Vacation Service :3004       │                          │
-│  │──────────────────────│    │──────────────────────────────│    ┌───────────────────┐ │
-│  │ contratos            │    │ vacaciones                    │───►│  SMTP (Nodemailer)│ │
-│  │ adendas_contratos    │    │ dias_disponibles              │    │  Email a RRHH     │ │
-│  │                      │    │ festivos (seed CO)            │    └───────────────────┘ │
-│  │ POST /contratos      │    │                               │                          │
-│  │  └─ valida REST ────►│    │ POST /vacaciones              │                          │
-│  │ POST /:id/adendas    │    │ PATCH /:id/aprobar            │                          │
-│  └──────────────────────┘    └──────────────────────────────┘                          │
-│                                                                                         │
-│  ┌──────────────────────┐    ┌──────────────────────────────┐                          │
-│  │  Report Svc :3005    │    │  History Service :3006        │                          │
-│  │──────────────────────│    │──────────────────────────────│                          │
-│  │  SIN BD propia       │    │ historial_cambios             │                          │
-│  │  Agrega via REST:    │    │ acciones_sistema              │                          │
-│  │  → Employee Svc      │    │                               │                          │
-│  │  → Contract Svc      │    │ POST /cambios                 │                          │
-│  │  → Vacation Svc      │    │ GET /acciones (auditoría)     │                          │
-│  └──────────────────────┘    └──────────────────────────────┘                          │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│  CLIENTE (Navegador)                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │  FRONTEND — React + Vite + TailwindCSS  [Vercel]                                        │ │
+│  │  ┌──────────┐ ┌────────────┐ ┌──────────┐ ┌──────────┐ ┌─────────┐ ┌────────────────┐  │ │
+│  │  │   Auth   │ │ Employees  │ │  Vacs    │ │Contracts │ │ Reports │ │  Super Admin   │  │ │
+│  │  │ - Login  │ │ - CRUD     │ │ - Solic. │ │ - CRUD   │ │ - Vistas│ │  - Empresas   │  │ │
+│  │  │ - JWT    │ │ - Docs S3  │ │ - Apro.  │ │ - Adendas│ │ - CSV   │  │  - Auditoria  │  │ │
+│  │  │ - Refresh│ │ - Historial│ │ - Dispon.│ │          │ │         │ │  - Admins     │  │ │
+│  │  └──────────┘ └────────────┘ └──────────┘ └──────────┘ └─────────┘ └────────────────┘  │ │
+│  └─────────────────────────────────┬───────────────────────────────────────────────────────┘ │
+└────────────────────────────────────│────────────────────────────────────────────────────────┘
+                                     │ HTTPS + Bearer Token (JWT)
+┌────────────────────────────────────▼────────────────────────────────────────────────────────┐
+│  BACKEND — 7 Microservicios [Railway / Render]                                                │
+│                                                                                               │
+│  ┌──────────────────┐  ┌────────────────────┐  ┌────────────────┐  ┌──────────────────────┐ │
+│  │ Auth Svc  :3001  │  │ Employee Svc :3002  │  │Contract :3003  │  │ Super Admin Svc :3007│ │
+│  │ auth_db          │  │ employee_db         │  │ contract_db    │  │ superadmin_db        │ │
+│  └──────────────────┘  └──────────┬──────────┘  └───────┬────────┘  └──────────────────────┘ │
+│                                   │ REST                  │ REST                               │
+│  ┌──────────────────┐  ┌──────────▼──────────┐  ┌───────▼────────┐                           │
+│  │ Vacation :3004   │  │ Report Svc :3005     │  │ History :3006  │◄─── todos los servicios   │
+│  │ vacation_db      │  │ (SIN BD propia)      │  │ history_db     │                           │
+│  └──────────────────┘  └─────────────────────┘  └────────────────┘                           │
+│                                                                                               │
+│  ┌──────────────────────────────┐   ┌────────────────────────────────────────────────────┐   │
+│  │  AWS S3                      │   │  SMTP (Nodemailer)                                  │   │
+│  │  /fotos/ /hojas-de-vida/     │   │  Correos reales: cambios empleado, vacaciones,      │   │
+│  │  /certificados/ /temporal/   │   │  documentos pendientes, correcciones de datos        │   │
+│  └──────────────────────────────┘   └────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -2366,83 +2753,48 @@ RRHH/Admin  Frontend   AuthSvc   EmployeeSvc  S3 Bucket  ContractSvc  VacationSv
 ### 19.3 Diagrama Entidad-Relación Completo
 
 ```
-╔══════════════════════════════╗     ╔══════════════════════════════════════════════════╗
-║  [DB AUTH]                   ║     ║  [DB EMPLOYEE]                                   ║
-╠══════════════════════════════╣     ╠══════════════════════════════════════════════════╣
-║  usuarios                    ║     ║  empleados                                       ║
-║  ─────────────────────────── ║     ║  ───────────────────────────────────────────────║
-║  id            SERIAL PK     ║     ║  id               SERIAL PK                     ║
-║  cedula        VARCHAR UK     ║JWT  ║  nombre / apellido VARCHAR NN                   ║
-║  email         VARCHAR UK     ║────►║  cedula           VARCHAR UK                    ║
-║  password      VARCHAR NN     ║     ║  tipo_documento   VARCHAR                       ║
-║  rol           VARCHAR NN     ║     ║  genero / fecha_nacimiento                      ║
-║  activo        BOOLEAN        ║     ║  celular / correo_personal / corporativo         ║
-║  ultimo_login  TIMESTAMP      ║     ║  estado           VARCHAR CHECK                 ║
-║                               ║     ║  fecha_ingreso / fecha_retiro DATE              ║
-║  refresh_tokens               ║     ╚══════════════════╤═══════════════════════════════╝
-║  ─────────────────────────── ║                        │ 1:N
-║  id            SERIAL PK     ║                        │
-║  usuario_id    FK usuarios    ║      ┌─────────────────┼───────────────────────────┐
-║  token_hash    VARCHAR UK     ║      │                 │                           │
-║  expires_at    TIMESTAMP      ║  ╔══╧════════════╗  ╔══╧════════════════╗         │
-║  revocado      BOOLEAN        ║  ║ cargos_salarios║  ║documentos_empleado║         │
-║  ip_origen     VARCHAR        ║  ╠════════════════╣  ╠═══════════════════╣         │
-╚══════════════════════════════╝  ║ id    SERIAL PK ║  ║ id      SERIAL PK ║         │
-                                  ║ empleado_id FK  ║  ║ empleado_id FK    ║         │
-                                  ║ cargo  VARCHAR  ║  ║ tipo    VARCHAR   ║         │
-                                  ║ departamento    ║  ║ s3_key  TEXT      ║─────────────► AWS S3
-                                  ║ salario DECIMAL ║  ║ s3_url  TEXT      ║         │
-                                  ║ fecha_inicio    ║  ║ mime_type         ║         │
-                                  ║ fecha_fin       ║  ║ activo  BOOLEAN   ║         │
-                                  ║ activo  BOOLEAN ║  ╚═══════════════════╝         │
-                                  ║ motivo_cambio   ║                                │
-                                  ╚════════════════╝              empleado_id (lógico REST)
-                                                                                     │
-╔════════════════════════════════════╗   ╔══════════════════════════╗   ╔════════════╧══════════════╗
-║  [DB CONTRACT]                     ║   ║  [DB VACATION]           ║   ║  [DB HISTORY]             ║
-╠════════════════════════════════════╣   ╠══════════════════════════╣   ╠═══════════════════════════╣
-║  contratos                         ║   ║  vacaciones              ║   ║  historial_cambios        ║
-║  ──────────────────────────────────║   ║  ────────────────────────║   ║  ─────────────────────── ║
-║  id             SERIAL PK          ║   ║  id          SERIAL PK   ║   ║  id            SERIAL PK ║
-║  empleado_id    INT (REST)          ║   ║  empleado_id INT (REST)  ║   ║  empleado_id   INT        ║
-║  tipo           VARCHAR CHECK       ║   ║  fecha_inicio DATE NN    ║   ║  entidad       VARCHAR    ║
-║  salario        DECIMAL NN          ║   ║  fecha_fin   DATE NN     ║   ║  entidad_id    INT        ║
-║  fecha_inicio   DATE NN             ║   ║  dias_habiles INT NN     ║   ║  campo_modif.  VARCHAR    ║
-║  fecha_fin      DATE                ║   ║  dias_calendar INT NN   ║   ║  val_anterior  TEXT       ║
-║  modalidad      VARCHAR CHECK       ║   ║  estado      VARCHAR     ║   ║  val_nuevo     TEXT       ║
-║  jornada        VARCHAR CHECK       ║   ║  justificacion TEXT      ║   ║  usuario_modif VARCHAR    ║
-║  estado         VARCHAR CHECK       ║   ║  motivo_rechazo TEXT     ║   ║  rol_modif.    VARCHAR    ║
-║  archivo_s3_url TEXT                ║   ║  aprobado_por  VARCHAR   ║   ║  fecha_modif.  TIMESTAMP  ║
-║                                     ║   ║  notificado    BOOLEAN   ║   ║                           ║
-║  adendas_contratos                  ║   ║                          ║   ║  acciones_sistema         ║
-║  ──────────────────────────────────║   ║  dias_disponibles        ║   ║  ─────────────────────── ║
-║  id             SERIAL PK          ║   ║  ────────────────────────║   ║  id            SERIAL PK ║
-║  contrato_id    FK contratos        ║   ║  id          SERIAL PK   ║   ║  usuario_email VARCHAR    ║
-║  numero_adenda  INT NN              ║   ║  empleado_id INT UK+año  ║   ║  accion        VARCHAR    ║
-║  descripcion    TEXT NN             ║   ║  anio        INT UK+emp  ║   ║  resultado     VARCHAR    ║
-║  cambios_json   JSONB               ║   ║  dias_totales DECIMAL    ║   ║  ip_origen     VARCHAR    ║
-║  fecha_vigencia DATE NN             ║   ║  dias_usados  DECIMAL    ║   ║  fecha         TIMESTAMP  ║
-║  UNIQUE(contrato_id, numero_adenda) ║   ║  dias_pendientes DECIMAL ║   ╚═══════════════════════════╝
-╚════════════════════════════════════╝   ║  dias_disp. GENERATED    ║
-                                         ║                          ║
-                                         ║  festivos                ║
-                                         ║  ────────────────────────║
-                                         ║  id    SERIAL PK         ║
-                                         ║  fecha DATE UNIQUE       ║
-                                         ║  descripcion VARCHAR     ║
-                                         ║  anio  INT               ║
-                                         ║  tipo  VARCHAR           ║
-                                         ║  activo BOOLEAN          ║
-                                         ╚══════════════════════════╝
+╔══════════════════════════════╗     ╔══════════════════════════════════════════════════════╗
+║  [DB AUTH]                   ║     ║  [DB EMPLOYEE]                                       ║
+╠══════════════════════════════╣     ╠══════════════════════════════════════════════════════╣
+║  usuarios                    ║     ║  departamentos                                       ║
+║  ─────────────────────────── ║     ║  id / nombre / codigo_dane / activo                  ║
+║  id            SERIAL PK     ║     ║                                                      ║
+║  cedula        VARCHAR UK     ║JWT  ║  empleados                                           ║
+║  email         VARCHAR UK     ║────►║  id / nombre / apellido / cedula                    ║
+║  password      VARCHAR NN     ║     ║  celular VARCHAR(10) / correos                       ║
+║  rol           VARCHAR NN     ║     ║  nivel_educativo (ampliado)                          ║
+║  celular       VARCHAR(10)    ║     ║  estado CHECK (activo|inactivo|transicion|retirado)  ║
+║  salario       ≤ 100M COP    ║     ║  justificacion_inactivo VARCHAR                      ║
+║  nivel_educativo (ampliado)   ║     ║  departamento_id FK departamentos                   ║
+║  activo        BOOLEAN        ║     ╚══════════════════╤═══════════════════════════════════╝
+║                               ║                        │ 1:N
+║  refresh_tokens               ║      ┌─────────────────┼──────────────────────────────┐
+║  token_hash / ip / user_agent ║   ╔══╧══════════════╗  ╔══╧══════════════════════════╗│
+╚══════════════════════════════╝   ║ cargos_salarios  ║  ║ documentos_empleado         ║│
+                                   ║ salario ≤ 100M   ║  ║ mime_type CHECK (pdf/jpg/png)║│
+                                   ║ departamento_id  ║  ║ tamano_bytes ≤ 5MB          ║│
+                                   ╚══════════════════╝  ║ estado (pendiente|activo|    ║│
+                                                         ║  rechazado)                  ║│
+                                                         ╚══════════════════════════════╝│
+                                                                  ↓ S3 /temporal/ → /definitivo/
 
-╔═════════════════════════════════════════════╗    ╔══════════════════════════════╗
-║  [Report Service] — SIN base de datos       ║    ║  AWS S3                      ║
-║  Agrega via HTTP REST:                      ║    ║  hr-system-empleados         ║
-║   → Employee: empleados + cargo actual      ║    ║  /fotos/                     ║
-║   → Contract: contratos + adendas           ║    ║  /hojas-de-vida/             ║
-║   → Vacation: días disponibles + solicitudes║    ║  /contratos-firmados/        ║
-╚═════════════════════════════════════════════╝    ║  presigned URLs (privado)    ║
-                                                   ╚══════════════════════════════╝
+╔═══════════════════════════╗   ╔══════════════════════╗   ╔═══════════════════════════════╗
+║  [DB CONTRACT]            ║   ║  [DB VACATION]       ║   ║  [DB HISTORY]                 ║
+╠═══════════════════════════╣   ╠══════════════════════╣   ╠═══════════════════════════════╣
+║  contratos                ║   ║  vacaciones          ║   ║  historial_cambios             ║
+║  salario ≤ 100M COP       ║   ║  festivos (seed CO)  ║   ║  tipo_accion VARCHAR NN        ║
+║  adendas_contratos        ║   ║  dias_disponibles    ║   ║  ip_origen / user_agent        ║
+║  cambios_json JSONB       ║   ║  (col. GENERATED)    ║   ║                               ║
+╚═══════════════════════════╝   ╚══════════════════════╝   ║  acciones_sistema              ║
+                                                           ║  tipo_accion VARCHAR NN        ║
+╔═══════════════════════════╗                              ║  ip_origen / user_agent        ║
+║  [DB SUPER ADMIN]         ║                              ╚═══════════════════════════════╝
+╠═══════════════════════════╣
+║  super_admins             ║
+║  empresas                 ║
+║  admins_empresa (max 2)   ║
+║  refresh_tokens_superadmin║
+╚═══════════════════════════╝
 ```
 
 ---
@@ -2454,20 +2806,21 @@ RRHH/Admin  Frontend   AuthSvc   EmployeeSvc  S3 Bucket  ContractSvc  VacationSv
 ```
 hr-system-backend/
 │
-├── auth-service/                           ← Servicio 1: Auth (JWT + bcrypt + refresh tokens)
+├── auth-service/                           ← Servicio 1: Auth + validación correo real
 │   ├── src/
-│   │   ├── controllers/
-│   │   │   └── auth.controller.js
+│   │   ├── controllers/auth.controller.js
 │   │   ├── services/
-│   │   │   ├── auth.service.js             ← login, logout, refresh
-│   │   │   └── token.service.js            ← generación y verificación de JWT + refresh
+│   │   │   ├── auth.service.js
+│   │   │   ├── token.service.js
+│   │   │   └── emailVerification.service.js  ← validación de correo real al registrar
 │   │   ├── repositories/
 │   │   │   ├── user.repository.js
-│   │   │   └── refreshToken.repository.js  ← CRUD sobre refresh_tokens
-│   │   ├── middlewares/
-│   │   │   └── verifyToken.js
-│   │   ├── routes/
-│   │   │   └── auth.routes.js
+│   │   │   └── refreshToken.repository.js
+│   │   ├── clients/
+│   │   │   ├── employeeServiceClient.js     ← verifica correo como empleado (rol consulta)
+│   │   │   └── historyServiceClient.js      ← registra login/logout/refresh
+│   │   ├── middlewares/verifyToken.js
+│   │   ├── routes/auth.routes.js
 │   │   └── index.js
 │   ├── migrations/
 │   │   ├── 001_create_usuarios.js
@@ -2476,45 +2829,45 @@ hr-system-backend/
 │   ├── .env.example
 │   └── package.json
 │
-├── employee-service/                       ← Servicio 2: Empleados + historial de carrera + S3
+├── employee-service/                       ← Servicio 2: Empleados + departamentos CO + docs aprobación
 │   ├── src/
-│   │   ├── controllers/
-│   │   │   └── employee.controller.js
+│   │   ├── controllers/employee.controller.js
 │   │   ├── services/
-│   │   │   └── employee.service.js
+│   │   │   ├── employee.service.js
+│   │   │   ├── document.service.js          ← flujo temporal + aprobación S3
+│   │   │   └── email.service.js             ← correos reales a RRHH
 │   │   ├── repositories/
 │   │   │   ├── employee.repository.js
-│   │   │   ├── cargoSalario.repository.js   ← CRUD sobre cargos_salarios
-│   │   │   └── documento.repository.js      ← CRUD sobre documentos_empleado
-│   │   ├── config/
-│   │   │   └── s3.js                        ← presigned URLs subida y descarga
-│   │   ├── middlewares/
-│   │   │   └── verifyToken.js
-│   │   └── routes/
-│   │       └── employee.routes.js
+│   │   │   ├── cargoSalario.repository.js
+│   │   │   ├── documento.repository.js
+│   │   │   └── departamento.repository.js
+│   │   ├── config/s3.js                     ← presigned URLs + mover /temporal/ → definitivo
+│   │   ├── middlewares/verifyToken.js
+│   │   └── routes/employee.routes.js
 │   ├── migrations/
-│   │   ├── 001_create_empleados.js
-│   │   ├── 002_create_cargos_salarios.js
-│   │   └── 003_create_documentos_empleado.js
+│   │   ├── 001_create_departamentos.js
+│   │   ├── 002_seed_departamentos_colombia.js
+│   │   ├── 003_create_empleados.js
+│   │   ├── 004_create_cargos_salarios.js
+│   │   └── 005_create_documentos_empleado.js
+│   ├── data/
+│   │   └── departamentos_colombia.json      ← JSON con 32 departamentos
 │   ├── Dockerfile
 │   ├── .env.example
 │   └── package.json
 │
 ├── contract-service/                       ← Servicio 3: Contratos + adendas (valida REST)
 │   ├── src/
-│   │   ├── controllers/
-│   │   │   └── contract.controller.js
-│   │   ├── services/
-│   │   │   └── contract.service.js
+│   │   ├── controllers/contract.controller.js
+│   │   ├── services/contract.service.js
 │   │   ├── repositories/
 │   │   │   ├── contract.repository.js
-│   │   │   └── adenda.repository.js         ← CRUD sobre adendas_contratos
+│   │   │   └── adenda.repository.js
 │   │   ├── clients/
-│   │   │   └── employeeServiceClient.js     ← HTTP REST al Employee Service
-│   │   ├── middlewares/
-│   │   │   └── verifyToken.js
-│   │   └── routes/
-│   │       └── contract.routes.js
+│   │   │   ├── employeeServiceClient.js
+│   │   │   └── historyServiceClient.js
+│   │   ├── middlewares/verifyToken.js
+│   │   └── routes/contract.routes.js
 │   ├── migrations/
 │   │   ├── 001_create_contratos.js
 │   │   └── 002_create_adendas_contratos.js
@@ -2524,61 +2877,50 @@ hr-system-backend/
 │
 ├── vacation-service/                       ← Servicio 4: Vacaciones + días disponibles + festivos
 │   ├── src/
-│   │   ├── controllers/
-│   │   │   └── vacation.controller.js
+│   │   ├── controllers/vacation.controller.js
 │   │   ├── services/
 │   │   │   ├── vacation.service.js
-│   │   │   ├── businessRules.service.js     ← 5 días hábiles, 1 mes anticipación, festivos
-│   │   │   ├── diasDisponibles.service.js   ← lógica de cálculo y actualización
-│   │   │   └── email.service.js             ← Nodemailer SMTP
+│   │   │   ├── businessRules.service.js
+│   │   │   ├── diasDisponibles.service.js
+│   │   │   └── email.service.js
 │   │   ├── repositories/
 │   │   │   ├── vacation.repository.js
 │   │   │   ├── diasDisponibles.repository.js
-│   │   │   └── festivos.repository.js       ← consultas a tabla festivos
-│   │   ├── middlewares/
-│   │   │   └── verifyToken.js
-│   │   └── routes/
-│   │       └── vacation.routes.js
+│   │   │   └── festivos.repository.js
+│   │   ├── middlewares/verifyToken.js
+│   │   └── routes/vacation.routes.js
 │   ├── migrations/
 │   │   ├── 001_create_festivos.js
 │   │   ├── 002_create_vacaciones.js
 │   │   ├── 003_create_dias_disponibles.js
-│   │   └── 004_seed_festivos_2025.js        ← datos iniciales de festivos CO
+│   │   └── 004_seed_festivos_2025.js
 │   ├── Dockerfile
 │   ├── .env.example
 │   └── package.json
 │
 ├── report-service/                         ← Servicio 5: Reportes (SIN BD propia)
 │   ├── src/
-│   │   ├── controllers/
-│   │   │   └── report.controller.js
-│   │   ├── services/
-│   │   │   └── report.service.js            ← agrega datos via HTTP REST
+│   │   ├── controllers/report.controller.js
+│   │   ├── services/report.service.js
 │   │   ├── clients/
 │   │   │   ├── employeeServiceClient.js
 │   │   │   ├── contractServiceClient.js
 │   │   │   └── vacationServiceClient.js
-│   │   ├── middlewares/
-│   │   │   └── verifyToken.js
-│   │   └── routes/
-│   │       └── report.routes.js
+│   │   ├── middlewares/verifyToken.js
+│   │   └── routes/report.routes.js
 │   ├── Dockerfile
 │   ├── .env.example
 │   └── package.json
 │
-├── history-service/                        ← Servicio 6: Historial + auditoría de seguridad
+├── history-service/                        ← Servicio 6: Auditoría con tipo_accion + IP + user_agent
 │   ├── src/
-│   │   ├── controllers/
-│   │   │   └── history.controller.js
-│   │   ├── services/
-│   │   │   └── history.service.js
+│   │   ├── controllers/history.controller.js
+│   │   ├── services/history.service.js
 │   │   ├── repositories/
 │   │   │   ├── historialCambios.repository.js
 │   │   │   └── accionesSistema.repository.js
-│   │   ├── middlewares/
-│   │   │   └── verifyToken.js
-│   │   └── routes/
-│   │       └── history.routes.js
+│   │   ├── middlewares/verifyToken.js
+│   │   └── routes/history.routes.js
 │   ├── migrations/
 │   │   ├── 001_create_historial_cambios.js
 │   │   └── 002_create_acciones_sistema.js
@@ -2586,13 +2928,43 @@ hr-system-backend/
 │   ├── .env.example
 │   └── package.json
 │
-├── docker-compose.yml                      ← Orquestación local (con volumes y healthchecks)
-├── docker-compose.prod.yml                 ← Orquestación producción
+├── super-admin-service/                    ← Servicio 7: Administración centralizada multiempresa (NUEVO)
+│   ├── src/
+│   │   ├── controllers/
+│   │   │   ├── superAdmin.controller.js
+│   │   │   └── empresa.controller.js
+│   │   ├── services/
+│   │   │   ├── superAdmin.service.js
+│   │   │   ├── empresa.service.js
+│   │   │   └── email.service.js
+│   │   ├── repositories/
+│   │   │   ├── superAdmin.repository.js
+│   │   │   ├── empresa.repository.js
+│   │   │   └── adminEmpresa.repository.js
+│   │   ├── clients/
+│   │   │   ├── authServiceClient.js         ← crea usuarios en Auth Service
+│   │   │   ├── employeeServiceClient.js     ← consulta empleados + estados
+│   │   │   └── historyServiceClient.js      ← consulta auditoría global
+│   │   ├── middlewares/verifyToken.js
+│   │   └── routes/
+│   │       ├── superAdmin.routes.js
+│   │       └── empresa.routes.js
+│   ├── migrations/
+│   │   ├── 001_create_super_admins.js
+│   │   ├── 002_create_empresas.js
+│   │   ├── 003_create_admins_empresa.js
+│   │   └── 004_create_refresh_tokens_superadmin.js
+│   ├── Dockerfile
+│   ├── .env.example
+│   └── package.json
+│
+├── docker-compose.yml
+├── docker-compose.prod.yml
 │
 ├── .github/
 │   └── workflows/
-│       ├── ci-backend.yml                  ← Lint + pruebas unitarias en cada PR
-│       └── deploy.yml                      ← Deploy automático
+│       ├── ci-backend.yml
+│       └── deploy.yml
 │
 └── README.md
 ```
@@ -2602,21 +2974,23 @@ hr-system-backend/
 ```
 hr-system-tests/
 │
-├── e2e/                                    ← Playwright — flujos completos
+├── e2e/
 │   ├── auth.spec.ts                        ✅ Implementado por compañero
 │   ├── employees.spec.ts
 │   ├── contracts.spec.ts
 │   ├── vacations.spec.ts
-│   └── reports.spec.ts
+│   ├── reports.spec.ts
+│   └── super-admin.spec.ts                 ← Nuevo: flujos del super admin
 │
-├── integration/                            ← Playwright API Testing
+├── integration/
 │   ├── auth.api.spec.ts                    ✅ Implementado por compañero
 │   ├── employees.api.spec.ts
 │   ├── contracts.api.spec.ts
 │   ├── vacations.api.spec.ts
-│   └── history.api.spec.ts
+│   ├── history.api.spec.ts
+│   └── super-admin.api.spec.ts             ← Nuevo
 │
-├── performance/                            ← Grafana k6
+├── performance/
 │   ├── load/
 │   │   ├── employees-load.js
 │   │   ├── vacations-load.js
@@ -2624,7 +2998,7 @@ hr-system-tests/
 │   ├── stress/
 │   │   ├── employees-stress.js
 │   │   └── vacations-stress.js
-│   └── results/                            ← JSONs generados por k6 (evidencia)
+│   └── results/
 │
 ├── playwright.config.ts
 ├── package.json
@@ -2639,10 +3013,18 @@ hr-system-frontend/
 ├── src/
 │   ├── components/
 │   │   ├── common/
-│   │   ├── employees/                      ← incluye vista de historial cargo/salario
-│   │   ├── vacations/                      ← incluye indicador de días disponibles
-│   │   ├── contracts/                      ← incluye sección de adendas
-│   │   └── reports/
+│   │   ├── employees/
+│   │   │   ├── EmployeeForm.tsx             ← preserva datos en localStorage
+│   │   │   ├── EmployeeFilters.tsx          ← filtros de estado corregidos
+│   │   │   ├── DocumentUploader.tsx         ← flujo temporal + aprobación RRHH
+│   │   │   └── CorrectionRequest.tsx        ← solicitud de corrección a RRHH
+│   │   ├── vacations/
+│   │   ├── contracts/
+│   │   ├── reports/
+│   │   └── super-admin/
+│   │       ├── EmpresasList.tsx
+│   │       ├── EmpresaDetail.tsx
+│   │       └── AuditGlobal.tsx
 │   ├── pages/
 │   │   ├── Login.tsx
 │   │   ├── Dashboard.tsx
@@ -2651,20 +3033,21 @@ hr-system-frontend/
 │   │   ├── Contracts.tsx
 │   │   ├── Vacations.tsx
 │   │   ├── Reports.tsx
-│   │   └── AuditLog.tsx
+│   │   ├── AuditLog.tsx
+│   │   └── SuperAdmin.tsx
 │   ├── hooks/
-│   │   ├── useAuth.ts                      ← maneja access + refresh token
-│   │   └── useEmployees.ts
+│   │   ├── useAuth.ts
+│   │   ├── useEmployees.ts
+│   │   └── useFormPersistence.ts            ← hook para preservar formularios en localStorage
 │   ├── services/
-│   │   ├── auth.service.ts                 ← login, logout, refresh automático
+│   │   ├── auth.service.ts
 │   │   ├── employee.service.ts
 │   │   ├── contract.service.ts
 │   │   ├── vacation.service.ts
-│   │   └── report.service.ts
-│   ├── context/
-│   │   └── AuthContext.tsx
-│   └── utils/
-│       └── api.ts                          ← Axios con interceptor para refresh automático
+│   │   ├── report.service.ts
+│   │   └── superAdmin.service.ts
+│   ├── context/AuthContext.tsx
+│   └── utils/api.ts
 │
 ├── Dockerfile
 ├── .env.example
@@ -2680,18 +3063,21 @@ hr-system-frontend/
 - **Refresh tokens** almacenados como hash SHA-256 en BD; nunca el token crudo.
 - Logout real mediante `revocado = TRUE` en la tabla `refresh_tokens`.
 - `logout-all` permite invalidar todas las sesiones activas de un usuario.
+- **Validación de correo real** al registrar: no se permiten correos con dominios inexistentes.
+- **Restricción de rol consulta**: solo accesible para empleados registrados en el sistema.
 - Todos los endpoints protegidos con **Bearer Token**; solo `/login`, `/register` y `/refresh` son públicos.
 - Middleware de autorización por **rol** en cada endpoint sensible.
 - Archivos en S3 con acceso **privado** por defecto; lectura solo via **presigned URLs** (1h expiración).
+- Documentos en **flujo de aprobación** (temporal → RRHH aprueba → definitivo) antes de ser visibles como activos.
 - Política IAM con **mínimo privilegio**: solo `PutObject`, `GetObject`, `DeleteObject`.
 - Variables sensibles exclusivamente en **archivos `.env`** (nunca en código).
 - `.env` en `.gitignore`; `.env.example` como plantilla en el repo.
 - **HTTPS obligatorio** en producción.
 - **Volumes en Docker Compose** para persistir datos entre reinicios.
 - **SonarCloud** analiza vulnerabilidades en cada Pull Request.
-- Log de auditoría (`acciones_sistema`) registra todos los eventos de seguridad relevantes.
+- Log de auditoría (`acciones_sistema`) registra todos los eventos con `tipo_accion`, `ip_origen` y `user_agent`.
 
 ---
 
-*Wiki — Sistema Administrador de Empleados · Versión 3.0 — Modelo profesional para uso empresarial*
-*12 tablas · 6 microservicios · AWS S3 · Refresh Tokens · Festivos en BD · Días disponibles calculados*
+*Wiki — Sistema Administrador de Empleados · Versión 4.0 — Modelo profesional para uso empresarial multiempresa*
+*17 tablas · 7 microservicios · AWS S3 · Refresh Tokens · Festivos en BD · Super Admin Service · Auditoría completa*
