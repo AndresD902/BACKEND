@@ -6,6 +6,7 @@ import { PaymentMethod } from '../../src/shared/enums/payment-method.enum';
 import { WorkMode } from '../../src/shared/enums/work-mode.enum';
 import { WorkSchedule } from '../../src/shared/enums/work-schedule.enum';
 import { ConflictError } from '../../src/shared/errors/conflict.error';
+import { NotFoundError } from '../../src/shared/errors/not-found.error';
 
 jest.mock('../../src/clients/historyServiceClient', () => ({
   registrarCambio: jest.fn(),
@@ -278,5 +279,115 @@ describe('ContractService', () => {
       entidad_id: 10,
       campo_modificado: 'adenda_1',
     }));
+  });
+
+  it('findAllContracts returns all contracts with payment distribution', async () => {
+    const { service, repository } = serviceFactory();
+    repository.findAll.mockResolvedValue([contract(), contract({ id: 11 })]);
+
+    const result = await service.findAllContracts();
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toHaveProperty('paymentDistribution');
+    expect(repository.findAll).toHaveBeenCalled();
+  });
+
+  it('findContractById returns the contract when found', async () => {
+    const { service, repository } = serviceFactory();
+    repository.findById.mockResolvedValue(contract());
+
+    const result = await service.findContractById(10);
+
+    expect(result.id).toBe(10);
+    expect(result).toHaveProperty('paymentDistribution');
+  });
+
+  it('findContractById throws NotFoundError when contract does not exist', async () => {
+    const { service, repository } = serviceFactory();
+repository.findById.mockResolvedValue(null);
+
+    await expect(service.findContractById(999)).rejects.toThrow(NotFoundError);
+  });
+
+  it('findContractsByEmployeeId returns all contracts for an employee', async () => {
+    const { service, repository } = serviceFactory();
+    repository.findByEmployeeId.mockResolvedValue([contract()]);
+
+    const result = await service.findContractsByEmployeeId(22);
+
+    expect(result).toHaveLength(1);
+    expect(repository.findByEmployeeId).toHaveBeenCalledWith(22);
+  });
+
+  it('findActiveContractByEmployeeId throws NotFoundError when no active contract', async () => {
+    const { service, repository } = serviceFactory();
+repository.findActiveByEmployeeId.mockResolvedValue(null);
+
+    await expect(service.findActiveContractByEmployeeId(22)).rejects.toThrow(NotFoundError);
+  });
+
+  it('findActiveContractByEmployeeId returns document view when active contract exists', async () => {
+    const { service, repository } = serviceFactory();
+    repository.findActiveByEmployeeId.mockResolvedValue(contract());
+
+    const result = await service.findActiveContractByEmployeeId(22);
+
+    expect(result).toHaveProperty('contract');
+    expect(result).toHaveProperty('document');
+  });
+
+  it('updateContractStatus throws NotFoundError when contract not found', async () => {
+    const { service, repository } = serviceFactory();
+repository.findById.mockResolvedValue(null);
+
+    await expect(
+      service.updateContractStatus(999, { status: ContractStatus.TERMINATED }, { email: 'admin@example.com', role: 'ADMIN' }),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it('updateContractStatus updates and audits when contract found', async () => {
+    const { service, repository } = serviceFactory();
+    const original = contract();
+    const updated = contract({ status: ContractStatus.TERMINATED });
+    repository.findById.mockResolvedValue(original);
+    repository.updateStatus.mockResolvedValue(updated);
+
+    const result = await service.updateContractStatus(
+      10, { status: ContractStatus.TERMINATED }, { email: 'admin@example.com', role: 'ADMIN' },
+    );
+
+    expect(result.status).toBe(ContractStatus.TERMINATED);
+    expect(repository.updateStatus).toHaveBeenCalledWith(10, ContractStatus.TERMINATED);
+  });
+
+  it('findContractAmendments throws NotFoundError when contract not found', async () => {
+    const { service, repository } = serviceFactory();
+repository.findById.mockResolvedValue(null);
+
+    await expect(service.findContractAmendments(999)).rejects.toThrow(NotFoundError);
+  });
+
+  it('findContractAmendments returns amendments when contract exists', async () => {
+    const { service, repository, amendmentRepository } = serviceFactory();
+    repository.findById.mockResolvedValue(contract());
+    amendmentRepository.findByContractId.mockResolvedValue([{ id: 1, contractId: 10 }]);
+
+    const result = await service.findContractAmendments(10);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(1);
+  });
+
+  it('createContractAmendment throws ConflictError when contract is not active', async () => {
+    const { service, repository } = serviceFactory();
+    repository.findById.mockResolvedValue(contract({ status: ContractStatus.TERMINATED }));
+
+    await expect(
+      service.createContractAmendment(
+        10,
+        { description: 'test', changes: {}, effectiveDate: '2026-06-01' } as never,
+        { email: 'admin@example.com', role: 'ADMIN' },
+      ),
+    ).rejects.toThrow(ConflictError);
   });
 });
