@@ -13,6 +13,8 @@
 @refresh_token = PEGAR_REFRESH_TOKEN_AQUI
 
 
+@report_url  = http://localhost:3005/api
+
 ### ============================================================
 ###   1. AUTH-SERVICE — Registro de usuario ADMIN
 ### ============================================================
@@ -528,6 +530,93 @@ Authorization: Bearer {{access_token}}
 ### 4.10  Obtener URL de descarga de un documento específico (cualquier rol autenticado)
 ###       Reemplaza 1 con el ID real del documento obtenido en 4.9
 GET {{emp_url}}/empleados/documentos/1/url
+Authorization: Bearer {{access_token}}
+
+###
+
+### 4.11  Exportar empleados a CSV (ADMIN o HR)
+###       Devuelve archivo CSV con BOM para Excel. Filtros opcionales.
+GET {{emp_url}}/empleados/export/csv
+Authorization: Bearer {{access_token}}
+
+###
+
+### 4.12  Exportar con filtros — solo activos del departamento Tecnología
+GET {{emp_url}}/empleados/export/csv?estado=activo&departamento=Tecnología
+Authorization: Bearer {{access_token}}
+
+###
+
+
+### ============================================================
+###   5. REPORT-SERVICE — Agregador stateless en :3005
+###   Requiere que employee-service, contract-service y
+###   history-service estén corriendo. Vacation-service es
+###   opcional (reporte parcial con advertencia si no está).
+###
+###   IMPORTANTE: el mismo access_token del paso 1.4 funciona.
+### ============================================================
+
+### 5.1  Health check report-service
+GET {{report_url}}/health
+
+###
+
+### 5.2  Reporte completo de un empleado — ADMIN o HR
+###      Agrega: datos, historial cargo, contratos, vacaciones, días disponibles
+###      Soporta fallos parciales → retorna "advertencias" por servicio caído
+GET {{report_url}}/reportes/empleado/1
+Authorization: Bearer {{access_token}}
+
+###
+
+### 5.3  Estado laboral — empleados activos con cargo y días disponibles
+###      Acceso: cualquier rol autenticado
+GET {{report_url}}/reportes/estado-laboral
+Authorization: Bearer {{access_token}}
+
+###
+
+### 5.4  Reporte de vacaciones — todas las solicitudes (cualquier rol autenticado)
+GET {{report_url}}/reportes/vacaciones
+Authorization: Bearer {{access_token}}
+
+###
+
+### 5.5  Reporte de vacaciones con filtros de fecha
+GET {{report_url}}/reportes/vacaciones?desde=2024-01-01&hasta=2024-12-31
+Authorization: Bearer {{access_token}}
+
+###
+
+### 5.6  Reporte de contratos — todos los contratos (cualquier rol autenticado)
+GET {{report_url}}/reportes/contratos
+Authorization: Bearer {{access_token}}
+
+###
+
+### 5.7  Reporte de contratos filtrado por estado
+GET {{report_url}}/reportes/contratos?estado=activo
+Authorization: Bearer {{access_token}}
+
+###
+
+### 5.8  Turnover — empleados retirados (cualquier rol autenticado)
+GET {{report_url}}/reportes/turnover
+Authorization: Bearer {{access_token}}
+
+###
+
+### 5.9  Turnover en rango de fechas
+GET {{report_url}}/reportes/turnover?desde=2024-01-01&hasta=2024-12-31
+Authorization: Bearer {{access_token}}
+
+###
+
+### 5.10  Exportar empleados a CSV — ADMIN o HR
+###       Descarga directa con BOM UTF-8 (compatible con Excel)
+###       Nota: en REST Client el body del CSV se muestra como texto plano
+GET {{report_url}}/reportes/empleados/csv
 Authorization: Bearer {{access_token}}
 
 ###
