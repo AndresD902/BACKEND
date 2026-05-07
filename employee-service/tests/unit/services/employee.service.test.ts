@@ -16,7 +16,7 @@ const mockEmpleado: Empleado = {
   fecha_nacimiento: null, celular: null, telefono_fijo: null,
   correo_personal: null, correo_corporativo: 'juan@empresa.com',
   direccion: null, ciudad: null, departamento: null,
-  nivel_educativo: null, estado: 'activo',
+  nivel_educativo: null, estado: 'activo', razon_estado: null,
   fecha_ingreso: null, fecha_retiro: null,
   created_at: new Date(), updated_at: new Date(),
 };
@@ -58,6 +58,7 @@ describe('EmployeeService', () => {
       findById:                 jest.fn(),
       findByCedula:             jest.fn(),
       findByCorreoCorporativo:  jest.fn(),
+      findByAnyEmail:           jest.fn(),
       create:                   jest.fn(),
       update:                   jest.fn(),
       updateEstadoByCorreo:     jest.fn(),
@@ -415,6 +416,43 @@ describe('EmployeeService', () => {
     it('throws NotFoundError when document not found', async () => {
       docRepo.findById.mockResolvedValue(null);
       await expect(service.generarUrlDescargaDocumento(999)).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('exportCsv', () => {
+    it('returns only headers when no employees exist', async () => {
+      empRepo.findAll.mockResolvedValue([]);
+      const csv = await service.exportCsv();
+      expect(csv).toContain('ID');
+      expect(csv).toContain('Cédula');
+      expect(csv.split('\r\n')).toHaveLength(1);
+    });
+
+    it('returns headers and one row for a single employee', async () => {
+      empRepo.findAll.mockResolvedValue([mockEmpleado]);
+      const csv = await service.exportCsv();
+      const lines = csv.split('\r\n');
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toContain('ID');
+      expect(lines[1]).toContain(String(mockEmpleado.id));
+    });
+
+    it('passes filters to repository findAll', async () => {
+      empRepo.findAll.mockResolvedValue([]);
+      await service.exportCsv({ search: 'juan', estado: 'activo', departamento: 'Sistemas' });
+      expect(empRepo.findAll).toHaveBeenCalledWith(10000, 0, { search: 'juan', estado: 'activo', departamento: 'Sistemas' });
+    });
+
+    it('wraps values containing commas in double quotes', async () => {
+      empRepo.findAll.mockResolvedValue([{ ...mockEmpleado, ciudad: 'Bogota, DC' }]);
+      const csv = await service.exportCsv();
+      expect(csv).toContain('"Bogota, DC"');
+    });
+
+    it('wraps values containing double quotes and escapes them', async () => {
+      empRepo.findAll.mockResolvedValue([{ ...mockEmpleado, nombre: 'Juan "El Pro"' }]);
+      const csv = await service.exportCsv();
+      expect(csv).toContain('"Juan ""El Pro"""');
     });
   });
 });

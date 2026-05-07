@@ -13,7 +13,7 @@ function mapRow(row: Record<string, unknown>): PasswordResetToken {
   };
 }
 
-class PasswordResetTokenRepository implements IPasswordResetTokenRepository {
+export class PasswordResetTokenRepository implements IPasswordResetTokenRepository {
   public async create(userId: string, tokenHash: string, expiresAt: Date): Promise<PasswordResetToken> {
     const result = await pool.query(
       `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)

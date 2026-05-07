@@ -16,6 +16,9 @@ jest.mock('../src/config/env', () => ({
     bcryptSaltRounds: 10,
     databaseUrl: 'postgresql://localhost/test',
     refreshTokenExpiresDays: 7,
+    resetTokenExpiresMinutes: 15,
+    frontendUrl: 'http://localhost:5173',
+    emailVerificationExpiresMinutes: 1440,
   },
 }));
 
@@ -26,6 +29,11 @@ jest.mock('../src/config/database', () => ({
   checkDatabaseConnection: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('../src/clients/historyServiceClient', () => ({
+  registrarAccion: jest.fn().mockResolvedValue(undefined),
+  registrarCambio: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../src/services/auth.service', () => ({
   authService: {
     register: jest.fn(),
@@ -33,6 +41,13 @@ jest.mock('../src/services/auth.service', () => ({
     refresh: jest.fn(),
     logout: jest.fn(),
     logoutAll: jest.fn(),
+    forgotPassword: jest.fn(),
+    resetPassword: jest.fn(),
+    changePassword: jest.fn(),
+    getPreferences: jest.fn(),
+    updatePreferences: jest.fn(),
+    notifyEmployeeChange: jest.fn(),
+    verifyEmail: jest.fn(),
   },
 }));
 
@@ -188,7 +203,7 @@ describe('Auth Routes — Integration', () => {
 
   describe('POST /api/v1/auth/logout', () => {
     it('should return 200 on successful logout', async () => {
-      (authService.logout as jest.Mock).mockResolvedValue(undefined);
+      (authService.logout as jest.Mock).mockResolvedValue({ email: mockUser.email, role: mockUser.role });
 
       const res = await request(app)
         .post('/api/v1/auth/logout')
@@ -221,6 +236,57 @@ describe('Auth Routes — Integration', () => {
       const res = await request(app).post('/api/v1/auth/logout-all');
 
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('POST /api/v1/auth/forgot-password', () => {
+    it('should return 200 even when email does not exist (anti-enumeration)', async () => {
+      (authService.forgotPassword as jest.Mock).mockResolvedValue(undefined);
+
+      const res = await request(app)
+        .post('/api/v1/auth/forgot-password')
+        .send({ email: 'anyone@test.com' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return 400 when email field is missing', async () => {
+      const res = await request(app).post('/api/v1/auth/forgot-password').send({});
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /api/v1/auth/reset-password', () => {
+    it('should return 200 on successful password reset', async () => {
+      (authService.resetPassword as jest.Mock).mockResolvedValue(undefined);
+
+      const res = await request(app)
+        .post('/api/v1/auth/reset-password')
+        .send({ token: 'valid-token', newPassword: 'NewPass123!' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return 400 when required fields are missing', async () => {
+      const res = await request(app).post('/api/v1/auth/reset-password').send({});
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /api/v1/auth/verify-email', () => {
+    it('should return 200 on successful email verification', async () => {
+      (authService.verifyEmail as jest.Mock).mockResolvedValue(undefined);
+
+      const res = await request(app)
+        .get('/api/v1/auth/verify-email')
+        .query({ token: 'valid-token' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
     });
   });
 

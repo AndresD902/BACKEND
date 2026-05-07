@@ -51,6 +51,7 @@ describe('EmployeeController', () => {
       generarPresignedUrl:        jest.fn(),
       confirmarDocumento:         jest.fn(),
       generarUrlDescargaDocumento: jest.fn(),
+      exportCsv:                   jest.fn(),
     };
     controller = new EmployeeController(service);
   });
@@ -212,6 +213,37 @@ describe('EmployeeController', () => {
       expect(r.status).toHaveBeenCalledWith(200);
       expect(r.json).toHaveBeenCalledWith({ success: true, data: contrato });
       expect(service.getContratoLaboralActivo).toHaveBeenCalledWith(1, 'Bearer token');
+    });
+
+    it('forwards UnauthorizedError to next when no Bearer token in headers', async () => {
+      await controller.getContratoLaboralActivo(req({ params: { id: '1' }, headers: {} }), res(), next);
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401 }));
+    });
+  });
+
+  describe('exportCsv', () => {
+    it('returns CSV with Content-Disposition header when query params are absent', async () => {
+      service.exportCsv.mockResolvedValue('ID,Nombre\r\n1,Juan');
+      const r = res();
+      r.setHeader = jest.fn().mockReturnValue(r);
+      r.send = jest.fn().mockReturnValue(r);
+
+      await controller.exportCsv(req(), r, next);
+
+      expect(r.status).toHaveBeenCalledWith(200);
+      expect(r.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+      expect(service.exportCsv).toHaveBeenCalledWith({ search: undefined, estado: undefined, departamento: undefined });
+    });
+
+    it('passes search, estado, and departamento query params to service', async () => {
+      service.exportCsv.mockResolvedValue('ID,Nombre\r\n');
+      const r = res();
+      r.setHeader = jest.fn().mockReturnValue(r);
+      r.send = jest.fn().mockReturnValue(r);
+
+      await controller.exportCsv(req({ query: { search: 'Juan', estado: 'ACTIVO', departamento: 'TI' } }), r, next);
+
+      expect(service.exportCsv).toHaveBeenCalledWith({ search: 'Juan', estado: 'activo', departamento: 'TI' });
     });
   });
 

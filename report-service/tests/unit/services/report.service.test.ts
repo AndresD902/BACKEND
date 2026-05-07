@@ -75,6 +75,19 @@ describe('ReportService', () => {
       expect(result.disponibles).toBeNull();
       expect(result.advertencias).toHaveLength(5);
     });
+
+    it('uses rejection reason directly when it has no message property', async () => {
+      jest.mocked(empClient.getEmpleado).mockResolvedValue(mockEmp);
+      jest.mocked(empClient.getHistorialCargo).mockResolvedValue([]);
+      jest.mocked(conClient.getContratosPorEmpleado).mockRejectedValue('string-error-reason');
+      jest.mocked(vacClient.getVacacionesPorEmpleado).mockResolvedValue([]);
+      jest.mocked(vacClient.getDiasDisponibles).mockResolvedValue(null);
+
+      const result = await service.getReporteEmpleado(1, TOKEN);
+
+      expect(result.contratos).toBeNull();
+      expect(result.advertencias[0]).toContain('string-error-reason');
+    });
   });
 
   // ── getEstadoLaboral ────────────────────────────────────────────────────────

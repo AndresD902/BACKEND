@@ -37,4 +37,8 @@ describe('calculatePaymentDistribution', () => {
   it('rejects invalid base salaries', () => {
     expect(() => calculatePaymentDistribution(0, PaymentFrequency.MONTHLY)).toThrow(ValidationError);
   });
+
+  it('throws when payment frequency is not in the lookup table', () => {
+    expect(() => calculatePaymentDistribution(6000000, 'invalid-frequency')).toThrow(ValidationError);
+  });
 });

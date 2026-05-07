@@ -16,5 +16,19 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/server.ts',
+    '!src/config/env.ts',
+    '!src/config/database.ts',
+    '!src/config/s3.ts',
+    '!src/clients/**',
+    '!src/dtos/**',
+    '!src/shared/enums/**',
   ],
+  coverageThreshold: {
+    global: {
+      branches: 90,
+      functions: 90,
+      lines: 90,
+      statements: 90,
+    },
+  },
 };

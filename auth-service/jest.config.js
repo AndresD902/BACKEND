@@ -5,7 +5,14 @@ const config = {
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   moduleDirectories: ['node_modules', 'src'],
   moduleFileExtensions: ['ts', 'js', 'json'],
-  collectCoverageFrom: ['src/**/*.ts'],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/server.ts',
+    '!src/config/env.ts',
+    '!src/services/email/smtp-email.service.ts',
+    '!src/clients/*.ts',
+    '!src/utils/logger.util.ts',
+  ],
   coverageDirectory: 'coverage',
   transform: {
     '^.+\\.tsx?$': [

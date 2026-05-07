@@ -1,9 +1,11 @@
 import request from 'supertest';
 import app from '../src/app';
 import { userService } from '../src/services/user.service';
+import { authService } from '../src/services/auth.service';
 import { verifyJwtToken } from '../src/utils/jwt.util';
 import { RoleName } from '../src/entities/role.entity';
 import { NotFoundError } from '../src/shared/errors/not-found.error';
+import { UnauthorizedError } from '../src/shared/errors/unauthorized.error';
 
 jest.mock('../src/config/env', () => ({
   env: {
@@ -15,6 +17,10 @@ jest.mock('../src/config/env', () => ({
     bcryptSaltRounds: 10,
     databaseUrl: 'postgresql://localhost/test',
     refreshTokenExpiresDays: 7,
+    resetTokenExpiresMinutes: 15,
+    frontendUrl: 'http://localhost:5173',
+    emailVerificationExpiresMinutes: 1440,
+    internalApiKey: 'test-internal-key',
   },
 }));
 
@@ -30,12 +36,26 @@ jest.mock('../src/utils/jwt.util', () => ({
   verifyJwtToken: jest.fn(),
 }));
 
+jest.mock('../src/clients/historyServiceClient', () => ({
+  registrarAccion: jest.fn().mockResolvedValue(undefined),
+  registrarCambio: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../src/services/user.service', () => ({
   userService: {
     findAll: jest.fn(),
     findById: jest.fn(),
     deactivate: jest.fn(),
     activate: jest.fn(),
+    changePassword: jest.fn(),
+  },
+}));
+
+jest.mock('../src/services/auth.service', () => ({
+  authService: {
+    getPreferences: jest.fn(),
+    updatePreferences: jest.fn(),
+    notifyEmployeeChange: jest.fn(),
   },
 }));
 
@@ -309,6 +329,141 @@ describe('User Routes — Integration', () => {
         .set('Authorization', 'Bearer valid-token');
 
       expect(res.status).toBe(404);
+    });
+  });
+});
+
+describe('Profile & Preferences Routes — Integration', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('GET /api/v1/protected/profile', () => {
+    it('should return 200 with user profile for authenticated user', async () => {
+      (verifyJwtToken as jest.Mock).mockReturnValue(adminPayload);
+      (userService.findById as jest.Mock).mockResolvedValue(mockUser);
+
+      const res = await request(app)
+        .get('/api/v1/protected/profile')
+        .set('Authorization', 'Bearer valid-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return 401 without token', async () => {
+      const res = await request(app).get('/api/v1/protected/profile');
+
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('POST /api/v1/protected/change-password', () => {
+    it('should return 200 on successful password change', async () => {
+      (verifyJwtToken as jest.Mock).mockReturnValue(adminPayload);
+      (userService.changePassword as jest.Mock).mockResolvedValue(undefined);
+
+      const res = await request(app)
+        .post('/api/v1/protected/change-password')
+        .set('Authorization', 'Bearer valid-token')
+        .send({ currentPassword: 'OldPass123!', newPassword: 'NewPass456!' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return 401 when current password is wrong', async () => {
+      (verifyJwtToken as jest.Mock).mockReturnValue(adminPayload);
+      (userService.changePassword as jest.Mock).mockRejectedValue(
+        new UnauthorizedError('Current password is incorrect'),
+      );
+
+      const res = await request(app)
+        .post('/api/v1/protected/change-password')
+        .set('Authorization', 'Bearer valid-token')
+        .send({ currentPassword: 'WrongPass123!', newPassword: 'NewPass456!' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 400 when body is invalid', async () => {
+      (verifyJwtToken as jest.Mock).mockReturnValue(adminPayload);
+
+      const res = await request(app)
+        .post('/api/v1/protected/change-password')
+        .set('Authorization', 'Bearer valid-token')
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /api/v1/protected/preferences', () => {
+    it('should return 200 with user preferences', async () => {
+      (verifyJwtToken as jest.Mock).mockReturnValue(adminPayload);
+      (authService.getPreferences as jest.Mock).mockResolvedValue({ notifLogin: false, notifCambios: true });
+
+      const res = await request(app)
+        .get('/api/v1/protected/preferences')
+        .set('Authorization', 'Bearer valid-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return 401 without token', async () => {
+      const res = await request(app).get('/api/v1/protected/preferences');
+
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('PATCH /api/v1/protected/preferences', () => {
+    it('should return 200 on successful preference update', async () => {
+      (verifyJwtToken as jest.Mock).mockReturnValue(adminPayload);
+      (authService.updatePreferences as jest.Mock).mockResolvedValue(undefined);
+
+      const res = await request(app)
+        .patch('/api/v1/protected/preferences')
+        .set('Authorization', 'Bearer valid-token')
+        .send({ notifLogin: true, notifCambios: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+});
+
+describe('Internal Routes — Integration', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('POST /api/v1/internal/notify-employee-change', () => {
+    it('should return 200 when internal key is valid', async () => {
+      (authService.notifyEmployeeChange as jest.Mock).mockResolvedValue(undefined);
+
+      const res = await request(app)
+        .post('/api/v1/internal/notify-employee-change')
+        .set('x-internal-key', 'test-internal-key')
+        .send({ userEmail: 'user@test.com', action: 'updated', employeeName: 'Juan García' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return 401 when internal key is invalid', async () => {
+      const res = await request(app)
+        .post('/api/v1/internal/notify-employee-change')
+        .set('x-internal-key', 'wrong-key')
+        .send({ userEmail: 'user@test.com', action: 'updated', employeeName: 'Juan García' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 400 when body is invalid', async () => {
+      const res = await request(app)
+        .post('/api/v1/internal/notify-employee-change')
+        .set('x-internal-key', 'test-internal-key')
+        .send({});
+
+      expect(res.status).toBe(400);
     });
   });
 });
