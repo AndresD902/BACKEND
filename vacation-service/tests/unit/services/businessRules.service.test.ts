@@ -1,14 +1,15 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BusinessRulesService } from '../../../src/services/businessRules.service';
 import { FestivosRepository } from '../../../src/repositories/festivos.repository';
 import { BadRequestError } from '../../../src/shared/errors/bad-request.error';
 
-function makeFestivosRepo(): jest.Mocked<FestivosRepository> {
+function makeFestivosRepo(): vi.Mocked<FestivosRepository> {
   return {
-    findByAnio:    jest.fn(),
-    findByRango:   jest.fn().mockResolvedValue([]),
-    existeFestivo: jest.fn().mockResolvedValue(false),
-    create:        jest.fn(),
-  } as unknown as jest.Mocked<FestivosRepository>;
+    findByAnio:    vi.fn(),
+    findByRango:   vi.fn().mockResolvedValue([]),
+    existeFestivo: vi.fn().mockResolvedValue(false),
+    create:        vi.fn(),
+  } as unknown as vi.Mocked<FestivosRepository>;
 }
 
 function futureDate(daysFromNow: number): Date {
@@ -19,7 +20,7 @@ function futureDate(daysFromNow: number): Date {
 }
 
 describe('BusinessRulesService', () => {
-  let repo: jest.Mocked<FestivosRepository>;
+  let repo: vi.Mocked<FestivosRepository>;
   let svc: BusinessRulesService;
 
   beforeEach(() => {

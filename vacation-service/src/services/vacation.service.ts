@@ -14,6 +14,14 @@ import { ConflictError } from '../shared/errors/conflict.error';
 import { parseDate, toDateOnly, currentYear } from '../utils/date.util';
 import { AuthenticatedUser } from '../middlewares/auth.middleware';
 
+/**
+ * Orchestrates all vacation-related business operations.
+ *
+ * This service is the single entry point for the controller layer.
+ * It delegates validation to `BusinessRulesService`, persistence to the
+ * repositories, notifications to `EmailService`, and audit events to the
+ * History Service (fire-and-forget via `registrarCambio`).
+ */
 export class VacationService {
   private readonly businessRules: BusinessRulesService;
   private readonly diasDisponiblesService: DiasDisponiblesService;
@@ -24,14 +32,20 @@ export class VacationService {
     private readonly festivosRepo: FestivosRepository,
     private readonly emailService: EmailService,
   ) {
-    this.businessRules = new BusinessRulesService(this.festivosRepo);
+    this.businessRules        = new BusinessRulesService(this.festivosRepo);
     this.diasDisponiblesService = new DiasDisponiblesService(this.diasRepo);
   }
 
+  /** Returns all vacation requests for a given employee, newest first. */
   async getByEmpleadoId(empleadoId: number): Promise<Vacation[]> {
     return this.vacationRepo.findByEmpleadoId(empleadoId);
   }
 
+  /**
+   * Returns the current-year `dias_disponibles` record for an employee.
+   * Throws `NotFoundError` when no record exists (i.e. the employee has
+   * never requested vacations this year).
+   */
   async getDiasDisponibles(empleadoId: number): Promise<DiasDisponibles> {
     const registro = await this.diasDisponiblesService.obtenerPorEmpleado(empleadoId);
     if (!registro) {
@@ -42,6 +56,14 @@ export class VacationService {
     return registro;
   }
 
+  /**
+   * Creates a new vacation request after passing all business-rule validations:
+   * date order, one-month anticipation, working-day start, minimum 5 working days,
+   * sufficient available days, and no overlapping active requests.
+   *
+   * Side effects (email, audit) happen after the DB write; neither blocks nor
+   * rolls back the operation if they fail.
+   */
   async create(
     data: { empleado_id: number; fecha_inicio: string; fecha_fin: string; justificacion?: string },
     actor: AuthenticatedUser,
@@ -49,7 +71,7 @@ export class VacationService {
     userAgent: string,
   ): Promise<Vacation> {
     const fechaInicio = parseDate(data.fecha_inicio);
-    const fechaFin = parseDate(data.fecha_fin);
+    const fechaFin    = parseDate(data.fecha_fin);
 
     this.businessRules.validarFechasOrden(fechaInicio, fechaFin);
     this.businessRules.validarAnticipacion(fechaInicio);
@@ -58,7 +80,7 @@ export class VacationService {
     const { diasHabiles, diasCalendario } = await this.businessRules.calcularDias(fechaInicio, fechaFin);
     this.businessRules.validarDiasMinimos(diasHabiles);
 
-    const anio = fechaInicio.getUTCFullYear();
+    const anio        = fechaInicio.getUTCFullYear();
     const registroDias = await this.diasDisponiblesService.obtenerOCrear(data.empleado_id, anio);
     this.businessRules.validarDisponibilidad(diasHabiles, registroDias.diasDisponibles);
 
@@ -68,12 +90,12 @@ export class VacationService {
     }
 
     const solicitud = await this.vacationRepo.create({
-      empleadoId:     data.empleado_id,
-      fechaInicio:    data.fecha_inicio,
-      fechaFin:       data.fecha_fin,
+      empleadoId:    data.empleado_id,
+      fechaInicio:   data.fecha_inicio,
+      fechaFin:      data.fecha_fin,
       diasHabiles,
       diasCalendario,
-      justificacion:  data.justificacion,
+      justificacion: data.justificacion,
     });
 
     await this.diasRepo.incrementarPendientes(data.empleado_id, anio, diasHabiles);
@@ -105,6 +127,10 @@ export class VacationService {
     return { ...solicitud, notificado: true };
   }
 
+  /**
+   * Approves a pending vacation request, moving the reserved days from
+   * `dias_pendientes` to `dias_usados`.
+   */
   async aprobar(id: number, actor: AuthenticatedUser, ip: string, userAgent: string): Promise<Vacation> {
     const solicitud = await this.vacationRepo.findById(id);
     if (!solicitud) throw new NotFoundError(`Solicitud de vacaciones ${id} no encontrada`);
@@ -113,7 +139,7 @@ export class VacationService {
     }
 
     const actualizada = await this.vacationRepo.updateEstado(id, 'aprobada', actor.email);
-    const anio = actualizada.fechaInicio.getFullYear();
+    const anio        = actualizada.fechaInicio.getFullYear();
     await this.diasRepo.aprobar(solicitud.empleadoId, anio, solicitud.diasHabiles);
 
     await this.emailService.notificarAprobacion({
@@ -140,6 +166,10 @@ export class VacationService {
     return actualizada;
   }
 
+  /**
+   * Rejects a pending vacation request and frees the reserved days back
+   * to `dias_disponibles`.
+   */
   async rechazar(
     id: number,
     motivoRechazo: string,
@@ -154,7 +184,7 @@ export class VacationService {
     }
 
     const actualizada = await this.vacationRepo.updateEstado(id, 'rechazada', actor.email, motivoRechazo);
-    const anio = solicitud.fechaInicio.getFullYear();
+    const anio        = solicitud.fechaInicio.getFullYear();
     await this.diasRepo.liberarPendientes(solicitud.empleadoId, anio, solicitud.diasHabiles);
 
     await this.emailService.notificarRechazo({
@@ -182,6 +212,10 @@ export class VacationService {
     return actualizada;
   }
 
+  /**
+   * Cancels a pending vacation request (employee-initiated) and frees the
+   * reserved days.  No email is sent for cancellations.
+   */
   async cancelar(id: number, actor: AuthenticatedUser, ip: string, userAgent: string): Promise<Vacation> {
     const solicitud = await this.vacationRepo.findById(id);
     if (!solicitud) throw new NotFoundError(`Solicitud de vacaciones ${id} no encontrada`);
@@ -190,7 +224,7 @@ export class VacationService {
     }
 
     const actualizada = await this.vacationRepo.updateEstado(id, 'cancelada', actor.email);
-    const anio = solicitud.fechaInicio.getFullYear();
+    const anio        = solicitud.fechaInicio.getFullYear();
     await this.diasRepo.liberarPendientes(solicitud.empleadoId, anio, solicitud.diasHabiles);
 
     registrarCambio({
@@ -210,10 +244,12 @@ export class VacationService {
     return actualizada;
   }
 
+  /** Returns all active public holidays for a given year. */
   async getFestivosByAnio(anio: number): Promise<Festivo[]> {
     return this.festivosRepo.findByAnio(anio);
   }
 
+  /** Creates a new public holiday record. */
   async createFestivo(data: {
     fecha: string;
     descripcion: string;

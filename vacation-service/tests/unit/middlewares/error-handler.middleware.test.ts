@@ -1,27 +1,28 @@
+import { describe, it, expect, vi } from 'vitest';
 import { Request, Response, NextFunction } from 'express';
 import { errorHandler } from '../../../src/middlewares/error-handler.middleware';
 import { BadRequestError } from '../../../src/shared/errors/bad-request.error';
 import { NotFoundError } from '../../../src/shared/errors/not-found.error';
 
 function makeRes() {
-  const json = jest.fn();
-  const status = jest.fn().mockReturnValue({ json });
-  return { status, json: jest.fn(), _status: status, _json: json } as unknown as Response & {
-    _status: jest.Mock;
-    _json: jest.Mock;
+  const json   = vi.fn();
+  const status = vi.fn().mockReturnValue({ json });
+  return { status, json: vi.fn(), _status: status, _json: json } as unknown as Response & {
+    _status: vi.Mock;
+    _json:   vi.Mock;
   };
 }
 
 describe('errorHandler', () => {
   const req  = {} as Request;
-  const next = jest.fn() as unknown as NextFunction;
+  const next = vi.fn() as unknown as NextFunction;
 
   it('returns the AppError status code and code for known errors', () => {
     const res = makeRes();
     const err = new BadRequestError('bad input', { field: 'x' });
     errorHandler(err, req, res, next);
-    expect((res as unknown as { _status: jest.Mock })._status).toHaveBeenCalledWith(400);
-    expect((res as unknown as { _json: jest.Mock })._json).toHaveBeenCalledWith(
+    expect((res as unknown as { _status: vi.Mock })._status).toHaveBeenCalledWith(400);
+    expect((res as unknown as { _json: vi.Mock })._json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
         message: 'bad input',
@@ -33,15 +34,18 @@ describe('errorHandler', () => {
   it('returns 404 for NotFoundError', () => {
     const res = makeRes();
     errorHandler(new NotFoundError('not here'), req, res, next);
-    expect((res as unknown as { _status: jest.Mock })._status).toHaveBeenCalledWith(404);
+    expect((res as unknown as { _status: vi.Mock })._status).toHaveBeenCalledWith(404);
   });
 
   it('returns 500 for unknown errors', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = makeRes();
     errorHandler(new Error('boom'), req, res, next);
-    expect((res as unknown as { _status: jest.Mock })._status).toHaveBeenCalledWith(500);
-    expect((res as unknown as { _json: jest.Mock })._json).toHaveBeenCalledWith(
+    expect((res as unknown as { _status: vi.Mock })._status).toHaveBeenCalledWith(500);
+    expect((res as unknown as { _json: vi.Mock })._json).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Internal Server Error' }),
     );
+    consoleSpy.mockRestore();
   });
 });
+

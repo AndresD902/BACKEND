@@ -1,422 +1,387 @@
-# 🏖️ vacation-service — README
+# Vacation Service
 
-> Microservicio 4 del sistema HR · Node.js + Express + PostgreSQL · Puerto 3004
+> Microservicio 4 del sistema HR · Node.js + TypeScript + Express + PostgreSQL · Puerto **3004**
 
 ---
 
 ## Tabla de Contenido
 
-1. [Descripción General](#1-descripción-general)
-2. [Responsabilidades](#2-responsabilidades)
-3. [Stack Tecnológico](#3-stack-tecnológico)
-4. [Estructura de Carpetas](#4-estructura-de-carpetas)
-5. [Modelo de Datos](#5-modelo-de-datos)
-6. [Migraciones](#6-migraciones)
-7. [Variables de Entorno](#7-variables-de-entorno)
+1. [Inicio Rápido — Levanta el servicio en minutos](#1-inicio-rápido--levanta-el-servicio-en-minutos)
+2. [Descripción General](#2-descripción-general)
+3. [Responsabilidades](#3-responsabilidades)
+4. [Stack Tecnológico](#4-stack-tecnológico)
+5. [Estructura de Carpetas](#5-estructura-de-carpetas)
+6. [Variables de Entorno](#6-variables-de-entorno)
+7. [Migraciones](#7-migraciones)
 8. [API REST — Endpoints](#8-api-rest--endpoints)
 9. [Reglas de Negocio](#9-reglas-de-negocio)
 10. [Flujos Internos](#10-flujos-internos)
-11. [Lógica Interna — Servicios](#11-lógica-interna--servicios)
-12. [Comunicación con otros microservicios](#12-comunicación-con-otros-microservicios)
-13. [Casos de Prueba](#13-casos-de-prueba)
-14. [Prueba de Estrés con k6](#14-prueba-de-estrés-con-k6)
-15. [Docker y ejecución local](#15-docker-y-ejecución-local)
+11. [Comunicación con otros Microservicios](#11-comunicación-con-otros-microservicios)
+12. [Pruebas Unitarias con Vitest](#12-pruebas-unitarias-con-vitest)
+13. [Análisis de Calidad con SonarCloud](#13-análisis-de-calidad-con-sonarcloud)
+14. [Docker y Ejecución con Docker Compose](#14-docker-y-ejecución-con-docker-compose)
+15. [Modelo de Datos](#15-modelo-de-datos)
 16. [Seguridad](#16-seguridad)
 
 ---
 
-## 1. Descripción General
+## 1. Inicio Rápido — Levanta el servicio en minutos
 
-El `vacation-service` gestiona todo el ciclo de vida de las solicitudes de vacaciones de los empleados. Es el único microservicio del sistema que combina lógica de calendario colombiano (festivos en BD), cálculo de días hábiles, gestión de disponibilidad por año y notificaciones por correo real.
+> Sigue estos pasos en orden. Si algo falla, revisa la sección de la etapa donde ocurrió el error.
 
-**No tiene dependencia directa de base de datos con otros servicios.** Las referencias a `empleado_id` son lógicas: se validan opcionalmente via HTTP REST al Employee Service.
+### Requisitos previos
 
----
-
-## 2. Responsabilidades
-
-- Gestionar solicitudes de vacaciones con validaciones estrictas de negocio.
-- Calcular días hábiles excluyendo fines de semana y festivos almacenados en la tabla `festivos`.
-- Mantener actualizada la tabla `dias_disponibles` por empleado por año (fuente de verdad de cuántos días le quedan a cada empleado).
-- Crear automáticamente el registro de `dias_disponibles` para el año actual cuando se solicita por primera vez.
-- Enviar correos reales a RRHH al crear una solicitud (Nodemailer + SMTP).
-- Enviar correo de confirmación o rechazo cuando RRHH responde.
-- Notificar al History Service en cada evento: solicitud, aprobación, rechazo.
-- Proveer endpoints públicos de consulta de festivos por año.
+| Herramienta | Versión mínima | Verificar |
+|-------------|---------------|-----------|
+| Node.js | 18.x | `node -v` |
+| npm | 9.x | `npm -v` |
+| PostgreSQL | 15.x | `psql --version` |
+| Docker (opcional) | 24.x | `docker -v` |
 
 ---
 
-## 3. Stack Tecnológico
+### Opción A — Ejecución local sin Docker
+
+**Paso 1 — Clonar e instalar dependencias**
+
+```bash
+git clone <url-del-repo>
+cd vacation-service
+npm install
+```
+
+**Paso 2 — Crear el archivo de variables de entorno**
+
+```bash
+cp .env.example .env
+```
+
+Abre `.env` y completa los valores marcados con `← CAMBIAR`:
+
+```env
+NODE_ENV=development
+PORT=3004
+SERVICE_NAME=vacation-service
+
+DATABASE_URL=postgres://postgres:password@localhost:5432/vacation_db   # ← CAMBIAR password
+
+JWT_SECRET=clave_super_secreta_minimo_32_caracteres_aqui               # ← CAMBIAR (mínimo 32 caracteres)
+
+HISTORY_SERVICE_URL=http://localhost:3006
+EMPLOYEE_SERVICE_URL=http://localhost:3002
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=tucorreo@gmail.com       # ← CAMBIAR
+SMTP_PASS=tu_app_password_gmail    # ← CAMBIAR (App Password de Gmail, no la contraseña normal)
+
+FRONTEND_URL=http://localhost:5173
+DIAS_LEGALES_ANUALES=15
+CORS_ORIGINS=http://localhost:5173
+```
+
+> **Nota SMTP:** En Gmail debes generar un **App Password** desde  
+> `Cuenta de Google → Seguridad → Verificación en dos pasos → Contraseñas de aplicación`.  
+> La contraseña normal no funciona con SMTP.
+
+**Paso 3 — Crear la base de datos**
+
+```bash
+psql -U postgres -c "CREATE DATABASE vacation_db;"
+```
+
+**Paso 4 — Ejecutar migraciones**
+
+```bash
+npm run migrate
+```
+
+Si es la primera vez, esto crea las tablas `vacaciones`, `dias_disponibles` y `festivos`, y carga los 18 festivos colombianos de 2025.
+
+**Paso 5 — Iniciar el servidor**
+
+```bash
+# Modo desarrollo (recarga automática al guardar)
+npm run dev
+
+# Modo producción
+npm run build && npm start
+```
+
+**Paso 6 — Verificar que el servicio está corriendo**
+
+```bash
+curl http://localhost:3004/api/health
+```
+
+Respuesta esperada:
+```json
+{ "status": "ok", "service": "vacation-service", "database": "connected" }
+```
+
+---
+
+### Opción B — Ejecución con Docker Compose
+
+> Esta opción levanta el servicio y su base de datos PostgreSQL sin necesidad de instalar nada localmente más allá de Docker.
+
+**Paso 1 — Crear el `.env`**
+
+```bash
+cp .env.example .env
+# Editar .env con los valores reales (mismo proceso que la Opción A)
+```
+
+**Paso 2 — Levantar**
+
+```bash
+# Solo este servicio y su BD
+docker-compose up vacation-service postgres-vacation
+
+# En segundo plano
+docker-compose up -d vacation-service postgres-vacation
+```
+
+**Paso 3 — Verificar migraciones y estado**
+
+```bash
+docker-compose logs vacation-service
+# Buscar: "Database connected successfully" y "No migrations to run" o "Migrations complete"
+
+curl http://localhost:3004/api/health
+```
+
+**Paso 4 — Detener**
+
+```bash
+docker-compose down
+# Para eliminar también los volúmenes (borra los datos de BD):
+docker-compose down -v
+```
+
+---
+
+### Solución de problemas comunes
+
+| Error | Causa probable | Solución |
+|-------|---------------|----------|
+| `Missing required environment variable: JWT_SECRET` | Falta el `.env` o la variable | Copiar `.env.example` y completarlo |
+| `JWT_SECRET must be at least 32 characters` | Clave demasiado corta | Usar una clave de al menos 32 caracteres |
+| `ECONNREFUSED 5432` | PostgreSQL no está corriendo | Iniciar PostgreSQL o usar Docker |
+| `relation "vacaciones" does not exist` | Las migraciones no corrieron | Ejecutar `npm run migrate` |
+| `Error: connect ECONNREFUSED smtp` | SMTP mal configurado | Revisar `SMTP_HOST`, `SMTP_PORT` y credenciales |
+| Puerto 3004 ocupado | Otro proceso usa ese puerto | Cambiar `PORT` en `.env` |
+
+---
+
+## 2. Descripción General
+
+El `vacation-service` gestiona todo el ciclo de vida de las solicitudes de vacaciones de los empleados. Es el único microservicio del sistema que combina:
+
+- Lógica de calendario colombiano (festivos almacenados en BD, actualizables sin redesplegar)
+- Cálculo de días hábiles excluyendo fines de semana y festivos
+- Gestión de disponibilidad por empleado por año
+- Notificaciones por correo real (Nodemailer + SMTP)
+
+**No tiene dependencia directa de base de datos con otros servicios.** Las referencias a `empleado_id` son lógicas: se validan opcionalmente vía HTTP REST al Employee Service.
+
+---
+
+## 3. Responsabilidades
+
+- Gestionar solicitudes de vacaciones con validaciones estrictas de negocio
+- Calcular días hábiles excluyendo fines de semana y festivos de la tabla `festivos`
+- Mantener actualizada la tabla `dias_disponibles` por empleado por año (fuente de verdad de cuántos días le quedan)
+- Crear automáticamente el registro `dias_disponibles` para el año actual en la primera solicitud
+- Enviar correos a RRHH al crear, aprobar o rechazar una solicitud
+- Notificar al History Service en cada evento (fire-and-forget)
+- Proveer endpoints de consulta de festivos por año
+
+---
+
+## 4. Stack Tecnológico
 
 | Capa | Tecnología |
 |------|-----------|
 | Runtime | Node.js 18.x |
-| Framework | Express 4.x |
+| Lenguaje | TypeScript 5.x |
+| Framework | Express 5.x |
 | Base de datos | PostgreSQL 15 |
+| Driver BD | pg (node-postgres) — sin ORM |
 | Migraciones | node-pg-migrate |
-| ORM / Query | pg (node-postgres) — sin ORM |
-| Correos | Nodemailer + SMTP (Gmail o SendGrid) |
-| Autenticación | JWT — validación local con middleware `verifyToken` |
+| Correos | Nodemailer + SMTP |
+| Autenticación | JWT — validación local (`jsonwebtoken`) |
+| Validación | Zod |
+| HTTP entre servicios | Axios |
+| Testing | **Vitest** + cobertura con **v8** |
 | Contenedor | Docker + Docker Compose |
-| Testing unitario | Jest + Supertest |
-| Testing E2E / API | Playwright |
-| Performance | Grafana k6 |
 
 ---
 
-## 4. Estructura de Carpetas
+## 5. Estructura de Carpetas
 
 ```
 vacation-service/
-│
 ├── src/
-│   ├── index.js                              ← Entry point: Express app + puerto
+│   ├── app.ts                          ← Express app: middlewares, rutas, CORS, error handler
+│   ├── server.ts                       ← Arranque: conecta BD y escucha el puerto
+│   │
+│   ├── config/
+│   │   ├── env.ts                      ← Variables de entorno validadas (falla rápido si falta algo)
+│   │   └── database.ts                 ← Pool de conexiones PostgreSQL
 │   │
 │   ├── routes/
-│   │   └── vacation.routes.js                ← Define todos los endpoints del servicio
+│   │   ├── index.ts                    ← Router raíz: /health + /vacaciones
+│   │   └── vacation.routes.ts          ← Define todos los endpoints con autenticación y validación
 │   │
-│   ├── controllers/
-│   │   └── vacation.controller.js            ← Recibe req/res, llama al service, retorna respuesta
+│   ├── controller/
+│   │   └── vacation.controller.ts      ← Maneja req/res, extrae parámetros, delega al service
 │   │
 │   ├── services/
-│   │   ├── vacation.service.js               ← Orquesta los flujos principales
-│   │   ├── businessRules.service.js          ← Cálculo de días hábiles y todas las validaciones
-│   │   ├── diasDisponibles.service.js        ← Lógica de obtener/crear/actualizar dias_disponibles
-│   │   └── email.service.js                  ← Nodemailer: envío de correos a RRHH
+│   │   ├── vacation.service.ts         ← Orquesta el flujo completo de cada operación
+│   │   ├── businessRules.service.ts    ← Validaciones de negocio (anticipación, días mínimos, etc.)
+│   │   ├── diasDisponibles.service.ts  ← Lógica de obtener/crear dias_disponibles
+│   │   └── email.service.ts            ← Envío de correos con Nodemailer (transporter inyectable)
 │   │
 │   ├── repositories/
-│   │   ├── vacation.repository.js            ← CRUD sobre tabla vacaciones
-│   │   ├── diasDisponibles.repository.js     ← CRUD sobre tabla dias_disponibles
-│   │   └── festivos.repository.js            ← Consultas sobre tabla festivos
+│   │   ├── vacation.repository.ts      ← Queries SQL sobre tabla vacaciones
+│   │   ├── diasDisponibles.repository.ts ← Queries sobre tabla dias_disponibles
+│   │   └── festivos.repository.ts      ← Queries sobre tabla festivos
 │   │
 │   ├── middlewares/
-│   │   └── verifyToken.js                    ← Valida JWT localmente (copia del auth-service)
+│   │   ├── auth.middleware.ts          ← Verifica JWT y controla roles (authenticate / authorize)
+│   │   ├── error-handler.middleware.ts ← Manejo centralizado de errores HTTP
+│   │   └── validation.middleware.ts    ← Valida req.body con esquemas Zod
+│   │
+│   ├── dtos/
+│   │   ├── create-vacation.dto.ts      ← Esquema Zod para crear solicitud
+│   │   └── reject-vacation.dto.ts      ← Esquema Zod para rechazar solicitud
+│   │
+│   ├── entities/
+│   │   ├── vacation.entity.ts          ← Interface TypeScript de Vacation
+│   │   ├── diasDisponibles.entity.ts   ← Interface de DiasDisponibles
+│   │   └── festivo.entity.ts           ← Interface de Festivo
 │   │
 │   ├── clients/
-│   │   └── historyServiceClient.js           ← HTTP fire-and-forget al History Service
+│   │   └── historyServiceClient.ts     ← Fire-and-forget al History Service
 │   │
-│   └── config/
-│       └── db.js                             ← Conexión a PostgreSQL con pg.Pool
-│
-├── migrations/
-│   ├── 001_create_festivos.js
-│   ├── 002_create_vacaciones.js
-│   ├── 003_create_dias_disponibles.js
-│   └── 004_seed_festivos_2025.js             ← 18 festivos colombianos 2025
+│   ├── utils/
+│   │   ├── date.util.ts                ← toDateOnly, parseDate, currentYear
+│   │   ├── vacation-days.util.ts       ← calcularDiasHabiles, calcularDiasCalendario
+│   │   └── async-handler.util.ts       ← Wrapper para async route handlers
+│   │
+│   └── shared/errors/
+│       ├── app-error.ts                ← Clase base para errores HTTP
+│       ├── bad-request.error.ts        ← 400
+│       ├── conflict.error.ts           ← 409
+│       ├── forbidden.error.ts          ← 403
+│       ├── not-found.error.ts          ← 404
+│       └── unauthorized.error.ts       ← 401
 │
 ├── tests/
-│   ├── unit/
-│   │   └── businessRules.test.js             ← Jest: validaciones de negocio aisladas
-│   └── integration/
-│       └── vacations.api.spec.ts             ← Playwright API Testing
+│   ├── setup.ts                        ← Variables de entorno para el entorno de test
+│   └── unit/
+│       ├── utils/
+│       │   ├── date.util.test.ts
+│       │   ├── vacation-days.util.test.ts
+│       │   └── async-handler.util.test.ts
+│       ├── shared/
+│       │   └── errors.test.ts
+│       ├── middlewares/
+│       │   ├── auth.middleware.test.ts
+│       │   ├── error-handler.middleware.test.ts
+│       │   └── validation.middleware.test.ts
+│       ├── services/
+│       │   ├── businessRules.service.test.ts
+│       │   ├── diasDisponibles.service.test.ts
+│       │   ├── email.service.test.ts
+│       │   └── vacation.service.test.ts
+│       ├── controllers/
+│       │   └── vacation.controller.test.ts
+│       └── clients/
+│           └── historyServiceClient.test.ts
 │
+├── migrations/
+│   ├── 001_create_festivos.ts
+│   ├── 002_create_vacaciones.ts
+│   ├── 003_create_dias_disponibles.ts
+│   └── 004_seed_festivos_2025.ts
+│
+├── vitest.config.ts                    ← Configuración de Vitest + cobertura con v8
+├── sonar-project.properties            ← Configuración para SonarCloud
 ├── Dockerfile
-├── .env.example
-├── .env                                      ← NO subir al repo (en .gitignore)
+├── .env.example                        ← Plantilla de variables de entorno
 └── package.json
 ```
 
 ---
 
-## 5. Modelo de Datos
+## 6. Variables de Entorno
 
-Base de datos: `vacation_db` · 3 tablas
-
----
-
-### Tabla 1: `vacaciones`
-
-Registra cada solicitud de vacaciones. Una solicitud nace en estado `pendiente` y transita a `aprobada`, `rechazada` o `cancelada`.
-
-```sql
-CREATE TABLE vacaciones (
-    id               SERIAL PRIMARY KEY,
-    empleado_id      INT NOT NULL,
-    -- empleado_id es referencia lógica, NO tiene FK real.
-    -- Se valida opcionalmente via REST al Employee Service.
-
-    fecha_inicio     DATE NOT NULL,
-    fecha_fin        DATE NOT NULL,
-    dias_habiles     INT NOT NULL,
-    -- Calculado automáticamente en el service excluyendo festivos y fines de semana.
-
-    dias_calendario  INT NOT NULL,
-    -- Diferencia simple: fecha_fin - fecha_inicio + 1 (días corridos).
-
-    estado           VARCHAR(20) DEFAULT 'pendiente'
-                     CHECK (estado IN ('pendiente', 'aprobada', 'rechazada', 'cancelada')),
-
-    justificacion    TEXT,
-    -- Motivo opcional que da el solicitante al pedir las vacaciones.
-
-    motivo_rechazo   TEXT,
-    -- Solo se llena cuando RRHH rechaza. Requerido en el flujo de rechazo.
-
-    aprobado_por     VARCHAR(150),
-    -- Email del usuario RRHH/Admin que aprobó o rechazó.
-
-    fecha_aprobacion TIMESTAMP,
-    -- Se llena cuando el estado cambia a 'aprobada' o 'rechazada'.
-
-    notificado       BOOLEAN DEFAULT FALSE,
-    -- TRUE una vez que se envió el correo a RRHH.
-
-    fecha_solicitud  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Índices
-CREATE INDEX idx_vacaciones_empleado_estado ON vacaciones(empleado_id, estado);
-CREATE INDEX idx_vacaciones_fechas          ON vacaciones(fecha_inicio, fecha_fin);
-```
-
----
-
-### Tabla 2: `dias_disponibles`
-
-**Fuente de verdad** de cuántos días de vacaciones tiene disponibles cada empleado por año. Sin esta tabla, calcular disponibilidad requeriría recorrer todas las vacaciones históricas en tiempo real.
-
-```sql
-CREATE TABLE dias_disponibles (
-    id               SERIAL PRIMARY KEY,
-    empleado_id      INT NOT NULL,
-    anio             INT NOT NULL,
-    -- año calendario: 2024, 2025, 2026...
-
-    dias_totales     DECIMAL(5,1) NOT NULL,
-    -- Días legales asignados por año. Por ley colombiana: 15 días hábiles.
-    -- Se toma del env: DIAS_LEGALES_ANUALES=15
-
-    dias_usados      DECIMAL(5,1) DEFAULT 0,
-    -- Días de vacaciones ya aprobadas y tomadas.
-
-    dias_pendientes  DECIMAL(5,1) DEFAULT 0,
-    -- Días en solicitudes con estado='pendiente'. Se reservan hasta que RRHH responda.
-
-    dias_disponibles DECIMAL(5,1) GENERATED ALWAYS AS
-                     (dias_totales - dias_usados - dias_pendientes) STORED,
-    -- Columna calculada automáticamente por PostgreSQL. No se escribe directamente.
-
-    fecha_creacion      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    UNIQUE (empleado_id, anio)
-    -- Un solo registro por empleado por año.
-);
-
--- Índice
-CREATE INDEX idx_dias_disponibles_emp_anio ON dias_disponibles(empleado_id, anio);
-```
-
-**Lógica de actualización de `dias_disponibles`:**
-
-| Evento | Operación |
-|--------|-----------|
-| Solicitud creada (`pendiente`) | `dias_pendientes += dias_habiles` |
-| Solicitud aprobada | `dias_usados += dias_habiles` · `dias_pendientes -= dias_habiles` |
-| Solicitud rechazada o cancelada | `dias_pendientes -= dias_habiles` |
-
----
-
-### Tabla 3: `festivos`
-
-Festivos colombianos almacenados en BD. Actualizables sin tocar código ni redesplegar. El seed inicial carga los 18 festivos del año 2025.
-
-```sql
-CREATE TABLE festivos (
-    id          SERIAL PRIMARY KEY,
-    fecha       DATE NOT NULL UNIQUE,
-    descripcion VARCHAR(150) NOT NULL,
-    -- Ej: "Día de la Independencia", "Navidad"
-
-    anio        INT NOT NULL,
-    tipo        VARCHAR(50) DEFAULT 'nacional'
-                CHECK (tipo IN ('nacional', 'regional', 'empresarial')),
-    activo      BOOLEAN DEFAULT TRUE
-    -- false = festivo desactivado (no afecta el cálculo de días hábiles)
-);
-
--- Índices
-CREATE INDEX idx_festivos_fecha ON festivos(fecha, activo);
-CREATE INDEX idx_festivos_anio  ON festivos(anio, activo);
-```
-
-**Consulta: verificar si una fecha es festivo**
-```sql
-SELECT EXISTS (
-    SELECT 1 FROM festivos
-    WHERE fecha = $1 AND activo = TRUE
-);
-```
-
-**Consulta: días disponibles de un empleado para el año actual**
-```sql
-SELECT dias_totales, dias_usados, dias_pendientes, dias_disponibles
-FROM dias_disponibles
-WHERE empleado_id = $1 AND anio = EXTRACT(YEAR FROM CURRENT_DATE);
-```
-
----
-
-## 6. Migraciones
-
-Las migraciones corren automáticamente al levantar el contenedor Docker (script `npm run migrate` antes de `node src/index.js`).
-
-### Archivos de migración
-
-```
-migrations/
-├── 001_create_festivos.js
-├── 002_create_vacaciones.js
-├── 003_create_dias_disponibles.js
-└── 004_seed_festivos_2025.js
-```
-
-### `001_create_festivos.js`
-
-```javascript
-exports.up = (pgm) => {
-  pgm.createTable('festivos', {
-    id:          { type: 'serial', primaryKey: true },
-    fecha:       { type: 'date', notNull: true, unique: true },
-    descripcion: { type: 'varchar(150)', notNull: true },
-    anio:        { type: 'int', notNull: true },
-    tipo:        { type: 'varchar(50)', default: "'nacional'" },
-    activo:      { type: 'boolean', default: true }
-  });
-  pgm.addConstraint('festivos', 'chk_tipo_festivo',
-    "tipo IN ('nacional', 'regional', 'empresarial')");
-  pgm.createIndex('festivos', ['fecha', 'activo']);
-  pgm.createIndex('festivos', ['anio', 'activo']);
-};
-exports.down = (pgm) => { pgm.dropTable('festivos'); };
-```
-
-### `002_create_vacaciones.js`
-
-```javascript
-exports.up = (pgm) => {
-  pgm.createTable('vacaciones', {
-    id:                  { type: 'serial', primaryKey: true },
-    empleado_id:         { type: 'int', notNull: true },
-    fecha_inicio:        { type: 'date', notNull: true },
-    fecha_fin:           { type: 'date', notNull: true },
-    dias_habiles:        { type: 'int', notNull: true },
-    dias_calendario:     { type: 'int', notNull: true },
-    estado:              { type: 'varchar(20)', default: "'pendiente'" },
-    justificacion:       { type: 'text' },
-    motivo_rechazo:      { type: 'text' },
-    aprobado_por:        { type: 'varchar(150)' },
-    fecha_aprobacion:    { type: 'timestamp' },
-    notificado:          { type: 'boolean', default: false },
-    fecha_solicitud:     { type: 'timestamp', default: pgm.func('current_timestamp') },
-    fecha_actualizacion: { type: 'timestamp', default: pgm.func('current_timestamp') }
-  });
-  pgm.addConstraint('vacaciones', 'chk_estado_vac',
-    "estado IN ('pendiente', 'aprobada', 'rechazada', 'cancelada')");
-  pgm.createIndex('vacaciones', ['empleado_id', 'estado']);
-  pgm.createIndex('vacaciones', ['fecha_inicio', 'fecha_fin']);
-};
-exports.down = (pgm) => { pgm.dropTable('vacaciones'); };
-```
-
-### `003_create_dias_disponibles.js`
-
-```javascript
-exports.up = (pgm) => {
-  pgm.createTable('dias_disponibles', {
-    id:                  { type: 'serial', primaryKey: true },
-    empleado_id:         { type: 'int', notNull: true },
-    anio:                { type: 'int', notNull: true },
-    dias_totales:        { type: 'decimal(5,1)', notNull: true },
-    dias_usados:         { type: 'decimal(5,1)', default: 0 },
-    dias_pendientes:     { type: 'decimal(5,1)', default: 0 },
-    fecha_creacion:      { type: 'timestamp', default: pgm.func('current_timestamp') },
-    fecha_actualizacion: { type: 'timestamp', default: pgm.func('current_timestamp') }
-  });
-  // La columna generada dias_disponibles se agrega como SQL crudo
-  pgm.sql(`
-    ALTER TABLE dias_disponibles
-    ADD COLUMN dias_disponibles DECIMAL(5,1)
-    GENERATED ALWAYS AS (dias_totales - dias_usados - dias_pendientes) STORED;
-  `);
-  pgm.addConstraint('dias_disponibles', 'uq_empleado_anio', 'UNIQUE (empleado_id, anio)');
-  pgm.createIndex('dias_disponibles', ['empleado_id', 'anio']);
-};
-exports.down = (pgm) => { pgm.dropTable('dias_disponibles'); };
-```
-
-### `004_seed_festivos_2025.js`
-
-```javascript
-exports.up = (pgm) => {
-  const festivos = [
-    ['2025-01-01', 'Año Nuevo',                               2025],
-    ['2025-01-06', 'Reyes Magos',                             2025],
-    ['2025-03-24', 'San José (trasladado)',                   2025],
-    ['2025-04-17', 'Jueves Santo',                            2025],
-    ['2025-04-18', 'Viernes Santo',                           2025],
-    ['2025-05-01', 'Día del Trabajo',                         2025],
-    ['2025-06-02', 'Ascensión del Señor',                     2025],
-    ['2025-06-23', 'Corpus Christi',                          2025],
-    ['2025-06-30', 'Sagrado Corazón',                         2025],
-    ['2025-07-07', 'San Pedro y San Pablo (trasladado)',       2025],
-    ['2025-07-20', 'Grito de Independencia',                  2025],
-    ['2025-08-07', 'Batalla de Boyacá',                       2025],
-    ['2025-08-18', 'Asunción de la Virgen (trasladado)',      2025],
-    ['2025-10-13', 'Día de la Raza (trasladado)',              2025],
-    ['2025-11-03', 'Todos los Santos (trasladado)',            2025],
-    ['2025-11-17', 'Independencia de Cartagena (trasladado)', 2025],
-    ['2025-12-08', 'Inmaculada Concepción',                   2025],
-    ['2025-12-25', 'Navidad',                                 2025],
-  ];
-  festivos.forEach(([fecha, descripcion, anio]) => {
-    pgm.sql(`
-      INSERT INTO festivos (fecha, descripcion, anio)
-      VALUES ('${fecha}', '${descripcion}', ${anio})
-      ON CONFLICT (fecha) DO NOTHING;
-    `);
-  });
-};
-exports.down = (pgm) => {
-  pgm.sql("DELETE FROM festivos WHERE anio = 2025;");
-};
-```
-
----
-
-## 7. Variables de Entorno
-
-Archivo: `vacation-service/.env` (copiar desde `.env.example`, nunca subir al repo)
+Copia `.env.example` a `.env` y completa cada valor. El servicio valida las variables al arrancar y falla inmediatamente si falta alguna obligatoria.
 
 ```env
-# Servidor
+# ── Servidor ──────────────────────────────────────────────────────────────────
+NODE_ENV=development          # development | production | test
 PORT=3004
+SERVICE_NAME=vacation-service
 
-# Base de datos
-DATABASE_URL=postgres://postgres:password@postgres-vacation:5432/vacation_db
+# ── Base de datos ─────────────────────────────────────────────────────────────
+DATABASE_URL=postgres://postgres:password@localhost:5432/vacation_db
 
-# JWT — debe ser idéntico al usado en auth-service y todos los demás servicios
-JWT_SECRET=minimo_32_caracteres_muy_seguro_aqui
+# ── Autenticación JWT ─────────────────────────────────────────────────────────
+# Debe ser idéntico al JWT_SECRET de auth-service y todos los demás servicios.
+# Mínimo 32 caracteres obligatorio.
+JWT_SECRET=reemplaza_esto_con_una_clave_muy_larga_y_segura
 
-# Comunicación con otros microservicios
-EMPLOYEE_SERVICE_URL=http://employee-service:3002
+# ── Comunicación entre microservicios ─────────────────────────────────────────
 HISTORY_SERVICE_URL=http://history-service:3006
+EMPLOYEE_SERVICE_URL=http://employee-service:3002
 
-# SMTP — correo real a RRHH
+# ── Correo SMTP ───────────────────────────────────────────────────────────────
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
+SMTP_SECURE=false             # true solo si usas puerto 465
 SMTP_USER=rrhh@empresa.com
-SMTP_PASS=app_password_gmail
+SMTP_PASS=app_password        # App Password de Gmail, no la contraseña de la cuenta
 
-# URL del frontend (para links en los correos)
-FRONTEND_URL=https://hr-system.vercel.app
+# ── Frontend (para links en correos) ─────────────────────────────────────────
+FRONTEND_URL=http://localhost:5173
 
-# Reglas de negocio
-DIAS_LEGALES_ANUALES=15
+# ── Reglas de negocio ─────────────────────────────────────────────────────────
+DIAS_LEGALES_ANUALES=15       # Días de vacaciones por ley (Colombia: 15 hábiles)
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+CORS_ORIGINS=http://localhost:5173   # Separar múltiples orígenes con coma
 ```
 
-> **Nota SMTP:** usar App Password de Gmail (no la contraseña normal). En SendGrid usar API Key como SMTP_PASS.
+> **Nunca subas el `.env` al repositorio.** Ya está en `.gitignore`.
+
+---
+
+## 7. Migraciones
+
+Las migraciones se ejecutan con `node-pg-migrate` y crean el esquema completo de la BD.
+
+```bash
+# Ejecutar todas las migraciones pendientes
+npm run migrate
+
+# Revertir la última migración
+npm run migrate:down
+```
+
+Las migraciones también corren automáticamente al iniciar el contenedor Docker.
+
+### Orden de ejecución
+
+| Archivo | Qué crea |
+|---------|---------|
+| `001_create_festivos` | Tabla `festivos` con índices |
+| `002_create_vacaciones` | Tabla `vacaciones` con índices |
+| `003_create_dias_disponibles` | Tabla `dias_disponibles` con columna generada |
+| `004_seed_festivos_2025` | 18 festivos colombianos del año 2025 |
 
 ---
 
@@ -426,713 +391,291 @@ Base path: `/api/vacaciones`
 
 Todos los endpoints requieren `Authorization: Bearer <access_token>` en el header.
 
-### Tabla de endpoints
+| Método | Endpoint | Descripción | Roles permitidos |
+|--------|----------|-------------|-----------------|
+| `GET` | `/empleado/:id` | Listar vacaciones de un empleado | ADMIN, HR, CONSULTATION |
+| `GET` | `/empleado/:id/disponibles` | Días disponibles del año actual | ADMIN, HR, CONSULTATION |
+| `POST` | `/` | Crear solicitud de vacaciones | ADMIN, HR |
+| `PATCH` | `/:id/aprobar` | Aprobar solicitud pendiente | ADMIN, HR |
+| `PATCH` | `/:id/rechazar` | Rechazar con motivo obligatorio | ADMIN, HR |
+| `PATCH` | `/:id/cancelar` | Cancelar solicitud pendiente | ADMIN, HR |
+| `GET` | `/festivos/:anio` | Listar festivos de un año | ADMIN, HR, CONSULTATION |
+| `POST` | `/festivos` | Agregar festivo manualmente | ADMIN |
+| `GET` | `/health` *(vía `/api/health`)* | Estado del servicio y BD | Público |
 
-| Método | Endpoint | Descripción | Rol mínimo |
-|--------|----------|-------------|------------|
-| `GET` | `/empleado/:id` | Listar todas las vacaciones de un empleado | consulta |
-| `GET` | `/empleado/:id/disponibles` | Días disponibles del año actual | consulta |
-| `POST` | `/` | Crear solicitud de vacaciones | rrhh |
-| `PATCH` | `/:id/aprobar` | Aprobar una solicitud pendiente | rrhh |
-| `PATCH` | `/:id/rechazar` | Rechazar con motivo obligatorio | rrhh |
-| `PATCH` | `/:id/cancelar` | Cancelar una solicitud pendiente | rrhh |
-| `GET` | `/festivos/:anio` | Listar festivos de un año | consulta |
-| `POST` | `/festivos` | Agregar un festivo manualmente | admin |
+### Ejemplos de request / response
 
----
-
-### `GET /api/vacaciones/empleado/:id`
-
-Retorna todas las vacaciones históricas del empleado, ordenadas por `fecha_solicitud DESC`.
-
+**Crear solicitud — `POST /api/vacaciones`**
 ```json
-// Response 200
-[
-  {
-    "id": 12,
-    "empleado_id": 5,
-    "fecha_inicio": "2025-07-01",
-    "fecha_fin": "2025-07-11",
-    "dias_habiles": 9,
-    "dias_calendario": 11,
-    "estado": "aprobada",
-    "justificacion": "Vacaciones de mitad de año",
-    "motivo_rechazo": null,
-    "aprobado_por": "rrhh@empresa.com",
-    "fecha_aprobacion": "2025-06-01T14:30:00.000Z",
-    "notificado": true,
-    "fecha_solicitud": "2025-05-28T10:00:00.000Z"
-  }
-]
-```
-
----
-
-### `GET /api/vacaciones/empleado/:id/disponibles`
-
-Retorna el resumen de días disponibles del año actual para el empleado.
-
-```json
-// Response 200
-{
-  "empleado_id": 5,
-  "anio": 2025,
-  "dias_totales": 15,
-  "dias_usados": 9,
-  "dias_pendientes": 0,
-  "dias_disponibles": 6
-}
-
-// Response 404 — si aún no tiene registro para este año
-{ "error": "No se encontró registro de días disponibles para este empleado en 2025" }
-```
-
----
-
-### `POST /api/vacaciones`
-
-Crea una nueva solicitud. Ejecuta todas las validaciones de negocio antes de guardar.
-
-**Body:**
-```json
+// Body
 {
   "empleado_id": 5,
   "fecha_inicio": "2025-09-01",
   "fecha_fin": "2025-09-12",
   "justificacion": "Vacaciones de fin de año escolar"
 }
-```
 
-**Response 201:**
-```json
+// Response 201
 {
   "id": 15,
-  "empleado_id": 5,
-  "fecha_inicio": "2025-09-01",
-  "fecha_fin": "2025-09-12",
-  "dias_habiles": 10,
-  "dias_calendario": 12,
+  "empleadoId": 5,
+  "fechaInicio": "2025-09-01T00:00:00.000Z",
+  "fechaFin": "2025-09-12T00:00:00.000Z",
+  "diasHabiles": 10,
+  "diasCalendario": 12,
   "estado": "pendiente",
   "notificado": true,
-  "fecha_solicitud": "2025-07-28T09:00:00.000Z"
+  "fechaSolicitud": "2025-07-28T09:00:00.000Z"
 }
 ```
 
-**Errores posibles:**
+**Rechazar — `PATCH /api/vacaciones/15/rechazar`**
 ```json
-// 400 — menos de 5 días hábiles
-{ "error": "Las vacaciones deben ser de mínimo 5 días hábiles" }
+// Body
+{ "motivo_rechazo": "Período de alta demanda, reagendar para octubre" }
 
-// 400 — sin anticipación de 1 mes
-{ "error": "La solicitud debe realizarse con al menos 1 mes de anticipación" }
-
-// 400 — sin días disponibles
-{ "error": "El empleado solo tiene 3 días disponibles y solicitó 8" }
-
-// 400 — solapamiento con otra solicitud
-{ "error": "El empleado ya tiene una solicitud activa que se solapa con estas fechas" }
-
-// 400 — fecha_inicio en fin de semana o festivo
-{ "error": "La fecha de inicio no puede ser fin de semana ni festivo" }
-```
-
----
-
-### `PATCH /api/vacaciones/:id/aprobar`
-
-Aprueba una solicitud pendiente. Actualiza `dias_disponibles` automáticamente.
-
-**Body:** vacío (el `aprobado_por` se toma del JWT)
-
-**Response 200:**
-```json
-{
-  "id": 15,
-  "estado": "aprobada",
-  "aprobado_por": "rrhh@empresa.com",
-  "fecha_aprobacion": "2025-07-30T11:00:00.000Z"
-}
-```
-
----
-
-### `PATCH /api/vacaciones/:id/rechazar`
-
-Rechaza una solicitud. Libera los días pendientes. El `motivo_rechazo` es **obligatorio**.
-
-**Body:**
-```json
-{
-  "motivo_rechazo": "Período de alta demanda operativa, reagendar para octubre"
-}
-```
-
-**Response 200:**
-```json
+// Response 200
 {
   "id": 15,
   "estado": "rechazada",
-  "motivo_rechazo": "Período de alta demanda operativa, reagendar para octubre",
-  "aprobado_por": "rrhh@empresa.com"
+  "motivoRechazo": "Período de alta demanda, reagendar para octubre",
+  "aprobadoPor": "rrhh@empresa.com"
 }
 ```
 
----
-
-### `GET /api/vacaciones/festivos/:anio`
-
+**Errores de validación de negocio — `400 Bad Request`**
 ```json
-// GET /api/vacaciones/festivos/2025 — Response 200
-[
-  { "id": 1, "fecha": "2025-01-01", "descripcion": "Año Nuevo", "tipo": "nacional" },
-  { "id": 2, "fecha": "2025-01-06", "descripcion": "Reyes Magos", "tipo": "nacional" }
-  // ... 18 festivos en total
-]
-```
+{ "success": false, "message": "Las vacaciones deben ser de mínimo 5 días hábiles",
+  "error": { "code": "BAD_REQUEST_ERROR", "details": null } }
 
----
+{ "success": false, "message": "La solicitud debe realizarse con al menos 1 mes de anticipación",
+  "error": { "code": "BAD_REQUEST_ERROR", "details": null } }
 
-### `POST /api/vacaciones/festivos`
-
-Solo accesible por rol `admin`.
-
-```json
-// Body
-{
-  "fecha": "2025-03-15",
-  "descripcion": "Día de la empresa",
-  "anio": 2025,
-  "tipo": "empresarial"
-}
-
-// Response 201
-{ "id": 19, "fecha": "2025-03-15", "descripcion": "Día de la empresa", "tipo": "empresarial" }
+{ "success": false, "message": "El empleado solo tiene 3 días disponibles y solicitó 8",
+  "error": { "code": "BAD_REQUEST_ERROR", "details": null } }
 ```
 
 ---
 
 ## 9. Reglas de Negocio
 
-Todas las reglas están implementadas en `src/services/businessRules.service.js`. Se validan en ese orden exacto al recibir un `POST /api/vacaciones`.
+Todas las reglas se aplican en este orden al recibir `POST /api/vacaciones`:
 
-| # | Regla | Error HTTP | Mensaje |
-|---|-------|-----------|---------|
-| 1 | `fecha_inicio` debe ser ≥ hoy + 1 mes | 400 | `La solicitud debe realizarse con al menos 1 mes de anticipación` |
-| 2 | Días hábiles calculados deben ser ≥ 5 | 400 | `Las vacaciones deben ser de mínimo 5 días hábiles` |
-| 3 | El empleado debe tener `dias_disponibles` ≥ días solicitados | 400 | `El empleado solo tiene X días disponibles y solicitó Y` |
-| 4 | No puede solaparse con otra solicitud `pendiente` o `aprobada` del mismo empleado | 400 | `El empleado ya tiene una solicitud activa que se solapa con estas fechas` |
-| 5 | `fecha_inicio` no puede caer en sábado, domingo ni festivo | 400 | `La fecha de inicio no puede ser fin de semana ni festivo` |
+| # | Regla | Error |
+|---|-------|-------|
+| 1 | `fecha_fin` no puede ser anterior a `fecha_inicio` | 400 |
+| 2 | `fecha_inicio` debe ser al menos 1 mes desde hoy | 400 |
+| 3 | `fecha_inicio` no puede caer en sábado, domingo ni festivo | 400 |
+| 4 | Los días hábiles calculados deben ser ≥ 5 | 400 |
+| 5 | El empleado debe tener `dias_disponibles` ≥ días solicitados | 400 |
+| 6 | No puede solaparse con otra solicitud `pendiente` o `aprobada` | 409 |
 
-**Cálculo de días hábiles:** se itera día a día entre `fecha_inicio` y `fecha_fin` (inclusive), descartando sábados, domingos y fechas que existan en la tabla `festivos` con `activo = TRUE`.
+**Cálculo de días hábiles:** se itera día a día entre `fecha_inicio` y `fecha_fin` (inclusive), descartando sábados, domingos y cualquier fecha que exista en la tabla `festivos` con `activo = TRUE`.
 
 ---
 
 ## 10. Flujos Internos
 
-### Flujo completo: Solicitar vacaciones
+### Solicitar vacaciones (`POST /`)
 
 ```
-POST /api/vacaciones
-  │
-  ├─ 1. verifyToken (JWT válido, rol: admin o rrhh)
-  │
-  ├─ 2. calcularDiasHabiles(fecha_inicio, fecha_fin)
-  │      └─ consulta festivos.obtenerPorRango(fecha_inicio, fecha_fin)
-  │      └─ itera día a día, descarta sábados/domingos/festivos
-  │      └─ retorna: diasHabiles (int), diasCalendario (int)
-  │
-  ├─ 3. validarAnticipacion(fecha_inicio)
-  │      └─ fecha_inicio >= hoy + 1 mes → si no: throw 400
-  │
-  ├─ 4. validarDiasMinimos(diasHabiles)
-  │      └─ diasHabiles >= 5 → si no: throw 400
-  │
-  ├─ 5. diasDisponibles.obtenerOCrear(empleado_id, anioActual)
-  │      └─ busca registro en dias_disponibles para (empleado_id, anio)
-  │      └─ si no existe: crea con dias_totales = DIAS_LEGALES_ANUALES
-  │
-  ├─ 6. validarDisponibilidad(diasHabiles, registro.dias_disponibles)
-  │      └─ dias_disponibles >= diasHabiles → si no: throw 400
-  │
-  ├─ 7. validarSolapamiento(empleado_id, fecha_inicio, fecha_fin)
-  │      └─ consulta vacaciones activas del empleado en ese rango
-  │      └─ si hay solapamiento: throw 400
-  │
-  ├─ 8. vacation.repository.create({ empleado_id, fecha_inicio, fecha_fin,
-  │                                   diasHabiles, diasCalendario, ... })
-  │
-  ├─ 9. diasDisponibles.repository.incrementarPendientes(empleado_id, anio, diasHabiles)
-  │      → UPDATE: dias_pendientes += diasHabiles
-  │
-  ├─ 10. email.service.notificarSolicitudRRHH({ ... })
-  │       └─ Nodemailer → correo real a RRHH
-  │       → UPDATE vacaciones SET notificado = TRUE
-  │
-  ├─ 11. historyClient.registrarCambio({
-  │         empleado_id, tipo_accion: 'solicitud_vacaciones',
-  │         entidad: 'vacaciones', entidad_id: solicitud.id,
-  │         usuario_modificador: req.usuario.email
-  │       })  ← fire-and-forget, no bloquea
-  │
-  └─ 12. res.status(201).json(solicitud)
+1. Verificar JWT → roles: ADMIN, HR
+2. Parsear y validar fechas
+3. validarFechasOrden → validarAnticipacion → validarFechaInicioHabil
+4. calcularDias (consulta festivos en BD)
+5. validarDiasMinimos
+6. obtenerOCrear registro dias_disponibles
+7. validarDisponibilidad
+8. findSolapadas → ConflictError si hay solapamiento
+9. INSERT en vacaciones (estado: pendiente)
+10. UPDATE dias_pendientes += diasHabiles
+11. Enviar correo a RRHH (no bloquea si falla)
+12. UPDATE notificado = TRUE
+13. registrarCambio → History Service (fire-and-forget)
+14. Response 201
+```
+
+### Aprobar (`PATCH /:id/aprobar`)
+
+```
+1. Verificar JWT → roles: ADMIN, HR
+2. findById → 404 si no existe
+3. Verificar estado === 'pendiente' → 400 si no
+4. UPDATE estado = 'aprobada'
+5. UPDATE dias_usados += dias, dias_pendientes -= dias
+6. Enviar correo de aprobación
+7. registrarCambio (fire-and-forget)
+8. Response 200
+```
+
+### Rechazar / Cancelar (`PATCH /:id/rechazar` · `PATCH /:id/cancelar`)
+
+```
+1. Verificar JWT y estado pendiente
+2. UPDATE estado = 'rechazada' | 'cancelada'
+3. UPDATE dias_pendientes -= dias  (libera los días reservados)
+4. Enviar correo de rechazo (solo en rechazar)
+5. registrarCambio (fire-and-forget)
+6. Response 200
 ```
 
 ---
 
-### Flujo: Aprobar vacaciones
+## 11. Comunicación con otros Microservicios
 
 ```
-PATCH /api/vacaciones/:id/aprobar
+vacation-service (:3004)
   │
-  ├─ 1. verifyToken (rol: admin o rrhh)
-  ├─ 2. vacation.repository.findById(id) → si no existe: 404
-  ├─ 3. verificar estado === 'pendiente' → si no: 400 "Solo se pueden aprobar solicitudes pendientes"
-  ├─ 4. vacation.repository.updateEstado(id, 'aprobada', req.usuario.email)
-  ├─ 5. diasDisponibles.repository.aprobar(empleado_id, anio, diasHabiles)
-  │      → UPDATE: dias_usados += diasHabiles, dias_pendientes -= diasHabiles
-  ├─ 6. historyClient.registrarCambio({ tipo_accion: 'aprobacion_vacaciones', ... })
-  ├─ 7. email.service.notificarAprobacion({ ... })  [opcional]
-  └─ 8. res.status(200).json(solicitudActualizada)
-```
-
----
-
-### Flujo: Rechazar vacaciones
-
-```
-PATCH /api/vacaciones/:id/rechazar
+  ├── → History Service (:3006)     POST /api/historial/cambios
+  │       Fire-and-forget. Timeout: 3 000 ms.
+  │       Si falla, se registra un warning en consola. La operación
+  │       principal no se revierte ni bloquea.
   │
-  ├─ 1. verifyToken (rol: admin o rrhh)
-  ├─ 2. vacation.repository.findById(id) → si no existe: 404
-  ├─ 3. verificar estado === 'pendiente' → si no: 400
-  ├─ 4. verificar que motivo_rechazo viene en el body → si no: 400
-  ├─ 5. vacation.repository.updateEstado(id, 'rechazada', req.usuario.email, motivo_rechazo)
-  ├─ 6. diasDisponibles.repository.liberarPendientes(empleado_id, anio, diasHabiles)
-  │      → UPDATE: dias_pendientes -= diasHabiles
-  ├─ 7. historyClient.registrarCambio({ tipo_accion: 'rechazo_vacaciones', ... })
-  ├─ 8. email.service.notificarRechazo({ ..., motivo_rechazo })
-  └─ 9. res.status(200).json(solicitudActualizada)
-```
-
----
-
-## 11. Lógica Interna — Servicios
-
-### `businessRules.service.js`
-
-```javascript
-// src/services/businessRules.service.js
-const festivosRepo = require('../repositories/festivos.repository');
-
-const calcularDiasHabiles = async (fechaInicio, fechaFin) => {
-  const festivos = await festivosRepo.obtenerPorRango(fechaInicio, fechaFin);
-  const fechasFestivos = new Set(festivos.map(f => f.fecha.toISOString().split('T')[0]));
-
-  let diasHabiles = 0;
-  const cursor = new Date(fechaInicio);
-  while (cursor <= fechaFin) {
-    const diaSemana   = cursor.getDay(); // 0=domingo, 6=sábado
-    const fechaStr    = cursor.toISOString().split('T')[0];
-    const esFestivo   = fechasFestivos.has(fechaStr);
-    const esFinSemana = diaSemana === 0 || diaSemana === 6;
-    if (!esFestivo && !esFinSemana) diasHabiles++;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return diasHabiles;
-};
-
-const calcularDiasCalendario = (fechaInicio, fechaFin) => {
-  const diff = fechaFin.getTime() - fechaInicio.getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
-};
-
-const validarAnticipacion = (fechaInicio) => {
-  const hoy   = new Date();
-  const unMes = new Date(hoy);
-  unMes.setMonth(unMes.getMonth() + 1);
-  if (fechaInicio < unMes)
-    throw { status: 400, message: 'La solicitud debe realizarse con al menos 1 mes de anticipación' };
-};
-
-const validarDiasMinimos = (diasHabiles) => {
-  if (diasHabiles < 5)
-    throw { status: 400, message: 'Las vacaciones deben ser de mínimo 5 días hábiles' };
-};
-
-const validarDisponibilidad = (diasHabiles, disponibles) => {
-  if (diasHabiles > disponibles)
-    throw { status: 400,
-            message: `El empleado solo tiene ${disponibles} días disponibles y solicitó ${diasHabiles}` };
-};
-
-const validarFechaInicioHabil = async (fechaInicio) => {
-  const diaSemana = fechaInicio.getDay();
-  if (diaSemana === 0 || diaSemana === 6)
-    throw { status: 400, message: 'La fecha de inicio no puede ser fin de semana ni festivo' };
-  const esFestivo = await festivosRepo.existeFestivo(fechaInicio);
-  if (esFestivo)
-    throw { status: 400, message: 'La fecha de inicio no puede ser fin de semana ni festivo' };
-};
-
-module.exports = {
-  calcularDiasHabiles,
-  calcularDiasCalendario,
-  validarAnticipacion,
-  validarDiasMinimos,
-  validarDisponibilidad,
-  validarFechaInicioHabil
-};
-```
-
----
-
-### `email.service.js`
-
-```javascript
-// src/services/email.service.js
-const nodemailer = require('nodemailer');
-
-const transporter = nodemailer.createTransport({
-  host:   process.env.SMTP_HOST,
-  port:   parseInt(process.env.SMTP_PORT),
-  secure: false,
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-});
-
-const notificarSolicitudRRHH = async ({ empleadoNombre, fechaInicio, fechaFin, diasHabiles, emailRRHH }) => {
-  await transporter.sendMail({
-    from:    `"Sistema RRHH" <${process.env.SMTP_USER}>`,
-    to:      emailRRHH,
-    subject: `Nueva solicitud de vacaciones — ${empleadoNombre}`,
-    html: `
-      <h2>Nueva solicitud de vacaciones</h2>
-      <p><strong>Empleado:</strong> ${empleadoNombre}</p>
-      <p><strong>Período:</strong> ${fechaInicio} al ${fechaFin}</p>
-      <p><strong>Días hábiles:</strong> ${diasHabiles}</p>
-      <p>Tiene <strong>3 días hábiles</strong> para aprobar o rechazar esta solicitud.</p>
-      <a href="${process.env.FRONTEND_URL}/vacaciones">Ver solicitud en el sistema</a>
-    `
-  });
-};
-
-const notificarAprobacion = async ({ empleadoNombre, fechaInicio, fechaFin, emailRRHH }) => {
-  await transporter.sendMail({
-    from:    `"Sistema RRHH" <${process.env.SMTP_USER}>`,
-    to:      emailRRHH,
-    subject: `Vacaciones aprobadas — ${empleadoNombre}`,
-    html: `
-      <h2>Solicitud de vacaciones aprobada</h2>
-      <p><strong>Empleado:</strong> ${empleadoNombre}</p>
-      <p><strong>Período aprobado:</strong> ${fechaInicio} al ${fechaFin}</p>
-    `
-  });
-};
-
-const notificarRechazo = async ({ empleadoNombre, fechaInicio, fechaFin, motivoRechazo, emailRRHH }) => {
-  await transporter.sendMail({
-    from:    `"Sistema RRHH" <${process.env.SMTP_USER}>`,
-    to:      emailRRHH,
-    subject: `Solicitud de vacaciones rechazada — ${empleadoNombre}`,
-    html: `
-      <h2>Solicitud de vacaciones rechazada</h2>
-      <p><strong>Empleado:</strong> ${empleadoNombre}</p>
-      <p><strong>Período solicitado:</strong> ${fechaInicio} al ${fechaFin}</p>
-      <p><strong>Motivo:</strong> ${motivoRechazo}</p>
-    `
-  });
-};
-
-module.exports = { notificarSolicitudRRHH, notificarAprobacion, notificarRechazo };
-```
-
----
-
-### `historyServiceClient.js`
-
-Patrón **fire-and-forget**: el vacation-service no espera respuesta ni falla si el History Service está caído. La operación principal ya se completó antes de llamar al historial.
-
-```javascript
-// src/clients/historyServiceClient.js
-const axios = require('axios');
-const HISTORY_URL = process.env.HISTORY_SERVICE_URL;
-
-const registrarCambio = (datos) =>
-  axios.post(`${HISTORY_URL}/api/historial/cambios`, datos, { timeout: 3000 })
-    .catch(err => console.error('[HistoryClient] No se pudo registrar cambio:', err.message));
-
-module.exports = { registrarCambio };
-```
-
-**Datos que se envían al History Service en cada evento:**
-
-```javascript
-// Al solicitar vacaciones
-historyClient.registrarCambio({
-  empleado_id:         req.body.empleado_id,
-  tipo_accion:         'solicitud_vacaciones',
-  entidad:             'vacaciones',
-  entidad_id:          solicitud.id,
-  campo_modificado:    'estado',
-  valor_anterior:      null,
-  valor_nuevo:         'pendiente',
-  usuario_modificador: req.usuario.email,
-  rol_modificador:     req.usuario.rol,
-  ip_origen:           req.ip,
-  user_agent:          req.headers['user-agent']
-});
-
-// Al aprobar
-historyClient.registrarCambio({
-  empleado_id:         vacacion.empleado_id,
-  tipo_accion:         'aprobacion_vacaciones',
-  entidad:             'vacaciones',
-  entidad_id:          id,
-  campo_modificado:    'estado',
-  valor_anterior:      'pendiente',
-  valor_nuevo:         'aprobada',
-  usuario_modificador: req.usuario.email,
-  rol_modificador:     req.usuario.rol,
-  ip_origen:           req.ip,
-  user_agent:          req.headers['user-agent']
-});
-
-// Al rechazar
-historyClient.registrarCambio({
-  // ... igual que aprobar pero tipo_accion: 'rechazo_vacaciones', valor_nuevo: 'rechazada'
-});
-```
-
----
-
-## 12. Comunicación con otros microservicios
-
-```
-vacation-service (3004)
+  ├── → Employee Service (:3002)    (referencia lógica)
+  │       No se valida en tiempo real. El empleado_id es lógico:
+  │       el servicio funciona aunque Employee Service esté caído.
   │
-  ├─ → Employee Service (3002)      [opcional]
-  │    GET /api/empleados/:id
-  │    Verifica que el empleado existe antes de crear la solicitud.
-  │    Si el Employee Service no responde, se permite crear igual
-  │    (la referencia es lógica, no hay FK real).
-  │
-  ├─ → History Service (3006)       [fire-and-forget]
-  │    POST /api/historial/cambios
-  │    En: solicitud_vacaciones, aprobacion_vacaciones, rechazo_vacaciones
-  │    No bloquea si falla. Timeout: 3000ms.
-  │
-  └─ → SMTP (Gmail/SendGrid)        [await]
-       Notificaciones a RRHH: solicitud, aprobación, rechazo.
-       Sí bloquea — si el correo falla, se registra el error pero
-       la operación principal igual retorna 201/200.
+  └── → SMTP (Gmail / SendGrid)     Nodemailer
+          Las fallas de correo se registran como warning.
+          La operación principal (crear/aprobar/rechazar) ya se completó.
 ```
 
 ---
 
-## 13. Casos de Prueba
+## 12. Pruebas Unitarias con Vitest
 
-### Unitarias (`tests/unit/businessRules.test.js`)
-
-```javascript
-// tests/unit/businessRules.test.js
-const { calcularDiasHabiles, validarAnticipacion,
-        validarDiasMinimos, validarDisponibilidad } = require('../../src/services/businessRules.service');
-
-// Mock de festivos 2025 (solo los necesarios para los tests)
-const festivos2025 = [
-  { fecha: new Date('2025-07-20') }, // Grito de Independencia
-  { fecha: new Date('2025-08-07') }, // Batalla de Boyacá
-];
-
-describe('TC-VAC-002: Rechaza con menos de 5 días hábiles', () => {
-  test('3 días hábiles → lanza error', () => {
-    expect(() => validarDiasMinimos(3))
-      .toThrow('Las vacaciones deben ser de mínimo 5 días hábiles');
-  });
-
-  test('5 días hábiles → no lanza error', () => {
-    expect(() => validarDiasMinimos(5)).not.toThrow();
-  });
-});
-
-describe('TC-VAC-003: Rechaza sin anticipación de 1 mes', () => {
-  test('fecha mañana → lanza error', () => {
-    const manana = new Date();
-    manana.setDate(manana.getDate() + 1);
-    expect(() => validarAnticipacion(manana))
-      .toThrow('La solicitud debe realizarse con al menos 1 mes de anticipación');
-  });
-
-  test('fecha en 2 meses → no lanza error', () => {
-    const dosMeses = new Date();
-    dosMeses.setMonth(dosMeses.getMonth() + 2);
-    expect(() => validarAnticipacion(dosMeses)).not.toThrow();
-  });
-});
-
-describe('TC-VAC-004: Rechaza si no hay días disponibles', () => {
-  test('solicita 8, tiene 3 → lanza error', () => {
-    expect(() => validarDisponibilidad(8, 3))
-      .toThrow('El empleado solo tiene 3 días disponibles y solicitó 8');
-  });
-
-  test('solicita 5, tiene 15 → no lanza error', () => {
-    expect(() => validarDisponibilidad(5, 15)).not.toThrow();
-  });
-});
-```
-
-### Integración — tabla completa
-
-| ID | Caso | Tipo | Resultado Esperado |
-|----|------|------|--------------------|
-| TC-VAC-001 | Solicitar 5 días hábiles con 1 mes de anticipación | Positivo | 201 · `dias_pendientes` += 5 |
-| TC-VAC-002 | Solicitar con menos de 5 días hábiles | Negativo | 400 |
-| TC-VAC-003 | Solicitar sin 1 mes de anticipación | Negativo | 400 |
-| TC-VAC-004 | Solicitar más días de los disponibles | Negativo | 400 |
-| TC-VAC-005 | `fecha_inicio` en festivo colombiano | Negativo | 400 |
-| TC-VAC-006 | Solicitud se solapa con otra pendiente | Negativo | 400 |
-| TC-VAC-007 | Aprobar solicitud → actualiza `dias_usados` | Positivo | `dias_usados` += días · `dias_pendientes` -= días |
-| TC-VAC-008 | Rechazar solicitud → libera `dias_pendientes` | Positivo | `dias_pendientes` -= días |
-| TC-VAC-009 | Consultar días disponibles retorna cálculo correcto | Positivo | `dias_disponibles` = totales - usados - pendientes |
-| TC-VAC-010 | Rechazar sin `motivo_rechazo` en body | Negativo | 400 |
-| TC-VAC-011 | Aprobar solicitud ya aprobada | Negativo | 400 |
-| TC-VAC-012 | Solicitud sin token retorna 401 | Negativo | 401 |
-| TC-VAC-013 | Solicitud con rol `consulta` retorna 403 | Negativo | 403 |
-| TC-VAC-014 | Correo enviado a RRHH al crear solicitud | Positivo | `notificado = true` en BD |
-| TC-VAC-015 | `GET /festivos/2025` retorna los 18 festivos | Positivo | Array con 18 elementos |
-| TC-VAC-016 | `POST /festivos` con rol `admin` agrega festivo | Positivo | 201 · festivo en BD |
-| TC-VAC-017 | `POST /festivos` con rol `rrhh` retorna 403 | Negativo | 403 |
-
----
-
-## 14. Prueba de Estrés con k6
-
-```javascript
-// tests/performance/stress/vacations-stress.js
-import http from 'k6/http';
-import { check, sleep } from 'k6';
-
-export const options = {
-  stages: [
-    { duration: '2m', target: 20  }, // nivel normal
-    { duration: '5m', target: 50  }, // carga alta
-    { duration: '2m', target: 100 }, // estrés — punto de quiebre
-    { duration: '5m', target: 100 }, // mantener estrés
-    { duration: '2m', target: 0   }, // recuperación
-  ],
-  thresholds: {
-    http_req_duration: ['p(95)<2000'],  // el 95% de requests debe responder en < 2s bajo estrés
-    http_req_failed:   ['rate<0.05'],   // máximo 5% de errores permitido bajo estrés extremo
-  },
-};
-
-export function setup() {
-  const res = http.post(
-    `${__ENV.AUTH_URL}/api/auth/login`,
-    JSON.stringify({ email: 'admin@empresa.com', password: 'Admin1234!' }),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-  return { token: res.json('access_token') };
-}
-
-export default function (data) {
-  const headers = {
-    'Content-Type':  'application/json',
-    'Authorization': `Bearer ${data.token}`,
-  };
-
-  // Escenario 1: consultar disponibilidad (lectura frecuente)
-  const disponibles = http.get(
-    `${__ENV.BASE_URL}/api/vacaciones/empleado/1/disponibles`,
-    { headers }
-  );
-  check(disponibles, {
-    'status 200':              (r) => r.status === 200,
-    'latencia < 2000ms':       (r) => r.timings.duration < 2000,
-    'sin error 500':           (r) => r.status !== 500,
-    'tiene dias_disponibles':  (r) => r.json('dias_disponibles') !== undefined,
-  });
-  sleep(0.5);
-
-  // Escenario 2: consultar festivos (muy cacheable)
-  const festivos = http.get(
-    `${__ENV.BASE_URL}/api/vacaciones/festivos/2025`,
-    { headers }
-  );
-  check(festivos, {
-    'festivos status 200':  (r) => r.status === 200,
-    'festivos es array':    (r) => Array.isArray(r.json()),
-  });
-  sleep(0.5);
-}
-```
-
-### Comandos de ejecución
+### Ejecutar las pruebas
 
 ```bash
-# Instalar k6
-brew install k6          # macOS
-sudo apt install k6      # Ubuntu/Debian
+# Una pasada (CI / verificación rápida)
+npm run test
 
-# Prueba de estrés
-k6 run \
-  --env BASE_URL=http://localhost:3004 \
-  --env AUTH_URL=http://localhost:3001 \
-  tests/performance/stress/vacations-stress.js
+# Modo watch — re-ejecuta al guardar un archivo
+npm run test:watch
 
-# Con reporte JSON para evidencia
-k6 run \
-  --env BASE_URL=http://localhost:3004 \
-  --env AUTH_URL=http://localhost:3001 \
-  --out json=tests/performance/results/vacations-stress-result.json \
-  tests/performance/stress/vacations-stress.js
+# Con reporte de cobertura
+npm run test:coverage
 ```
 
-### Umbrales esperados
+El reporte de cobertura se genera en `./coverage/`:
+- **`coverage/index.html`** — reporte visual navegable en el navegador
+- **`coverage/lcov.info`** — archivo que consume SonarCloud
 
-| Métrica | Umbral | Significado |
-|---------|--------|-------------|
-| `p(95) < 2000ms` | ✅ ok | Bajo estrés extremo, el 95% responde en menos de 2s |
-| `http_req_failed < 5%` | ✅ ok | El servicio aguanta sin caerse |
-| `checks = 100%` | ✅ ok | La lógica es correcta bajo concurrencia |
+### Cobertura actual
+
+| Métrica | Resultado | Umbral mínimo |
+|---------|-----------|---------------|
+| Statements | 100 % | 80 % |
+| Functions | 100 % | 80 % |
+| Lines | 100 % | 100 % |
+| Branches | ~89 % | 70 % |
+
+### Archivos de prueba — qué cubre cada uno
+
+| Archivo | Módulo cubierto | Casos |
+|---------|-----------------|-------|
+| `utils/date.util.test.ts` | `toDateOnly`, `parseDate`, `currentYear` | 5 |
+| `utils/vacation-days.util.test.ts` | `calcularDiasCalendario`, `calcularDiasHabiles` | 8 |
+| `utils/async-handler.util.test.ts` | Wrapper de async handlers Express | 4 |
+| `shared/errors.test.ts` | Todos los errores HTTP (`AppError` y subclases) | 8 |
+| `middlewares/auth.middleware.test.ts` | `authenticate`, `authorize` | 7 |
+| `middlewares/error-handler.middleware.test.ts` | `errorHandler` (AppError, 404, 500) | 3 |
+| `middlewares/validation.middleware.test.ts` | `validateRequest` con Zod | 3 |
+| `services/businessRules.service.test.ts` | Todas las validaciones de negocio | 14 |
+| `services/diasDisponibles.service.test.ts` | `obtenerOCrear`, `obtenerPorEmpleado` | 5 |
+| `services/email.service.test.ts` | 3 métodos: happy path + error swallowing + sanitización HTML | 12 |
+| `services/vacation.service.test.ts` | Flujo completo: crear, aprobar, rechazar, cancelar | 17 |
+| `controllers/vacation.controller.test.ts` | Todos los endpoints del controlador | 9 |
+| `clients/historyServiceClient.test.ts` | Envío de payload y manejo silencioso de errores | 2 |
+| **Total** | | **97 pruebas** |
+
+### Estrategia de mocks
+
+- **Repositorios:** mockeados con `vi.fn()` — no se necesita BD real
+- **EmailService:** el `Transporter` de Nodemailer es inyectable en el constructor (`new EmailService(mockTransporter)`) — no se necesita SMTP real
+- **History Service:** `axios.post` mockeado con `vi.mock('axios')`
+- **JWT:** `jwt.verify` mockeado con `vi.mock('jsonwebtoken')`
+- **Variables de entorno:** definidas en `tests/setup.ts` antes de que se importe cualquier módulo
+
+### Agregar una nueva prueba
+
+1. Crea el archivo en `tests/unit/<capa>/nombre-del-modulo.test.ts`
+2. Importa `{ describe, it, expect, vi, beforeEach } from 'vitest'`
+3. Mockea las dependencias externas con `vi.mock(...)`
+4. Ejecuta `npm run test:watch` para ver los resultados en tiempo real
 
 ---
 
-## 15. Docker y ejecución local
+## 13. Análisis de Calidad con SonarCloud
 
-### `Dockerfile`
+### Configuración
+
+El archivo `sonar-project.properties` ya está en la raíz del proyecto. Antes de ejecutar el análisis, edita dos líneas:
+
+```properties
+sonar.organization=your-org        # ← Tu organización en SonarCloud
+sonar.projectKey=your-org_vacation-service  # ← Tu clave de proyecto
+```
+
+### Pasos para lanzar el análisis
+
+**Paso 1 — Generar el reporte de cobertura (lcov)**
+
+```bash
+npm run test:coverage
+# Genera: coverage/lcov.info
+```
+
+**Paso 2 — Configurar el token**
+
+```bash
+# En tu terminal local o en los secrets de CI
+export SONAR_TOKEN=tu_token_de_sonarcloud
+```
+
+**Paso 3 — Ejecutar el scanner**
+
+```bash
+npx sonar-scanner -Dsonar.token=$SONAR_TOKEN
+```
+
+### Integración continua (GitHub Actions)
+
+Añade este step en tu workflow después de `npm run test:coverage`:
+
+```yaml
+- name: SonarCloud Scan
+  uses: SonarSource/sonarcloud-github-action@master
+  env:
+    SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+```
+
+### Qué analiza SonarCloud en este proyecto
+
+| Qué | Configuración |
+|-----|--------------|
+| Fuentes | `src/` |
+| Tests | `tests/` |
+| Cobertura | `coverage/lcov.info` |
+| Excluido del análisis | `node_modules/`, `dist/`, `coverage/`, `migrations/` |
+| Excluido de métricas de cobertura | repositorios, entidades, DTOs, rutas, `server.ts`, `app.ts` |
+
+---
+
+## 14. Docker y Ejecución con Docker Compose
+
+### Dockerfile
 
 ```dockerfile
 FROM node:18-alpine
-
 WORKDIR /app
-
 COPY package*.json ./
 RUN npm ci --only=production
-
 COPY . .
-
+RUN npm run build
 EXPOSE 3004
-
 CMD ["npm", "start"]
 ```
-
-### `package.json` — scripts relevantes
-
-```json
-{
-  "scripts": {
-    "migrate":      "node-pg-migrate up",
-    "migrate:down": "node-pg-migrate down",
-    "start":        "npm run migrate && node src/index.js",
-    "dev":          "npm run migrate && nodemon src/index.js",
-    "test":         "jest --runInBand",
-    "test:coverage": "jest --coverage --runInBand"
-  }
-}
-```
-
-> `--runInBand` es necesario en Jest para tests de integración que usan la misma BD. Sin él, los tests corren en paralelo y se pisan entre sí.
 
 ### Bloque en `docker-compose.yml`
 
@@ -1162,39 +705,90 @@ postgres-vacation:
     retries: 10
 ```
 
-### Levantar solo este servicio para desarrollo
+### Scripts disponibles
 
 ```bash
-# 1. Copiar variables de entorno
-cp .env.example .env
-# Editar .env con valores reales
-
-# 2. Levantar solo vacation-service y su BD
-docker-compose up vacation-service postgres-vacation
-
-# 3. Verificar que las migraciones corrieron
-docker-compose logs vacation-service | grep -i "migrat\|seed"
-
-# 4. Ejecutar tests unitarios
-npm test
-
-# 5. Ejecutar con cobertura
-npm run test:coverage
+npm run dev              # Servidor en modo desarrollo (ts-node-dev, recarga automática)
+npm run build            # Compilar TypeScript → dist/
+npm start                # Servidor compilado (producción)
+npm run migrate          # Ejecutar migraciones pendientes
+npm run migrate:down     # Revertir última migración
+npm run test             # Ejecutar pruebas unitarias (Vitest)
+npm run test:watch       # Pruebas en modo watch
+npm run test:coverage    # Pruebas + reporte de cobertura
+npm run lint             # ESLint
+npm run format           # Prettier
 ```
+
+---
+
+## 15. Modelo de Datos
+
+Base de datos: `vacation_db` · 3 tablas
+
+### `vacaciones`
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `id` | SERIAL PK | Identificador |
+| `empleado_id` | INT | Referencia lógica al empleado (sin FK real) |
+| `fecha_inicio` | DATE | Primer día de vacaciones |
+| `fecha_fin` | DATE | Último día de vacaciones |
+| `dias_habiles` | INT | Calculado automáticamente (excluye fines de semana y festivos) |
+| `dias_calendario` | INT | `fecha_fin - fecha_inicio + 1` |
+| `estado` | VARCHAR | `pendiente` · `aprobada` · `rechazada` · `cancelada` |
+| `justificacion` | TEXT | Motivo opcional del empleado |
+| `motivo_rechazo` | TEXT | Requerido al rechazar |
+| `aprobado_por` | VARCHAR | Email del usuario que aprobó/rechazó |
+| `notificado` | BOOLEAN | `TRUE` tras enviar correo a RRHH |
+| `fecha_solicitud` | TIMESTAMP | Creación automática |
+
+### `dias_disponibles`
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `empleado_id` | INT | Referencia lógica |
+| `anio` | INT | Año calendario |
+| `dias_totales` | DECIMAL | Días asignados (default: 15) |
+| `dias_usados` | DECIMAL | Vacaciones ya aprobadas |
+| `dias_pendientes` | DECIMAL | En solicitudes pendientes |
+| `dias_disponibles` | DECIMAL | **Columna generada:** `totales - usados - pendientes` |
+
+Lógica de actualización:
+
+| Evento | Operación |
+|--------|-----------|
+| Solicitud creada | `dias_pendientes += diasHabiles` |
+| Solicitud aprobada | `dias_usados += diasHabiles` · `dias_pendientes -= diasHabiles` |
+| Solicitud rechazada o cancelada | `dias_pendientes -= diasHabiles` |
+
+### `festivos`
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `fecha` | DATE UNIQUE | Fecha del festivo |
+| `descripcion` | VARCHAR | Ej: "Día de la Independencia" |
+| `anio` | INT | Año del festivo |
+| `tipo` | VARCHAR | `nacional` · `regional` · `empresarial` |
+| `activo` | BOOLEAN | `false` para desactivar sin eliminar |
 
 ---
 
 ## 16. Seguridad
 
-- Todos los endpoints requieren `Authorization: Bearer <JWT>`. Solo el middleware `verifyToken.js` valida el token localmente (sin llamar al Auth Service en cada request).
-- El JWT_SECRET debe ser idéntico en todos los microservicios del sistema.
-- El rol mínimo para crear/aprobar/rechazar solicitudes es `rrhh`. El rol `consulta` solo puede leer.
-- Las contraseñas SMTP van en `.env`, nunca en el código.
-- El correo SMTP usa autenticación con App Password (Gmail) o API Key (SendGrid).
-- La columna `dias_disponibles` es `GENERATED ALWAYS AS` en PostgreSQL — no se puede escribir directamente, lo que evita manipulaciones directas en BD.
-- El `empleado_id` en `vacaciones` no tiene FK real (la referencia es lógica via REST), lo que permite que el servicio funcione de forma independiente incluso si el Employee Service está temporalmente caído.
+| Medida | Implementación |
+|--------|---------------|
+| **Autenticación** | JWT verificado localmente en cada request. No se llama al Auth Service por request. |
+| **Autorización por rol** | `ADMIN` accede a todo. `HR` puede crear/aprobar/rechazar. `CONSULTATION` solo puede leer. |
+| **CORS restringido** | Solo los orígenes listados en `CORS_ORIGINS` pueden hacer requests al servicio. |
+| **Validación de inputs** | Todos los body de request pasan por esquemas Zod antes de llegar al controlador. |
+| **Sanitización en correos** | Los campos de usuario embebidos en HTML de correos son escapados con `escapeHtml()` (previene XSS). |
+| **JWT_SECRET mínimo** | El servicio rechaza arrancar si el secret tiene menos de 32 caracteres. |
+| **Tamaño de payload** | El body JSON está limitado a **10 KB** (`express.json({ limit: '10kb' })`). |
+| **Helmet** | Headers de seguridad HTTP configurados automáticamente. |
+| **Variables de entorno** | Credenciales SMTP, JWT_SECRET y DATABASE_URL van en `.env`, nunca en el código. |
+| **Columna generada** | `dias_disponibles` es `GENERATED ALWAYS AS` en PostgreSQL — no se puede escribir directamente, lo que evita manipulaciones directas en BD. |
 
 ---
 
-*vacation-service · Microservicio 4 del sistema HR · Versión 2.0*
-*3 tablas · Node.js + Express + PostgreSQL · Nodemailer · JWT · k6*
+*vacation-service · Microservicio 4 del sistema HR · Node.js + TypeScript + Express + PostgreSQL*

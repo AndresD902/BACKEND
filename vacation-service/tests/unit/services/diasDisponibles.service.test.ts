@@ -1,19 +1,20 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DiasDisponiblesService } from '../../../src/services/diasDisponibles.service';
 import { DiasDisponiblesRepository } from '../../../src/repositories/diasDisponibles.repository';
 import { DiasDisponibles } from '../../../src/entities/diasDisponibles.entity';
 
-jest.mock('../../../src/config/env', () => ({
+vi.mock('../../../src/config/env', () => ({
   env: { diasLegalesAnuales: 15 },
 }));
 
-function makeRepo(): jest.Mocked<DiasDisponiblesRepository> {
+function makeRepo(): vi.Mocked<DiasDisponiblesRepository> {
   return {
-    findByEmpleadoAnio:    jest.fn(),
-    create:                jest.fn(),
-    incrementarPendientes: jest.fn(),
-    aprobar:               jest.fn(),
-    liberarPendientes:     jest.fn(),
-  } as unknown as jest.Mocked<DiasDisponiblesRepository>;
+    findByEmpleadoAnio:    vi.fn(),
+    create:                vi.fn(),
+    incrementarPendientes: vi.fn(),
+    aprobar:               vi.fn(),
+    liberarPendientes:     vi.fn(),
+  } as unknown as vi.Mocked<DiasDisponiblesRepository>;
 }
 
 function fakeRegistro(override: Partial<DiasDisponibles> = {}): DiasDisponibles {
@@ -26,7 +27,7 @@ function fakeRegistro(override: Partial<DiasDisponibles> = {}): DiasDisponibles 
 }
 
 describe('DiasDisponiblesService', () => {
-  let repo: jest.Mocked<DiasDisponiblesRepository>;
+  let repo: vi.Mocked<DiasDisponiblesRepository>;
   let svc:  DiasDisponiblesService;
 
   beforeEach(() => {

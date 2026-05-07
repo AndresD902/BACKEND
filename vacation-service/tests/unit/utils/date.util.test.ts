@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { toDateOnly, parseDate, currentYear } from '../../../src/utils/date.util';
 
 describe('date.util', () => {

@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Request, Response, NextFunction } from 'express';
 import { VacationController } from '../../../src/controller/vacation.controller';
 import { VacationService } from '../../../src/services/vacation.service';
@@ -6,23 +7,23 @@ import { Vacation } from '../../../src/entities/vacation.entity';
 import { DiasDisponibles } from '../../../src/entities/diasDisponibles.entity';
 import { NotFoundError } from '../../../src/shared/errors/not-found.error';
 
-function makeSvc(): jest.Mocked<VacationService> {
+function makeSvc(): vi.Mocked<VacationService> {
   return {
-    getByEmpleadoId:    jest.fn(),
-    getDiasDisponibles: jest.fn(),
-    create:             jest.fn(),
-    aprobar:            jest.fn(),
-    rechazar:           jest.fn(),
-    cancelar:           jest.fn(),
-    getFestivosByAnio:  jest.fn(),
-    createFestivo:      jest.fn(),
-  } as unknown as jest.Mocked<VacationService>;
+    getByEmpleadoId:    vi.fn(),
+    getDiasDisponibles: vi.fn(),
+    create:             vi.fn(),
+    aprobar:            vi.fn(),
+    rechazar:           vi.fn(),
+    cancelar:           vi.fn(),
+    getFestivosByAnio:  vi.fn(),
+    createFestivo:      vi.fn(),
+  } as unknown as vi.Mocked<VacationService>;
 }
 
 function makeRes() {
-  const json   = jest.fn();
-  const status = jest.fn().mockReturnValue({ json });
-  return { status, _json: json } as unknown as Response & { _json: jest.Mock };
+  const json   = vi.fn();
+  const status = vi.fn().mockReturnValue({ json });
+  return { status, _json: json } as unknown as Response & { _json: vi.Mock };
 }
 
 const ACTOR = { sub: '1', email: 'hr@empresa.com', role: 'HR' as const };
@@ -47,13 +48,13 @@ function fakeDias(): DiasDisponibles {
 }
 
 describe('VacationController', () => {
-  let svc:  jest.Mocked<VacationService>;
+  let svc:  vi.Mocked<VacationService>;
   let ctrl: VacationController;
 
   beforeEach(() => {
     svc  = makeSvc();
     ctrl = new VacationController(svc);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ──────────────────────────────────────────────
@@ -63,7 +64,7 @@ describe('VacationController', () => {
       svc.getByEmpleadoId.mockResolvedValue(list);
       const req  = { params: { id: '5' } } as unknown as Request;
       const res  = makeRes();
-      const next = jest.fn() as unknown as NextFunction;
+      const next = vi.fn() as unknown as NextFunction;
 
       await ctrl.getByEmpleadoId(req, res, next);
       expect(res.status).toHaveBeenCalledWith(200);
@@ -74,7 +75,7 @@ describe('VacationController', () => {
       svc.getByEmpleadoId.mockRejectedValue(new NotFoundError());
       const req  = { params: { id: '99' } } as unknown as Request;
       const res  = makeRes();
-      const next = jest.fn() as unknown as NextFunction;
+      const next = vi.fn() as unknown as NextFunction;
 
       ctrl.getByEmpleadoId(req, res, next);
       // asyncHandler returns void; flush microtask queue so .catch(next) runs
@@ -90,7 +91,7 @@ describe('VacationController', () => {
       const req  = { params: { id: '5' } } as unknown as Request;
       const res  = makeRes();
 
-      await ctrl.getDiasDisponibles(req, res, jest.fn() as unknown as NextFunction);
+      await ctrl.getDiasDisponibles(req, res, vi.fn() as unknown as NextFunction);
       expect(res.status).toHaveBeenCalledWith(200);
     });
   });
@@ -108,7 +109,7 @@ describe('VacationController', () => {
       } as unknown as AuthenticatedRequest;
       const res  = makeRes();
 
-      await ctrl.create(req, res, jest.fn() as unknown as NextFunction);
+      await ctrl.create(req, res, vi.fn() as unknown as NextFunction);
       expect(res.status).toHaveBeenCalledWith(201);
     });
   });
@@ -125,7 +126,7 @@ describe('VacationController', () => {
       } as unknown as AuthenticatedRequest;
       const res = makeRes();
 
-      await ctrl.aprobar(req, res, jest.fn() as unknown as NextFunction);
+      await ctrl.aprobar(req, res, vi.fn() as unknown as NextFunction);
       expect(res.status).toHaveBeenCalledWith(200);
     });
   });
@@ -143,7 +144,7 @@ describe('VacationController', () => {
       } as unknown as AuthenticatedRequest;
       const res = makeRes();
 
-      await ctrl.rechazar(req, res, jest.fn() as unknown as NextFunction);
+      await ctrl.rechazar(req, res, vi.fn() as unknown as NextFunction);
       expect(res.status).toHaveBeenCalledWith(200);
     });
   });
@@ -160,7 +161,7 @@ describe('VacationController', () => {
       } as unknown as AuthenticatedRequest;
       const res = makeRes();
 
-      await ctrl.cancelar(req, res, jest.fn() as unknown as NextFunction);
+      await ctrl.cancelar(req, res, vi.fn() as unknown as NextFunction);
       expect(res.status).toHaveBeenCalledWith(200);
     });
   });
@@ -172,7 +173,7 @@ describe('VacationController', () => {
       const req = { params: { anio: '2025' } } as unknown as Request;
       const res = makeRes();
 
-      await ctrl.getFestivosByAnio(req, res, jest.fn() as unknown as NextFunction);
+      await ctrl.getFestivosByAnio(req, res, vi.fn() as unknown as NextFunction);
       expect(res.status).toHaveBeenCalledWith(200);
     });
   });
@@ -187,7 +188,7 @@ describe('VacationController', () => {
       } as unknown as Request;
       const res = makeRes();
 
-      await ctrl.createFestivo(req, res, jest.fn() as unknown as NextFunction);
+      await ctrl.createFestivo(req, res, vi.fn() as unknown as NextFunction);
       expect(res.status).toHaveBeenCalledWith(201);
     });
   });
