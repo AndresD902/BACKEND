@@ -19,4 +19,5 @@ export interface IEmployeeService {
   generarPresignedUrl(dto: PresignedUrlDto): Promise<{ url: string; key: string }>;
   confirmarDocumento(empleadoId: number, dto: ConfirmarDocumentoDto, actor: AuthenticatedUser): Promise<DocumentoEmpleado>;
   generarUrlDescargaDocumento(docId: number): Promise<{ url: string; expires_in: number }>;
+  exportCsv(filters?: EmployeeFilters): Promise<string>;
 }

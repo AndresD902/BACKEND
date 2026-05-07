@@ -10,6 +10,7 @@ const router = Router();
 
 router.use(verifyToken);
 
+router.get('/export/csv', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.exportCsv);
 router.post('/presigned-url', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.generarPresignedUrl);
 router.get('/documentos/:docId/url', employeeController.generarUrlDescarga);
 router.get('/', employeeController.getAll);

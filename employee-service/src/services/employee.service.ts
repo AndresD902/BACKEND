@@ -280,6 +280,30 @@ export class EmployeeService implements IEmployeeService {
     const url = await this.urlDescarga(doc.s3_key);
     return { url, expires_in: 3600 };
   }
+
+  async exportCsv(filters?: EmployeeFilters): Promise<string> {
+    const empleados = await this.empRepo.findAll(10000, 0, filters);
+    const HEADERS = [
+      'ID', 'Cédula', 'Tipo Documento', 'Nombre', 'Apellido', 'Género',
+      'Fecha Nacimiento', 'Celular', 'Teléfono Fijo', 'Correo Personal',
+      'Correo Corporativo', 'Dirección', 'Ciudad', 'Departamento',
+      'Nivel Educativo', 'Estado', 'Razón Estado',
+      'Fecha Ingreso', 'Fecha Retiro', 'Creado En',
+    ];
+    const escape = (v: unknown): string => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return (s.includes(',') || s.includes('"') || s.includes('\n'))
+        ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = empleados.map(e => [
+      e.id, e.cedula, e.tipo_documento, e.nombre, e.apellido, e.genero,
+      e.fecha_nacimiento, e.celular, e.telefono_fijo, e.correo_personal,
+      e.correo_corporativo, e.direccion, e.ciudad, e.departamento,
+      e.nivel_educativo, e.estado, e.razon_estado,
+      e.fecha_ingreso, e.fecha_retiro, e.created_at,
+    ].map(escape).join(','));
+    return [HEADERS.join(','), ...rows].join('\r\n');
+  }
 }
 
 export const employeeService = new EmployeeService();
