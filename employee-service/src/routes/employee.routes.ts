@@ -24,5 +24,6 @@ router.get('/:id/contrato-activo', employeeController.getContratoLaboralActivo);
 router.post('/:id/cargo', requireRol(RoleName.ADMIN, RoleName.HR), validateBody(createCargoSchema), employeeController.crearCargo);
 router.get('/:id/documentos', employeeController.getDocumentos);
 router.post('/:id/documentos', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.confirmarDocumento);
+router.post('/:id/solicitar-correccion', employeeController.solicitarCorreccion);
 
 export default router;

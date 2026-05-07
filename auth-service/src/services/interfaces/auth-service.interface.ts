@@ -37,5 +37,6 @@ export interface IAuthService {
   getPreferences(userId: string): Promise<NotificationPrefs>;
   updatePreferences(userId: string, prefs: NotificationPrefs): Promise<void>;
   notifyEmployeeChange(userEmail: string, action: string, employeeName: string): Promise<void>;
+  notifyCorrectionRequest(empleadoNombre: string, descripcion: string, solicitante: string): Promise<void>;
   verifyEmail(token: string): Promise<void>;
 }

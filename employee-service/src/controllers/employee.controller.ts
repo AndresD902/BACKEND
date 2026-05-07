@@ -91,6 +91,13 @@ export class EmployeeController {
     res.status(200).json({ success: true, data: result });
   });
 
+  public solicitarCorreccion = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const solicitante = actor(req).email;
+    const { descripcion } = req.body as { descripcion: string };
+    await this.service.solicitarCorreccion(Number(req.params.id), descripcion, solicitante);
+    res.status(200).json({ success: true, message: 'Solicitud de corrección enviada a RRHH' });
+  });
+
   public exportCsv = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const search       = req.query.search       ? String(req.query.search).slice(0, 50) : undefined;
     const estado       = req.query.estado       ? String(req.query.estado).toLowerCase() : undefined;
