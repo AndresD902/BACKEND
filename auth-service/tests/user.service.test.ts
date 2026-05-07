@@ -1,6 +1,13 @@
 import { UserService } from '../src/services/user.service';
 import { NotFoundError } from '../src/shared/errors/not-found.error';
+import { UnauthorizedError } from '../src/shared/errors/unauthorized.error';
 import { RoleName } from '../src/entities/role.entity';
+import { comparePassword, hashPassword } from '../src/utils/password.util';
+
+jest.mock('../src/utils/password.util', () => ({
+  comparePassword: jest.fn(),
+  hashPassword: jest.fn(),
+}));
 
 const baseUser = {
   id: '1',
@@ -20,14 +27,17 @@ describe('UserService', () => {
     findAll: jest.Mock;
     findById: jest.Mock;
     updateStatus: jest.Mock;
+    updatePassword: jest.Mock;
   };
   let userService: UserService;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     mockUserRepository = {
       findAll: jest.fn(),
       findById: jest.fn(),
       updateStatus: jest.fn(),
+      updatePassword: jest.fn(),
     };
     userService = new UserService(mockUserRepository as any);
   });
@@ -115,6 +125,35 @@ describe('UserService', () => {
       mockUserRepository.updateStatus.mockResolvedValue(null);
 
       await expect(userService.activate('999')).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('changePassword', () => {
+    it('should change password when current password is correct', async () => {
+      mockUserRepository.findById.mockResolvedValue(baseUser);
+      (comparePassword as jest.Mock).mockResolvedValue(true);
+      (hashPassword as jest.Mock).mockResolvedValue('new-hashed-password');
+      mockUserRepository.updatePassword.mockResolvedValue(baseUser);
+
+      await userService.changePassword('1', 'currentPass', 'newPass123');
+
+      expect(comparePassword).toHaveBeenCalledWith('currentPass', 'hashed-password');
+      expect(hashPassword).toHaveBeenCalledWith('newPass123');
+      expect(mockUserRepository.updatePassword).toHaveBeenCalledWith('1', 'new-hashed-password');
+    });
+
+    it('should throw NotFoundError when user does not exist', async () => {
+      mockUserRepository.findById.mockResolvedValue(null);
+
+      await expect(userService.changePassword('999', 'pass', 'newpass')).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw UnauthorizedError when current password is incorrect', async () => {
+      mockUserRepository.findById.mockResolvedValue(baseUser);
+      (comparePassword as jest.Mock).mockResolvedValue(false);
+
+      await expect(userService.changePassword('1', 'wrongPass', 'newPass')).rejects.toThrow(UnauthorizedError);
+      expect(mockUserRepository.updatePassword).not.toHaveBeenCalled();
     });
   });
 });
