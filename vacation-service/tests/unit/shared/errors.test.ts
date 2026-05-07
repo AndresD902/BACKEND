@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { AppError } from '../../../src/shared/errors/app-error';
 import { BadRequestError } from '../../../src/shared/errors/bad-request.error';
 import { ConflictError } from '../../../src/shared/errors/conflict.error';

@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { calcularDiasCalendario, calcularDiasHabiles } from '../../../src/utils/vacation-days.util';
 
 describe('vacation-days.util', () => {

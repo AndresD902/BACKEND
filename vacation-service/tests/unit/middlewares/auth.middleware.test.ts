@@ -1,24 +1,25 @@
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { authenticate, authorize, AuthenticatedRequest } from '../../../src/middlewares/auth.middleware';
 
-jest.mock('jsonwebtoken');
-jest.mock('../../../src/config/env', () => ({
+vi.mock('jsonwebtoken');
+vi.mock('../../../src/config/env', () => ({
   env: { jwtSecret: 'test-secret' },
 }));
 
-const mockVerify = jwt.verify as jest.MockedFunction<typeof jwt.verify>;
+const mockVerify = jwt.verify as vi.MockedFunction<typeof jwt.verify>;
 
 function makeRes(): Response {
   return {} as Response;
 }
 
-function makeNext(): jest.Mock {
-  return jest.fn();
+function makeNext(): vi.Mock {
+  return vi.fn();
 }
 
 describe('authenticate', () => {
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   it('calls next with UnauthorizedError when Authorization header is missing', () => {
     const req  = { headers: {} } as Request;
@@ -77,3 +78,4 @@ describe('authorize', () => {
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
   });
 });
+
