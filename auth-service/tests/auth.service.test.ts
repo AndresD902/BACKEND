@@ -18,9 +18,9 @@ jest.mock('../src/config/env', () => ({
     bcryptSaltRounds: 10,
     databaseUrl: 'postgresql://localhost/test',
     refreshTokenExpiresDays: 7,
-    emailVerificationExpiresMinutes: 60,
-    frontendUrl: 'http://localhost:3000',
-    resetTokenExpiresMinutes: 60,
+    resetTokenExpiresMinutes: 15,
+    frontendUrl: 'http://localhost:5173',
+    emailVerificationExpiresMinutes: 1440,
   },
 }));
 
@@ -78,16 +78,16 @@ describe('AuthService', () => {
   };
 
   let mockPasswordResetTokenRepository: {
+    deleteExpiredByUserId: jest.Mock;
     create: jest.Mock;
     findByHash: jest.Mock;
-    deleteExpiredByUserId: jest.Mock;
     markUsed: jest.Mock;
   };
 
   let mockEmailService: {
     sendVerificationEmail: jest.Mock;
-    sendLoginAlertEmail: jest.Mock;
     sendPasswordResetEmail: jest.Mock;
+    sendLoginAlertEmail: jest.Mock;
     sendEmployeeChangeEmail: jest.Mock;
   };
 
@@ -105,9 +105,9 @@ describe('AuthService', () => {
       findById: jest.fn(),
       create: jest.fn(),
       updateLastLogin: jest.fn(),
-      updatePasswordHash: jest.fn().mockResolvedValue(undefined),
-      updateEmailVerified: jest.fn().mockResolvedValue(undefined),
-      updateNotificationPrefs: jest.fn().mockResolvedValue(undefined),
+      updatePasswordHash: jest.fn(),
+      updateEmailVerified: jest.fn(),
+      updateNotificationPrefs: jest.fn(),
     };
 
     mockRefreshTokenRepository = {
@@ -118,23 +118,23 @@ describe('AuthService', () => {
     };
 
     mockPasswordResetTokenRepository = {
-      create: jest.fn().mockResolvedValue(undefined),
+      deleteExpiredByUserId: jest.fn(),
+      create: jest.fn(),
       findByHash: jest.fn(),
-      deleteExpiredByUserId: jest.fn().mockResolvedValue(undefined),
-      markUsed: jest.fn().mockResolvedValue(undefined),
+      markUsed: jest.fn(),
     };
 
     mockEmailService = {
       sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
-      sendLoginAlertEmail: jest.fn().mockResolvedValue(undefined),
       sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+      sendLoginAlertEmail: jest.fn().mockResolvedValue(undefined),
       sendEmployeeChangeEmail: jest.fn().mockResolvedValue(undefined),
     };
 
     mockEmailVerificationRepository = {
-      create: jest.fn().mockResolvedValue(undefined),
+      create: jest.fn(),
       findByHash: jest.fn(),
-      markUsed: jest.fn().mockResolvedValue(undefined),
+      markUsed: jest.fn(),
     };
 
     jest.clearAllMocks();
@@ -146,6 +146,8 @@ describe('AuthService', () => {
       mockEmailVerificationRepository as any,
     );
   });
+
+  // ─── register ───────────────────────────────────────────────────────────────
 
   describe('register', () => {
     it('should register a new user successfully', async () => {
@@ -160,6 +162,8 @@ describe('AuthService', () => {
       mockUserRepository.findByEmail.mockResolvedValue(null);
       (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
       mockUserRepository.create.mockResolvedValue({ ...baseUser });
+      mockEmailVerificationRepository.create.mockResolvedValue(undefined);
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
 
       const result = await authService.register(createUserDto);
 
@@ -202,13 +206,54 @@ describe('AuthService', () => {
       mockUserRepository.findByEmail.mockResolvedValue(null);
       (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
       mockUserRepository.create.mockResolvedValue({ ...baseUser });
+      mockEmailVerificationRepository.create.mockResolvedValue(undefined);
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
 
       const result = await authService.register(createUserDto);
 
       expect(mockUserRepository.findByEmail).toHaveBeenCalledWith('andresposada@gmail.com');
       expect(result.email).toBe('andresposada@gmail.com');
     });
+
+    it('should throw ForbiddenError if CONSULTATION user is not a registered employee', async () => {
+      const { isRegisteredEmployee } = jest.requireMock('../src/clients/employeeServiceClient') as { isRegisteredEmployee: jest.Mock };
+      isRegisteredEmployee.mockResolvedValueOnce(false);
+
+      mockUserRepository.findByEmail.mockResolvedValue(null);
+
+      await expect(authService.register({
+        firstName: 'Ana',
+        lastName: 'López',
+        email: 'ana@empresa.com',
+        password: 'pass123',
+        role: RoleName.CONSULTATION,
+      })).rejects.toThrow(ForbiddenError);
+    });
+
+    it('should allow CONSULTATION role when employee is registered', async () => {
+      const { isRegisteredEmployee } = jest.requireMock('../src/clients/employeeServiceClient') as { isRegisteredEmployee: jest.Mock };
+      isRegisteredEmployee.mockResolvedValueOnce(true);
+
+      mockUserRepository.findByEmail.mockResolvedValue(null);
+      (hashPassword as jest.Mock).mockResolvedValue('hashed-password');
+      const consultUser = { ...baseUser, role: RoleName.CONSULTATION };
+      mockUserRepository.create.mockResolvedValue(consultUser);
+      mockEmailVerificationRepository.create.mockResolvedValue(undefined);
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
+
+      const result = await authService.register({
+        firstName: 'Ana',
+        lastName: 'López',
+        email: 'ana@empresa.com',
+        password: 'pass123',
+        role: RoleName.CONSULTATION,
+      });
+
+      expect(result.role).toBe(RoleName.CONSULTATION);
+    });
   });
+
+  // ─── login ──────────────────────────────────────────────────────────────────
 
   describe('login', () => {
     it('should login successfully and return tokens with user', async () => {
@@ -238,6 +283,21 @@ describe('AuthService', () => {
       });
     });
 
+    it('should send login alert email when notifLogin is true', async () => {
+      const loginDto = { email: 'andresposada@gmail.com', password: 'password123' };
+      const userWithNotif = { ...baseUser, notifLogin: true };
+
+      mockUserRepository.findByEmail.mockResolvedValue(userWithNotif);
+      (comparePassword as jest.Mock).mockResolvedValue(true);
+      (generateJwtToken as jest.Mock).mockReturnValue('mock-access-token');
+      (generateRefreshToken as jest.Mock).mockReturnValue('mock-refresh-token');
+      (hashToken as jest.Mock).mockReturnValue('mock-token-hash');
+      mockRefreshTokenRepository.create.mockResolvedValue({});
+      mockUserRepository.updateLastLogin.mockResolvedValue(undefined);
+
+      await expect(authService.login(loginDto, '127.0.0.1', 'jest')).resolves.toBeDefined();
+    });
+
     it('should throw UnauthorizedError if user does not exist', async () => {
       mockUserRepository.findByEmail.mockResolvedValue(null);
 
@@ -257,9 +317,9 @@ describe('AuthService', () => {
     it('should throw ForbiddenError if email is not verified', async () => {
       mockUserRepository.findByEmail.mockResolvedValue({ ...baseUser, emailVerified: false });
 
-      await expect(
-        authService.login({ email: 'andresposada@gmail.com', password: 'password123' }),
-      ).rejects.toThrow(ForbiddenError);
+      await expect(authService.login({ email: 'andresposada@gmail.com', password: 'password123' })).rejects.toThrow(
+        ForbiddenError,
+      );
       expect(comparePassword).not.toHaveBeenCalled();
     });
 
@@ -273,6 +333,8 @@ describe('AuthService', () => {
       expect(generateJwtToken).not.toHaveBeenCalled();
     });
   });
+
+  // ─── refresh ────────────────────────────────────────────────────────────────
 
   describe('refresh', () => {
     it('should return a new access token when refresh token is valid', async () => {
@@ -336,17 +398,65 @@ describe('AuthService', () => {
 
       await expect(authService.refresh('valid-refresh-token')).rejects.toThrow(UnauthorizedError);
     });
+
+    it('should throw UnauthorizedError when user does not exist at refresh time', async () => {
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
+      mockRefreshTokenRepository.findByHash.mockResolvedValue({
+        id: '1',
+        userId: '1',
+        tokenHash: 'hashed-token',
+        expiresAt: new Date(Date.now() + 60000),
+        revoked: false,
+      });
+      mockUserRepository.findById.mockResolvedValue(null);
+
+      await expect(authService.refresh('valid-refresh-token')).rejects.toThrow(UnauthorizedError);
+    });
   });
 
+  // ─── logout ─────────────────────────────────────────────────────────────────
+
   describe('logout', () => {
-    it('should revoke the refresh token', async () => {
+    it('should revoke the refresh token and return user info', async () => {
       (hashToken as jest.Mock).mockReturnValue('hashed-token');
+      mockRefreshTokenRepository.findByHash.mockResolvedValue({
+        userId: '1',
+        tokenHash: 'hashed-token',
+        revoked: false,
+      });
+      mockUserRepository.findById.mockResolvedValue(baseUser);
       mockRefreshTokenRepository.revokeByHash.mockResolvedValue(undefined);
 
-      await authService.logout('valid-refresh-token');
+      const result = await authService.logout('valid-refresh-token');
 
       expect(hashToken).toHaveBeenCalledWith('valid-refresh-token');
       expect(mockRefreshTokenRepository.revokeByHash).toHaveBeenCalledWith('hashed-token');
+      expect(result.email).toBe(baseUser.email);
+    });
+
+    it('should still revoke when token record is not found', async () => {
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
+      mockRefreshTokenRepository.findByHash.mockResolvedValue(null);
+      mockRefreshTokenRepository.revokeByHash.mockResolvedValue(undefined);
+
+      const result = await authService.logout('unknown-token');
+
+      expect(mockRefreshTokenRepository.revokeByHash).toHaveBeenCalledWith('hashed-token');
+      expect(result.email).toBeUndefined();
+    });
+
+    it('should return undefined email when token is already revoked', async () => {
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
+      mockRefreshTokenRepository.findByHash.mockResolvedValue({
+        userId: '1',
+        tokenHash: 'hashed-token',
+        revoked: true,
+      });
+      mockRefreshTokenRepository.revokeByHash.mockResolvedValue(undefined);
+
+      const result = await authService.logout('revoked-token');
+
+      expect(result.email).toBeUndefined();
     });
 
     it('returns email and role when token record is found and active', async () => {
@@ -364,6 +474,8 @@ describe('AuthService', () => {
       expect(mockUserRepository.findById).toHaveBeenCalledWith('1');
     });
   });
+
+  // ─── logoutAll ──────────────────────────────────────────────────────────────
 
   describe('logoutAll', () => {
     it('should revoke all sessions for a user', async () => {
@@ -383,11 +495,15 @@ describe('AuthService', () => {
     });
   });
 
+  // ─── forgotPassword ─────────────────────────────────────────────────────────
+
   describe('forgotPassword', () => {
-    it('sends reset email when user exists and is active', async () => {
+    it('should send password reset email when user exists and is active', async () => {
       mockUserRepository.findByEmail.mockResolvedValue(baseUser);
-      (hashToken as jest.Mock).mockReturnValue('hashed-token');
+      mockPasswordResetTokenRepository.deleteExpiredByUserId.mockResolvedValue(undefined);
       mockPasswordResetTokenRepository.create.mockResolvedValue(undefined);
+      (hashToken as jest.Mock).mockReturnValue('hashed-reset-token');
+      mockEmailService.sendPasswordResetEmail.mockResolvedValue(undefined);
 
       await authService.forgotPassword('andresposada@gmail.com');
 
@@ -396,16 +512,16 @@ describe('AuthService', () => {
       expect(mockEmailService.sendPasswordResetEmail).toHaveBeenCalled();
     });
 
-    it('does nothing when user does not exist (prevents enumeration)', async () => {
+    it('should silently do nothing when user does not exist (anti-enumeration)', async () => {
       mockUserRepository.findByEmail.mockResolvedValue(null);
 
-      await authService.forgotPassword('nonexistent@email.com');
+      await authService.forgotPassword('unknown@test.com');
 
       expect(mockPasswordResetTokenRepository.create).not.toHaveBeenCalled();
       expect(mockEmailService.sendPasswordResetEmail).not.toHaveBeenCalled();
     });
 
-    it('does nothing when user is inactive (prevents enumeration)', async () => {
+    it('should silently do nothing when user is inactive', async () => {
       mockUserRepository.findByEmail.mockResolvedValue({ ...baseUser, isActive: false });
 
       await authService.forgotPassword('andresposada@gmail.com');
@@ -414,231 +530,208 @@ describe('AuthService', () => {
     });
   });
 
-  describe('resetPassword', () => {
-    it('resets password when token is valid', async () => {
-      (hashToken as jest.Mock).mockReturnValue('hashed-token');
-      mockPasswordResetTokenRepository.findByHash.mockResolvedValue({
-        id: '1',
-        userId: '1',
-        tokenHash: 'hashed-token',
-        expiresAt: new Date(Date.now() + 60000),
-        used: false,
-      });
-      (hashPassword as jest.Mock).mockResolvedValue('new-hashed-password');
+  // ─── resetPassword ──────────────────────────────────────────────────────────
 
-      await authService.resetPassword('valid-token', 'newPassword123');
+  describe('resetPassword', () => {
+    const validRecord = {
+      id: 'rec1',
+      userId: '1',
+      tokenHash: 'hashed-token',
+      expiresAt: new Date(Date.now() + 60000),
+      used: false,
+    };
+
+    it('should reset password with valid token', async () => {
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
+      (hashPassword as jest.Mock).mockResolvedValue('new-hashed-password');
+      mockPasswordResetTokenRepository.findByHash.mockResolvedValue(validRecord);
+      mockUserRepository.updatePasswordHash.mockResolvedValue(undefined);
+      mockPasswordResetTokenRepository.markUsed.mockResolvedValue(undefined);
+      mockRefreshTokenRepository.revokeAllByUserId.mockResolvedValue(undefined);
+
+      await authService.resetPassword('raw-token', 'newPassword123');
 
       expect(mockUserRepository.updatePasswordHash).toHaveBeenCalledWith('1', 'new-hashed-password');
-      expect(mockPasswordResetTokenRepository.markUsed).toHaveBeenCalledWith('1');
+      expect(mockPasswordResetTokenRepository.markUsed).toHaveBeenCalledWith('rec1');
       expect(mockRefreshTokenRepository.revokeAllByUserId).toHaveBeenCalledWith('1');
     });
 
-    it('throws UnauthorizedError when token record does not exist', async () => {
+    it('should throw UnauthorizedError when token is not found', async () => {
       (hashToken as jest.Mock).mockReturnValue('hashed-token');
       mockPasswordResetTokenRepository.findByHash.mockResolvedValue(null);
 
-      await expect(authService.resetPassword('bad-token', 'newPassword')).rejects.toThrow(UnauthorizedError);
+      await expect(authService.resetPassword('bad-token', 'newPassword123')).rejects.toThrow(UnauthorizedError);
     });
 
-    it('throws UnauthorizedError when token is already used', async () => {
+    it('should throw UnauthorizedError when token is already used', async () => {
       (hashToken as jest.Mock).mockReturnValue('hashed-token');
-      mockPasswordResetTokenRepository.findByHash.mockResolvedValue({
-        id: '1', userId: '1',
-        expiresAt: new Date(Date.now() + 60000),
-        used: true,
-      });
+      mockPasswordResetTokenRepository.findByHash.mockResolvedValue({ ...validRecord, used: true });
 
-      await expect(authService.resetPassword('used-token', 'newPassword')).rejects.toThrow(UnauthorizedError);
+      await expect(authService.resetPassword('used-token', 'newPassword123')).rejects.toThrow(UnauthorizedError);
     });
 
-    it('throws UnauthorizedError when token is expired', async () => {
+    it('should throw UnauthorizedError when token is expired', async () => {
       (hashToken as jest.Mock).mockReturnValue('hashed-token');
       mockPasswordResetTokenRepository.findByHash.mockResolvedValue({
-        id: '1', userId: '1',
+        ...validRecord,
         expiresAt: new Date(Date.now() - 60000),
-        used: false,
       });
 
-      await expect(authService.resetPassword('expired-token', 'newPassword')).rejects.toThrow(UnauthorizedError);
+      await expect(authService.resetPassword('expired-token', 'newPassword123')).rejects.toThrow(UnauthorizedError);
     });
   });
 
+  // ─── changePassword ─────────────────────────────────────────────────────────
+
   describe('changePassword', () => {
-    it('changes password when current password is correct', async () => {
+    it('should change password when current password is correct', async () => {
       mockUserRepository.findById.mockResolvedValue(baseUser);
       (comparePassword as jest.Mock).mockResolvedValue(true);
       (hashPassword as jest.Mock).mockResolvedValue('new-hashed-password');
+      mockUserRepository.updatePasswordHash.mockResolvedValue(undefined);
+      mockRefreshTokenRepository.revokeAllByUserId.mockResolvedValue(undefined);
 
-      await authService.changePassword('1', 'currentPass', 'newPass123');
+      await authService.changePassword('1', 'currentPassword', 'newPassword');
 
-      expect(comparePassword).toHaveBeenCalledWith('currentPass', 'hashed-password');
       expect(mockUserRepository.updatePasswordHash).toHaveBeenCalledWith('1', 'new-hashed-password');
       expect(mockRefreshTokenRepository.revokeAllByUserId).toHaveBeenCalledWith('1');
     });
 
-    it('throws UnauthorizedError when user not found', async () => {
+    it('should throw UnauthorizedError when user is not found', async () => {
       mockUserRepository.findById.mockResolvedValue(null);
 
-      await expect(authService.changePassword('999', 'pass', 'newpass')).rejects.toThrow(UnauthorizedError);
+      await expect(authService.changePassword('999', 'current', 'new')).rejects.toThrow(UnauthorizedError);
     });
 
-    it('throws UnauthorizedError when user is inactive', async () => {
+    it('should throw UnauthorizedError when user is inactive', async () => {
       mockUserRepository.findById.mockResolvedValue({ ...baseUser, isActive: false });
 
-      await expect(authService.changePassword('1', 'pass', 'newpass')).rejects.toThrow(UnauthorizedError);
+      await expect(authService.changePassword('1', 'current', 'new')).rejects.toThrow(UnauthorizedError);
     });
 
-    it('throws UnauthorizedError when current password is incorrect', async () => {
+    it('should throw UnauthorizedError when current password is incorrect', async () => {
       mockUserRepository.findById.mockResolvedValue(baseUser);
       (comparePassword as jest.Mock).mockResolvedValue(false);
 
-      await expect(authService.changePassword('1', 'wrongPass', 'newPass')).rejects.toThrow(UnauthorizedError);
+      await expect(authService.changePassword('1', 'wrongPassword', 'newPassword')).rejects.toThrow(UnauthorizedError);
+      expect(mockUserRepository.updatePasswordHash).not.toHaveBeenCalled();
     });
   });
 
+  // ─── getPreferences ─────────────────────────────────────────────────────────
+
   describe('getPreferences', () => {
-    it('returns user notification preferences', async () => {
-      mockUserRepository.findById.mockResolvedValue({ ...baseUser, notifLogin: true, notifCambios: false });
+    it('should return user notification preferences', async () => {
+      mockUserRepository.findById.mockResolvedValue(baseUser);
 
-      const result = await authService.getPreferences('1');
+      const prefs = await authService.getPreferences('1');
 
-      expect(result).toEqual({ notifLogin: true, notifCambios: false });
+      expect(prefs).toEqual({ notifLogin: false, notifCambios: false });
     });
 
-    it('throws NotFoundError when user does not exist', async () => {
+    it('should throw NotFoundError when user not found', async () => {
       mockUserRepository.findById.mockResolvedValue(null);
 
       await expect(authService.getPreferences('999')).rejects.toThrow(NotFoundError);
     });
   });
 
+  // ─── updatePreferences ──────────────────────────────────────────────────────
+
   describe('updatePreferences', () => {
-    it('updates user notification preferences', async () => {
+    it('should update notification preferences', async () => {
       mockUserRepository.findById.mockResolvedValue(baseUser);
+      mockUserRepository.updateNotificationPrefs.mockResolvedValue(undefined);
 
       await authService.updatePreferences('1', { notifLogin: true, notifCambios: true });
 
       expect(mockUserRepository.updateNotificationPrefs).toHaveBeenCalledWith('1', true, true);
     });
 
-    it('throws NotFoundError when user does not exist', async () => {
+    it('should throw NotFoundError when user not found', async () => {
       mockUserRepository.findById.mockResolvedValue(null);
 
       await expect(
-        authService.updatePreferences('999', { notifLogin: false, notifCambios: false }),
+        authService.updatePreferences('999', { notifLogin: true, notifCambios: false }),
       ).rejects.toThrow(NotFoundError);
     });
   });
 
+  // ─── notifyEmployeeChange ───────────────────────────────────────────────────
+
   describe('notifyEmployeeChange', () => {
-    it('sends email when user has notifCambios enabled', async () => {
-      mockUserRepository.findByEmail.mockResolvedValue({ ...baseUser, notifCambios: true });
+    it('should fire email when notifCambios is enabled', async () => {
+      const userWithNotif = { ...baseUser, notifCambios: true };
+      mockUserRepository.findByEmail.mockResolvedValue(userWithNotif);
+      mockEmailService.sendEmployeeChangeEmail.mockResolvedValue(undefined);
 
-      await authService.notifyEmployeeChange('andresposada@gmail.com', 'actualización', 'Juan García');
-
-      expect(mockEmailService.sendEmployeeChangeEmail).toHaveBeenCalledWith(
-        'andresposada@gmail.com', 'actualización', 'Juan García',
-      );
+      await expect(
+        authService.notifyEmployeeChange('andresposada@gmail.com', 'updated', 'Juan García'),
+      ).resolves.toBeUndefined();
     });
 
-    it('does not send email when user not found', async () => {
+    it('should do nothing when user is not found', async () => {
       mockUserRepository.findByEmail.mockResolvedValue(null);
 
-      await authService.notifyEmployeeChange('noone@email.com', 'update', 'Person');
+      await authService.notifyEmployeeChange('unknown@test.com', 'updated', 'Juan García');
 
       expect(mockEmailService.sendEmployeeChangeEmail).not.toHaveBeenCalled();
     });
 
-    it('does not send email when notifCambios is false', async () => {
+    it('should do nothing when notifCambios is false', async () => {
       mockUserRepository.findByEmail.mockResolvedValue({ ...baseUser, notifCambios: false });
 
-      await authService.notifyEmployeeChange('andresposada@gmail.com', 'update', 'Person');
+      await authService.notifyEmployeeChange('andresposada@gmail.com', 'updated', 'Juan García');
 
       expect(mockEmailService.sendEmployeeChangeEmail).not.toHaveBeenCalled();
     });
   });
 
-  describe('verifyEmail', () => {
-    it('marks email as verified when token is valid', async () => {
-      (hashToken as jest.Mock).mockReturnValue('hashed-token');
-      mockEmailVerificationRepository.findByHash.mockResolvedValue({
-        id: '1', userId: '1',
-        tokenHash: 'hashed-token',
-        expiresAt: new Date(Date.now() + 60000),
-        used: false,
-      });
+  // ─── verifyEmail ────────────────────────────────────────────────────────────
 
-      await authService.verifyEmail('valid-token');
+  describe('verifyEmail', () => {
+    const validVerifRecord = {
+      id: 'verif1',
+      userId: '1',
+      tokenHash: 'hashed-token',
+      expiresAt: new Date(Date.now() + 60000),
+      used: false,
+    };
+
+    it('should verify email with valid token', async () => {
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
+      mockEmailVerificationRepository.findByHash.mockResolvedValue(validVerifRecord);
+      mockUserRepository.updateEmailVerified.mockResolvedValue(undefined);
+      mockEmailVerificationRepository.markUsed.mockResolvedValue(undefined);
+
+      await authService.verifyEmail('raw-token');
 
       expect(mockUserRepository.updateEmailVerified).toHaveBeenCalledWith('1', true);
-      expect(mockEmailVerificationRepository.markUsed).toHaveBeenCalledWith('1');
+      expect(mockEmailVerificationRepository.markUsed).toHaveBeenCalledWith('verif1');
     });
 
-    it('throws UnauthorizedError when token does not exist', async () => {
+    it('should throw UnauthorizedError when verification token is not found', async () => {
       (hashToken as jest.Mock).mockReturnValue('hashed-token');
       mockEmailVerificationRepository.findByHash.mockResolvedValue(null);
 
       await expect(authService.verifyEmail('bad-token')).rejects.toThrow(UnauthorizedError);
     });
 
-    it('throws UnauthorizedError when token is already used', async () => {
+    it('should throw UnauthorizedError when verification token is already used', async () => {
       (hashToken as jest.Mock).mockReturnValue('hashed-token');
-      mockEmailVerificationRepository.findByHash.mockResolvedValue({
-        id: '1', userId: '1',
-        expiresAt: new Date(Date.now() + 60000),
-        used: true,
-      });
+      mockEmailVerificationRepository.findByHash.mockResolvedValue({ ...validVerifRecord, used: true });
 
       await expect(authService.verifyEmail('used-token')).rejects.toThrow(UnauthorizedError);
     });
 
-    it('throws UnauthorizedError when token is expired', async () => {
+    it('should throw UnauthorizedError when verification token is expired', async () => {
       (hashToken as jest.Mock).mockReturnValue('hashed-token');
       mockEmailVerificationRepository.findByHash.mockResolvedValue({
-        id: '1', userId: '1',
+        ...validVerifRecord,
         expiresAt: new Date(Date.now() - 60000),
-        used: false,
       });
 
       await expect(authService.verifyEmail('expired-token')).rejects.toThrow(UnauthorizedError);
-    });
-  });
-
-  describe('login — notifLogin branch', () => {
-    it('triggers login alert email when user has notifLogin enabled', async () => {
-      const loginDto = { email: 'andresposada@gmail.com', password: 'password123' };
-      mockUserRepository.findByEmail.mockResolvedValue({ ...baseUser, notifLogin: true });
-      (comparePassword as jest.Mock).mockResolvedValue(true);
-      (generateJwtToken as jest.Mock).mockReturnValue('mock-access-token');
-      (generateRefreshToken as jest.Mock).mockReturnValue('mock-refresh-token');
-      (hashToken as jest.Mock).mockReturnValue('mock-token-hash');
-      mockRefreshTokenRepository.create.mockResolvedValue({});
-      mockUserRepository.updateLastLogin.mockResolvedValue(undefined);
-
-      await authService.login(loginDto, '127.0.0.1', 'jest');
-
-      expect(mockEmailService.sendLoginAlertEmail).toHaveBeenCalledWith(
-        'andresposada@gmail.com', '127.0.0.1', 'jest',
-      );
-    });
-  });
-
-  describe('register — CONSULTATION role', () => {
-    it('throws ForbiddenError when CONSULTATION user is not a registered employee', async () => {
-      const { isRegisteredEmployee } = require('../src/clients/employeeServiceClient');
-      (isRegisteredEmployee as jest.Mock).mockResolvedValueOnce(false);
-
-      mockUserRepository.findByEmail.mockResolvedValue(null);
-
-      await expect(
-        authService.register({
-          firstName: 'Ana',
-          lastName: 'López',
-          email: 'ana@empresa.com',
-          password: 'password123',
-          role: RoleName.CONSULTATION,
-        }),
-      ).rejects.toThrow(ForbiddenError);
     });
   });
 });

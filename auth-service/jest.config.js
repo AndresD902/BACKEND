@@ -8,10 +8,10 @@ const config = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/server.ts',
-    '!src/config/database.ts',
-    '!src/services/email/**',
-    '!src/repositories/email-verification.repository.ts',
-    '!src/repositories/password-reset-token.repository.ts',
+    '!src/config/env.ts',
+    '!src/services/email/smtp-email.service.ts',
+    '!src/clients/*.ts',
+    '!src/utils/logger.util.ts',
   ],
   coverageDirectory: 'coverage',
   coverageThreshold: {

@@ -108,7 +108,7 @@ describe('ReportController', () => {
   // ── getReporteVacaciones ──────────────────────────────────────────────────
 
   describe('getReporteVacaciones', () => {
-    it('passes all query filters to the service', async () => {
+    it('passes query filters to service when params are present', async () => {
       service.getReporteVacaciones.mockResolvedValue({ data: [], advertencias: [], generado_en: '' });
       const res = makeRes();
       const req = makeReq({ query: { desde: '2024-01-01', hasta: '2024-12-31', estado: 'aprobada' } });
@@ -121,19 +121,21 @@ describe('ReportController', () => {
       );
     });
 
-    it('passes empty params object when no query is present', async () => {
+    it('passes empty params when no query params', async () => {
       service.getReporteVacaciones.mockResolvedValue({ data: [], advertencias: [], generado_en: '' });
+      const response = mockRes();
 
-      await controller.getReporteVacaciones(makeReq(), makeRes(), next);
+      await controller.getReporteVacaciones(req(), response, next);
 
       expect(service.getReporteVacaciones).toHaveBeenCalledWith('Bearer test-token', {});
+      expect(response.status).toHaveBeenCalledWith(200);
     });
   });
 
   // ── getReporteContratos ───────────────────────────────────────────────────
 
   describe('getReporteContratos', () => {
-    it('calls service and returns 200', async () => {
+    it('calls service and returns 200 without query params', async () => {
       service.getReporteContratos.mockResolvedValue({ data: [], advertencias: [], generado_en: '' });
       const res = makeRes();
 
@@ -152,6 +154,34 @@ describe('ReportController', () => {
         'Bearer test-token',
         { desde: '2025-01-01', estado: 'activo' },
       );
+    });
+
+    it('passes query filters to service when params are present', async () => {
+      service.getReporteContratos.mockResolvedValue({ data: [], advertencias: [], generado_en: '' });
+      const response = mockRes();
+      const request  = req({ query: { desde: '2024-01-01', hasta: '2024-12-31', estado: 'activo' } });
+
+      await controller.getReporteContratos(request, response, next);
+
+      expect(service.getReporteContratos).toHaveBeenCalledWith(
+        'Bearer test-token',
+        { desde: '2024-01-01', hasta: '2024-12-31', estado: 'activo' },
+      );
+    });
+  });
+
+  describe('token extraction', () => {
+    it('returns empty string when authorization header is absent', async () => {
+      service.getEstadoLaboral.mockResolvedValue({ empleados: [], total: 0, advertencias: [], generado_en: '' });
+      const response = mockRes();
+
+      await controller.getEstadoLaboral(
+        req({ headers: {} }),
+        response,
+        next,
+      );
+
+      expect(service.getEstadoLaboral).toHaveBeenCalledWith('');
     });
   });
 

@@ -191,3 +191,37 @@ describe('notFoundMiddleware', () => {
     expect(err.message).toContain('/api/v1/missing');
   });
 });
+
+import { ConflictError } from '../src/shared/errors/conflict.error';
+
+describe('Error classes — default message branch', () => {
+  it('ConflictError uses default message when none is provided', () => {
+    const err = new ConflictError();
+    expect(err.message).toBe('Resource conflict');
+    expect(err.statusCode).toBe(409);
+  });
+
+  it('ForbiddenError uses default message when none is provided', () => {
+    const err = new ForbiddenError();
+    expect(err.message).toBe('Forbidden');
+    expect(err.statusCode).toBe(403);
+  });
+
+  it('NotFoundError uses default message when none is provided', () => {
+    const err = new NotFoundError();
+    expect(err.message).toBe('Resource not found');
+    expect(err.statusCode).toBe(404);
+  });
+
+  it('UnauthorizedError uses default message when none is provided', () => {
+    const err = new UnauthorizedError();
+    expect(err.message).toBe('Unauthorized');
+    expect(err.statusCode).toBe(401);
+  });
+
+  it('RequestValidationError uses default message when none is provided', () => {
+    const err = new RequestValidationError();
+    expect(err.message).toBe('Validation failed');
+    expect(err.statusCode).toBe(400);
+  });
+});

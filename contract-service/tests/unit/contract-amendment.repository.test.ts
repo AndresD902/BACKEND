@@ -99,4 +99,18 @@ describe('ContractAmendmentRepository', () => {
 
     expect(result).toBeNull();
   });
+
+  it('returns the mapped amendment when found by id', async () => {
+    const repository = new ContractAmendmentRepository();
+
+    pool.query.mockResolvedValueOnce({ rows: [amendmentRow()] });
+
+    const result = await repository.findById(5);
+
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe(5);
+    expect(result?.contractId).toBe(10);
+    expect(result?.description).toBe('Cambio de salario');
+    expect(pool.query.mock.calls[0][1]).toEqual([5]);
+  });
 });

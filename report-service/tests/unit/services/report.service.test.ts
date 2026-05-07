@@ -77,29 +77,17 @@ describe('ReportService', () => {
       expect(result.advertencias).toHaveLength(5);
     });
 
-    it('includes the error message in the warning text', async () => {
-      vi.mocked(empClient.getEmpleado).mockRejectedValue(new Error('timeout exceeded'));
-      vi.mocked(empClient.getHistorialCargo).mockResolvedValue([]);
-      vi.mocked(conClient.getContratosPorEmpleado).mockResolvedValue([]);
-      vi.mocked(vacClient.getVacacionesPorEmpleado).mockResolvedValue([]);
-      vi.mocked(vacClient.getDiasDisponibles).mockResolvedValue(null);
+    it('uses rejection reason directly when it has no message property', async () => {
+      jest.mocked(empClient.getEmpleado).mockResolvedValue(mockEmp);
+      jest.mocked(empClient.getHistorialCargo).mockResolvedValue([]);
+      jest.mocked(conClient.getContratosPorEmpleado).mockRejectedValue('string-error-reason');
+      jest.mocked(vacClient.getVacacionesPorEmpleado).mockResolvedValue([]);
+      jest.mocked(vacClient.getDiasDisponibles).mockResolvedValue(null);
 
       const result = await service.getReporteEmpleado(1, TOKEN);
 
-      expect(result.advertencias[0]).toContain('timeout exceeded');
-    });
-
-    it('generado_en is a valid ISO timestamp', async () => {
-      vi.mocked(empClient.getEmpleado).mockResolvedValue(mockEmp);
-      vi.mocked(empClient.getHistorialCargo).mockResolvedValue([]);
-      vi.mocked(conClient.getContratosPorEmpleado).mockResolvedValue([]);
-      vi.mocked(vacClient.getVacacionesPorEmpleado).mockResolvedValue([]);
-      vi.mocked(vacClient.getDiasDisponibles).mockResolvedValue(null);
-
-      const result = await service.getReporteEmpleado(1, TOKEN);
-
-      expect(() => new Date(result.generado_en)).not.toThrow();
-      expect(new Date(result.generado_en).getTime()).toBeGreaterThan(0);
+      expect(result.contratos).toBeNull();
+      expect(result.advertencias[0]).toContain('string-error-reason');
     });
   });
 

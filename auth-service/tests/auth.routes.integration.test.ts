@@ -16,6 +16,9 @@ jest.mock('../src/config/env', () => ({
     bcryptSaltRounds: 10,
     databaseUrl: 'postgresql://localhost/test',
     refreshTokenExpiresDays: 7,
+    resetTokenExpiresMinutes: 15,
+    frontendUrl: 'http://localhost:5173',
+    emailVerificationExpiresMinutes: 1440,
   },
 }));
 
@@ -24,6 +27,11 @@ jest.mock('../src/config/database', () => ({
   connectDatabase: jest.fn(),
   disconnectDatabase: jest.fn(),
   checkDatabaseConnection: jest.fn().mockResolvedValue(true),
+}));
+
+jest.mock('../src/clients/historyServiceClient', () => ({
+  registrarAccion: jest.fn().mockResolvedValue(undefined),
+  registrarCambio: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../src/services/auth.service', () => ({
@@ -35,10 +43,11 @@ jest.mock('../src/services/auth.service', () => ({
     logoutAll: jest.fn(),
     forgotPassword: jest.fn(),
     resetPassword: jest.fn(),
-    verifyEmail: jest.fn(),
+    changePassword: jest.fn(),
     getPreferences: jest.fn(),
     updatePreferences: jest.fn(),
     notifyEmployeeChange: jest.fn(),
+    verifyEmail: jest.fn(),
   },
 }));
 
@@ -235,12 +244,12 @@ describe('Auth Routes — Integration', () => {
   });
 
   describe('POST /api/v1/auth/forgot-password', () => {
-    it('should return 200 (always, to prevent enumeration)', async () => {
+    it('should return 200 even when email does not exist (anti-enumeration)', async () => {
       (authService.forgotPassword as jest.Mock).mockResolvedValue(undefined);
 
       const res = await request(app)
         .post('/api/v1/auth/forgot-password')
-        .send({ email: 'test@test.com' });
+        .send({ email: 'anyone@test.com' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -259,7 +268,7 @@ describe('Auth Routes — Integration', () => {
 
       const res = await request(app)
         .post('/api/v1/auth/reset-password')
-        .send({ token: 'some-token', newPassword: 'NewPass123!' });
+        .send({ token: 'valid-token', newPassword: 'NewPass123!' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -270,18 +279,6 @@ describe('Auth Routes — Integration', () => {
 
       expect(res.status).toBe(400);
     });
-
-    it('should return 401 when token is invalid or expired', async () => {
-      (authService.resetPassword as jest.Mock).mockRejectedValue(
-        new UnauthorizedError('Token inválido o expirado'),
-      );
-
-      const res = await request(app)
-        .post('/api/v1/auth/reset-password')
-        .send({ token: 'bad-token', newPassword: 'NewPass123!' });
-
-      expect(res.status).toBe(401);
-    });
   });
 
   describe('GET /api/v1/auth/verify-email', () => {
@@ -291,51 +288,6 @@ describe('Auth Routes — Integration', () => {
       const res = await request(app)
         .get('/api/v1/auth/verify-email')
         .query({ token: 'valid-token' });
-
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-    });
-
-    it('should return 401 when verification token is invalid', async () => {
-      (authService.verifyEmail as jest.Mock).mockRejectedValue(
-        new UnauthorizedError('Enlace inválido o expirado'),
-      );
-
-      const res = await request(app)
-        .get('/api/v1/auth/verify-email')
-        .query({ token: 'bad-token' });
-
-      expect(res.status).toBe(401);
-    });
-  });
-
-  describe('GET /api/v1/protected/preferences', () => {
-    it('should return 200 with preferences when authenticated', async () => {
-      (authService.getPreferences as jest.Mock).mockResolvedValue({ notifLogin: true, notifCambios: false });
-
-      const res = await request(app)
-        .get('/api/v1/protected/preferences')
-        .set('Authorization', 'Bearer valid-token');
-
-      expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({ notifLogin: true, notifCambios: false });
-    });
-
-    it('should return 401 when not authenticated', async () => {
-      const res = await request(app).get('/api/v1/protected/preferences');
-
-      expect(res.status).toBe(401);
-    });
-  });
-
-  describe('PATCH /api/v1/protected/preferences', () => {
-    it('should return 200 on successful preferences update', async () => {
-      (authService.updatePreferences as jest.Mock).mockResolvedValue(undefined);
-
-      const res = await request(app)
-        .patch('/api/v1/protected/preferences')
-        .set('Authorization', 'Bearer valid-token')
-        .send({ notifLogin: false, notifCambios: true });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

@@ -13,7 +13,7 @@ function mapRow(row: Record<string, unknown>): EmailVerification {
   };
 }
 
-class EmailVerificationRepository implements IEmailVerificationRepository {
+export class EmailVerificationRepository implements IEmailVerificationRepository {
   public async create(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {
     await pool.query(
       'INSERT INTO email_verifications (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',

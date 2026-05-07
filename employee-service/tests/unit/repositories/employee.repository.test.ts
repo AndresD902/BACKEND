@@ -24,11 +24,35 @@ describe('EmployeeRepository', () => {
   });
 
   describe('findAll', () => {
-    it('returns rows from query', async () => {
+    it('returns rows from query without filters', async () => {
       mockQuery.mockResolvedValue({ rows: [baseEmpleado] });
       const result = await repo.findAll(20, 0);
       expect(result).toEqual([baseEmpleado]);
       expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('LIMIT $1'), [20, 0]);
+    });
+
+    it('includes WHERE clause when estado filter is provided', async () => {
+      mockQuery.mockResolvedValue({ rows: [baseEmpleado] });
+      await repo.findAll(20, 0, { estado: 'activo' });
+      const callArgs = mockQuery.mock.calls[0];
+      expect(String(callArgs[0])).toContain('estado = $');
+      expect(callArgs[1]).toContain('activo');
+    });
+
+    it('includes WHERE clause when departamento filter is provided', async () => {
+      mockQuery.mockResolvedValue({ rows: [] });
+      await repo.findAll(20, 0, { departamento: 'Sistemas' });
+      const callArgs = mockQuery.mock.calls[0];
+      expect(String(callArgs[0])).toContain('LOWER(departamento)');
+      expect(callArgs[1]).toContain('Sistemas');
+    });
+
+    it('includes WHERE clause when search filter is provided', async () => {
+      mockQuery.mockResolvedValue({ rows: [] });
+      await repo.findAll(20, 0, { search: 'Juan' });
+      const callArgs = mockQuery.mock.calls[0];
+      expect(String(callArgs[0])).toContain('LOWER(nombre)');
+      expect(callArgs[1]).toContain('%juan%');
     });
   });
 
@@ -113,6 +137,21 @@ describe('EmployeeRepository', () => {
         expect.stringContaining('UPDATE empleados'),
         ['inactivo', 'juan@empresa.com'],
       );
+    });
+  });
+
+  describe('findByAnyEmail', () => {
+    it('returns employee when found by corporate email', async () => {
+      mockQuery.mockResolvedValue({ rows: [baseEmpleado] });
+      const result = await repo.findByAnyEmail('juan@empresa.com');
+      expect(result).toEqual(baseEmpleado);
+      expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('correo_corporativo'), ['juan@empresa.com']);
+    });
+
+    it('returns null when no employee found by email', async () => {
+      mockQuery.mockResolvedValue({ rows: [] });
+      const result = await repo.findByAnyEmail('nobody@empresa.com');
+      expect(result).toBeNull();
     });
   });
 
