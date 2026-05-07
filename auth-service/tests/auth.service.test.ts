@@ -458,6 +458,21 @@ describe('AuthService', () => {
 
       expect(result.email).toBeUndefined();
     });
+
+    it('returns email and role when token record is found and active', async () => {
+      (hashToken as jest.Mock).mockReturnValue('hashed-token');
+      mockRefreshTokenRepository.findByHash.mockResolvedValue({
+        id: '1', userId: '1', tokenHash: 'hashed-token',
+        expiresAt: new Date(Date.now() + 60000), revoked: false,
+      });
+      mockUserRepository.findById.mockResolvedValue(baseUser);
+      mockRefreshTokenRepository.revokeByHash.mockResolvedValue(undefined);
+
+      const result = await authService.logout('valid-refresh-token');
+
+      expect(result).toEqual({ email: baseUser.email, role: baseUser.role });
+      expect(mockUserRepository.findById).toHaveBeenCalledWith('1');
+    });
   });
 
   // ─── logoutAll ──────────────────────────────────────────────────────────────

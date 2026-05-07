@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { VacationService } from '../../../src/services/vacation.service';
 import { VacationRepository } from '../../../src/repositories/vacation.repository';
 import { DiasDisponiblesRepository } from '../../../src/repositories/diasDisponibles.repository';
@@ -10,10 +11,10 @@ import { BadRequestError } from '../../../src/shared/errors/bad-request.error';
 import { ConflictError } from '../../../src/shared/errors/conflict.error';
 import { AuthenticatedUser } from '../../../src/middlewares/auth.middleware';
 
-jest.mock('../../../src/clients/historyServiceClient', () => ({
-  registrarCambio: jest.fn(),
+vi.mock('../../../src/clients/historyServiceClient', () => ({
+  registrarCambio: vi.fn(),
 }));
-jest.mock('../../../src/config/env', () => ({
+vi.mock('../../../src/config/env', () => ({
   env: { diasLegalesAnuales: 15, historyServiceUrl: 'http://history', employeeServiceUrl: 'http://employee' },
 }));
 
@@ -35,42 +36,42 @@ const FIN_STR    = (() => {
 
 const ACTOR: AuthenticatedUser = { sub: '99', email: 'hr@empresa.com', role: 'HR' };
 
-function makeVacationRepo(): jest.Mocked<VacationRepository> {
+function makeVacationRepo(): vi.Mocked<VacationRepository> {
   return {
-    findByEmpleadoId: jest.fn(),
-    findById:         jest.fn(),
-    create:           jest.fn(),
-    updateEstado:     jest.fn(),
-    markNotificado:   jest.fn(),
-    findSolapadas:    jest.fn(),
-  } as unknown as jest.Mocked<VacationRepository>;
+    findByEmpleadoId: vi.fn(),
+    findById:         vi.fn(),
+    create:           vi.fn(),
+    updateEstado:     vi.fn(),
+    markNotificado:   vi.fn(),
+    findSolapadas:    vi.fn(),
+  } as unknown as vi.Mocked<VacationRepository>;
 }
 
-function makeDiasRepo(): jest.Mocked<DiasDisponiblesRepository> {
+function makeDiasRepo(): vi.Mocked<DiasDisponiblesRepository> {
   return {
-    findByEmpleadoAnio:    jest.fn(),
-    create:                jest.fn(),
-    incrementarPendientes: jest.fn(),
-    aprobar:               jest.fn(),
-    liberarPendientes:     jest.fn(),
-  } as unknown as jest.Mocked<DiasDisponiblesRepository>;
+    findByEmpleadoAnio:    vi.fn(),
+    create:                vi.fn(),
+    incrementarPendientes: vi.fn(),
+    aprobar:               vi.fn(),
+    liberarPendientes:     vi.fn(),
+  } as unknown as vi.Mocked<DiasDisponiblesRepository>;
 }
 
-function makeFestivosRepo(): jest.Mocked<FestivosRepository> {
+function makeFestivosRepo(): vi.Mocked<FestivosRepository> {
   return {
-    findByAnio:    jest.fn(),
-    findByRango:   jest.fn().mockResolvedValue([]),
-    existeFestivo: jest.fn().mockResolvedValue(false),
-    create:        jest.fn(),
-  } as unknown as jest.Mocked<FestivosRepository>;
+    findByAnio:    vi.fn(),
+    findByRango:   vi.fn().mockResolvedValue([]),
+    existeFestivo: vi.fn().mockResolvedValue(false),
+    create:        vi.fn(),
+  } as unknown as vi.Mocked<FestivosRepository>;
 }
 
-function makeEmailService(): jest.Mocked<EmailService> {
+function makeEmailService(): vi.Mocked<EmailService> {
   return {
-    notificarSolicitudRRHH: jest.fn().mockResolvedValue(undefined),
-    notificarAprobacion:    jest.fn().mockResolvedValue(undefined),
-    notificarRechazo:       jest.fn().mockResolvedValue(undefined),
-  } as unknown as jest.Mocked<EmailService>;
+    notificarSolicitudRRHH: vi.fn().mockResolvedValue(undefined),
+    notificarAprobacion:    vi.fn().mockResolvedValue(undefined),
+    notificarRechazo:       vi.fn().mockResolvedValue(undefined),
+  } as unknown as vi.Mocked<EmailService>;
 }
 
 function fakeDias(override: Partial<DiasDisponibles> = {}): DiasDisponibles {
@@ -97,10 +98,10 @@ function fakeVacation(override: Partial<Vacation> = {}): Vacation {
 }
 
 describe('VacationService', () => {
-  let vacationRepo:  jest.Mocked<VacationRepository>;
-  let diasRepo:      jest.Mocked<DiasDisponiblesRepository>;
-  let festivosRepo:  jest.Mocked<FestivosRepository>;
-  let emailService:  jest.Mocked<EmailService>;
+  let vacationRepo:  vi.Mocked<VacationRepository>;
+  let diasRepo:      vi.Mocked<DiasDisponiblesRepository>;
+  let festivosRepo:  vi.Mocked<FestivosRepository>;
+  let emailService:  vi.Mocked<EmailService>;
   let svc:           VacationService;
 
   beforeEach(() => {
@@ -109,7 +110,7 @@ describe('VacationService', () => {
     festivosRepo = makeFestivosRepo();
     emailService = makeEmailService();
     svc = new VacationService(vacationRepo, diasRepo, festivosRepo, emailService);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     festivosRepo.findByRango.mockResolvedValue([]);
     festivosRepo.existeFestivo.mockResolvedValue(false);
   });

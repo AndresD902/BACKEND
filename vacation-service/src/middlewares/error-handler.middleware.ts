@@ -1,6 +1,13 @@
 import { NextFunction, Request, Response } from 'express';
 import { AppError } from '../shared/errors/app-error';
 
+/**
+ * Centralized Express error-handling middleware.
+ *
+ * - Known `AppError` subclasses are serialised with their HTTP status code.
+ * - Unexpected errors produce a generic 500 response so internal details
+ *   are never leaked to the client.
+ */
 export const errorHandler = (
   err: Error,
   _req: Request,

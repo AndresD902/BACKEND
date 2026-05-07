@@ -14,6 +14,14 @@ const config = {
     '!src/utils/logger.util.ts',
   ],
   coverageDirectory: 'coverage',
+  coverageThreshold: {
+    global: {
+      branches: 75,
+      functions: 80,
+      lines: 85,
+      statements: 85,
+    },
+  },
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',

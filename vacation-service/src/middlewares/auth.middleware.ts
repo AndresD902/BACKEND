@@ -7,9 +7,9 @@ import { ForbiddenError } from '../shared/errors/forbidden.error';
 export type RoleName = 'ADMIN' | 'HR' | 'CONSULTATION';
 
 export interface AuthenticatedUser {
-  sub: string;
+  sub:   string;
   email: string;
-  role: RoleName;
+  role:  RoleName;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -17,11 +17,16 @@ export interface AuthenticatedRequest extends Request {
 }
 
 interface JwtPayload {
-  sub: string;
+  sub:   string;
   email: string;
-  role: RoleName;
+  role:  RoleName;
 }
 
+/**
+ * Verifies the `Authorization: Bearer <token>` header and attaches the
+ * decoded user payload to `req.user`.  Calls `next(UnauthorizedError)`
+ * if the header is missing, malformed, or the token is invalid/expired.
+ */
 export const authenticate = (
   req: AuthenticatedRequest,
   _res: Response,
@@ -43,6 +48,14 @@ export const authenticate = (
   }
 };
 
+/**
+ * Role-based access control middleware factory.
+ * Must be used **after** `authenticate`.
+ *
+ * @param allowedRoles - One or more roles that may access the route.
+ * @returns Express middleware that calls `next(ForbiddenError)` when the
+ *          authenticated user's role is not in the allowed list.
+ */
 export const authorize = (...allowedRoles: RoleName[]) =>
   (req: AuthenticatedRequest, _res: Response, next: NextFunction): void => {
     if (!req.user) return next(new ForbiddenError('User not authenticated'));

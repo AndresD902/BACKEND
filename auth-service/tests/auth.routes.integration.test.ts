@@ -51,6 +51,10 @@ jest.mock('../src/services/auth.service', () => ({
   },
 }));
 
+jest.mock('../src/clients/historyServiceClient', () => ({
+  registrarAccion: jest.fn(),
+}));
+
 jest.mock('../src/utils/jwt.util', () => ({
   generateJwtToken: jest.fn().mockReturnValue('mock-access-token'),
   verifyJwtToken: jest.fn().mockReturnValue({
