@@ -10,7 +10,7 @@ const baseEmpleado: Empleado = {
   fecha_nacimiento: null, celular: null, telefono_fijo: null,
   correo_personal: null, correo_corporativo: 'juan@empresa.com',
   direccion: null, ciudad: null, departamento: null,
-  nivel_educativo: null, estado: 'activo',
+  nivel_educativo: null, estado: 'activo', razon_estado: null,
   fecha_ingreso: null, fecha_retiro: null,
   created_at: new Date(), updated_at: new Date(),
 };
