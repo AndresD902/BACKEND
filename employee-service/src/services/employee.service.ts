@@ -3,7 +3,7 @@ import { cargoSalarioRepository } from '../repositories/cargoSalario.repository'
 import { documentoRepository } from '../repositories/documento.repository';
 import { generarUrlSubida, generarUrlDescarga } from '../config/s3';
 import { registrarCambio } from '../clients/historyServiceClient';
-import { notificarCambioEmpleado } from '../clients/authNotificationClient';
+import { notificarCambioEmpleado, notificarSolicitudCorreccion } from '../clients/authNotificationClient';
 import { ActiveContractDocument, contractServiceClient, IContractServiceClient } from '../clients/contractServiceClient';
 import { IEmployeeRepository } from '../repositories/interfaces/employee.repository.interface';
 import { EmployeeFilters } from '../repositories/interfaces/employee.repository.interface';
@@ -21,6 +21,7 @@ type GenerarUrlSubidaFn = typeof generarUrlSubida;
 type GenerarUrlDescargaFn = typeof generarUrlDescarga;
 type RegistrarCambioFn = typeof registrarCambio;
 type NotificarCambioFn = typeof notificarCambioEmpleado;
+type NotificarCorreccionFn = typeof notificarSolicitudCorreccion;
 
 // Dependencies injected via constructor (DIP). Production code uses the real singletons
 // as defaults; tests pass mocks without touching module-level state.
@@ -34,6 +35,7 @@ export class EmployeeService implements IEmployeeService {
     private readonly registrar: RegistrarCambioFn = registrarCambio,
     private readonly notificar: NotificarCambioFn = notificarCambioEmpleado,
     private readonly contractClient: IContractServiceClient = contractServiceClient,
+    private readonly notificarCorreccion: NotificarCorreccionFn = notificarSolicitudCorreccion,
   ) {}
 
   private async findOrFail(id: number): Promise<Empleado> {
@@ -279,6 +281,15 @@ export class EmployeeService implements IEmployeeService {
     if (!doc) throw new NotFoundError(`Documento con id ${docId} no encontrado`);
     const url = await this.urlDescarga(doc.s3_key);
     return { url, expires_in: 3600 };
+  }
+
+  async solicitarCorreccion(empleadoId: number, descripcion: string, solicitante: string): Promise<void> {
+    const empleado = await this.findOrFail(empleadoId);
+    this.notificarCorreccion({
+      empleadoNombre: `${empleado.nombre} ${empleado.apellido}`,
+      descripcion,
+      solicitante,
+    });
   }
 
   async exportCsv(filters?: EmployeeFilters): Promise<string> {

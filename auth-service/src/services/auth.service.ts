@@ -22,6 +22,7 @@ import { NotFoundError } from '../shared/errors/not-found.error';
 import { RoleName } from '../entities/role.entity';
 import { env } from '../config/env';
 import { isRegisteredEmployee } from '../clients/employeeServiceClient';
+import { validateEmailDomain } from '../utils/email-domain.util';
 
 export class AuthService implements IAuthService {
   constructor(
@@ -39,6 +40,8 @@ export class AuthService implements IAuthService {
     if (existingUser) {
       throw new ConflictError('User with this email already exists');
     }
+
+    await validateEmailDomain(normalizedEmail);
 
     if (createUserDto.role === RoleName.CONSULTATION) {
       const exists = await isRegisteredEmployee(normalizedEmail);
@@ -242,6 +245,16 @@ export class AuthService implements IAuthService {
     const user = await this.userRepository.findByEmail(userEmail);
     if (!user || !user.notifCambios) return;
     this.emailService.sendEmployeeChangeEmail(user.email, action, employeeName).catch(() => {});
+  }
+
+  public async notifyCorrectionRequest(empleadoNombre: string, descripcion: string, solicitante: string): Promise<void> {
+    const allUsers = await this.userRepository.findAll();
+    const hrAdmins = allUsers.filter(
+      (u) => u.isActive && (u.role === RoleName.ADMIN || u.role === RoleName.HR),
+    );
+    for (const u of hrAdmins) {
+      this.emailService.sendCorrectionRequestEmail(u.email, empleadoNombre, descripcion, solicitante).catch(() => {});
+    }
   }
 
   public async verifyEmail(rawToken: string): Promise<void> {

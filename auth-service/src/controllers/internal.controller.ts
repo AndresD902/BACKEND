@@ -24,6 +24,23 @@ export class InternalController {
       message: 'Employee change notification processed',
     });
   });
+
+  public notifyCorrectionRequest = asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
+    const headerKey = req.headers['x-internal-key'];
+
+    if (typeof headerKey !== 'string' || headerKey !== env.internalApiKey) {
+      throw new UnauthorizedError('Invalid internal API key');
+    }
+
+    const { empleadoNombre, descripcion, solicitante } = req.body;
+
+    await this.authService.notifyCorrectionRequest(empleadoNombre, descripcion, solicitante);
+
+    res.status(200).json({
+      success: true,
+      message: 'Correction request notification sent',
+    });
+  });
 }
 
 export const internalController = new InternalController();
