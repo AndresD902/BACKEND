@@ -90,6 +90,17 @@ export class EmployeeController {
     const result = await this.service.generarUrlDescargaDocumento(Number(req.params.docId));
     res.status(200).json({ success: true, data: result });
   });
+
+  public exportCsv = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const search       = req.query.search       ? String(req.query.search).slice(0, 50) : undefined;
+    const estado       = req.query.estado       ? String(req.query.estado).toLowerCase() : undefined;
+    const departamento = req.query.departamento ? String(req.query.departamento)         : undefined;
+    const csv = await this.service.exportCsv({ search, estado, departamento });
+    const fecha = new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="empleados_${fecha}.csv"`);
+    res.status(200).send('﻿' + csv);
+  });
 }
 
 export const employeeController = new EmployeeController();
