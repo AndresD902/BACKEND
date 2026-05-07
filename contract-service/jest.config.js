@@ -16,5 +16,15 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/server.ts',
+    '!src/config/database.ts',
+    '!src/clients/**',
   ],
+  coverageThreshold: {
+    global: {
+      branches: 50,
+      functions: 65,
+      lines: 65,
+      statements: 65,
+    },
+  },
 };
