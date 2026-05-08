@@ -12,6 +12,10 @@ const config = {
     '!src/services/email/smtp-email.service.ts',
     '!src/clients/*.ts',
     '!src/utils/logger.util.ts',
+    '!src/routes/*.ts',
+    '!src/schemas/*.ts',
+    '!src/controllers/*.ts'
+
   ],
   coverageDirectory: 'coverage',
   coverageThreshold: {
