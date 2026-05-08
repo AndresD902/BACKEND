@@ -4,6 +4,24 @@ import { UnauthorizedError } from '../src/shared/errors/unauthorized.error';
 import { RoleName } from '../src/entities/role.entity';
 import { hashPassword, comparePassword } from '../src/utils/password.util';
 
+// env.ts llama required() al importarse; se mockea para que los tests unitarios
+// no dependan de variables de entorno del sistema.
+jest.mock('../src/config/env', () => ({
+  env: {
+    nodeEnv: 'test',
+    port: 3001,
+    serviceName: 'auth-service',
+    jwtSecret: 'test-secret',
+    jwtExpiresIn: '1h',
+    bcryptSaltRounds: 10,
+    databaseUrl: 'postgresql://localhost/test',
+    refreshTokenExpiresDays: 7,
+    resetTokenExpiresMinutes: 15,
+    frontendUrl: 'http://localhost:5173',
+    emailVerificationExpiresMinutes: 1440,
+  },
+}));
+
 jest.mock('../src/utils/password.util', () => ({
   hashPassword: jest.fn(),
   comparePassword: jest.fn(),

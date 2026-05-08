@@ -14,7 +14,7 @@ function getEnVariable(name: string): string {
 
 export const env = {
   nodeEnv: getEnVariable('NODE_ENV'),
-  port: Number(getEnVariable('PORT')),
+  port: Number(getEnVariable('PORT') ?? 3001),
   serviceName: getEnVariable('SERVICE_NAME'),
   jwtSecret: getEnVariable('JWT_SECRET'),
   jwtExpiresIn: getEnVariable('JWT_EXPIRES_IN'),
