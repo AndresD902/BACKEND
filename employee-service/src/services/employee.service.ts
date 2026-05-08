@@ -17,6 +17,9 @@ import { UpdateEmpleadoDto, CreateCargoDto, ConfirmarDocumentoDto, PresignedUrlD
 import { AuthenticatedUser } from '../types/authenticated-user.type';
 import { Empleado, CargoSalario, DocumentoEmpleado } from '../entities/employee.entity';
 
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+
 type GenerarUrlSubidaFn = typeof generarUrlSubida;
 type GenerarUrlDescargaFn = typeof generarUrlDescarga;
 type RegistrarCambioFn = typeof registrarCambio;
@@ -67,6 +70,13 @@ export class EmployeeService implements IEmployeeService {
 
     if (existeCedula) throw new ConflictError(`Ya existe un empleado con cédula ${dto.cedula}`);
     if (existeCorreo) throw new ConflictError(`Ya existe un empleado con correo ${dto.correo_corporativo}`);
+
+    // Validar razón de estado para inactivo
+    const estado = (dto as any).estado;
+    const razon = (dto as any).razon_estado;
+    if (estado === 'inactivo' && (!razon || razon.trim() === '')) {
+      throw new ConflictError('La razón de estado es requerida cuando el estado es inactivo');
+    }
 
     const empleadoData: Record<string, unknown> = {
       tipo_documento:     dto.tipo_documento ?? 'cedula_ciudadania',
@@ -129,6 +139,13 @@ export class EmployeeService implements IEmployeeService {
     if (dto.correo_corporativo && dto.correo_corporativo !== antes.correo_corporativo) {
       const existe = await this.empRepo.findByCorreoCorporativo(dto.correo_corporativo);
       if (existe) throw new ConflictError(`El correo ${dto.correo_corporativo} ya está en uso`);
+    }
+
+    // Validar razón de estado para inactivo en actualización
+    const estado = (dto as any).estado;
+    const razon = (dto as any).razon_estado;
+    if (estado === 'inactivo' && (!razon || razon.trim() === '')) {
+      throw new ConflictError('La razón de estado es requerida cuando el estado es inactivo');
     }
 
     const campos: Record<string, unknown> = {};
@@ -261,9 +278,19 @@ export class EmployeeService implements IEmployeeService {
     actor: AuthenticatedUser,
   ): Promise<DocumentoEmpleado> {
     await this.findOrFail(empleadoId);
-    await this.docRepo.desactivarPorTipo(empleadoId, dto.tipo);
 
-    return this.docRepo.create({
+    // Validate file type
+    if (dto.mime_type && !ALLOWED_MIME_TYPES.includes(dto.mime_type)) {
+      throw new ConflictError(`Tipo de archivo no permitido. Solo se permiten: ${ALLOWED_MIME_TYPES.join(', ')}`);
+    }
+
+    // Validate file size
+    if (dto.tamano_bytes != null && dto.tamano_bytes > MAX_FILE_SIZE_BYTES) {
+      throw new ConflictError(`El tamaño del archivo excede el límite de ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`);
+    }
+
+    // Create pending document (not active yet)
+    const pendingDoc = await this.docRepo.create({
       empleado_id:    empleadoId,
       tipo:           dto.tipo,
       s3_key:         dto.s3_key,
@@ -271,9 +298,30 @@ export class EmployeeService implements IEmployeeService {
       mime_type:      dto.mime_type ?? null,
       tamano_bytes:   dto.tamano_bytes ?? null,
       nombre_archivo: dto.nombre_archivo ?? null,
-      activo:         true,
+      activo:         false, // pending approval
       subido_por:     actor.email,
+      aprobado_por:   null,
+      fecha_aprobacion: null,
     });
+
+    // Registrar auditoría de subida pendiente de documento
+    this.registrar({
+      empleado_id: empleadoId,
+      entidad: 'documento',
+      entidad_id: pendingDoc.id,
+      campo_modificado: 'subida_pendiente',
+      valor_anterior: undefined,
+      valor_nuevo: JSON.stringify({
+        tipo: pendingDoc.tipo,
+        s3_key: pendingDoc.s3_key,
+        activo: pendingDoc.activo,
+        subido_por: pendingDoc.subido_por,
+      }),
+      usuario_modificador: actor.email,
+      rol_modificador: actor.rol,
+    });
+
+    return pendingDoc;
   }
 
   async generarUrlDescargaDocumento(docId: number): Promise<{ url: string; expires_in: number }> {
@@ -281,6 +329,45 @@ export class EmployeeService implements IEmployeeService {
     if (!doc) throw new NotFoundError(`Documento con id ${docId} no encontrado`);
     const url = await this.urlDescarga(doc.s3_key);
     return { url, expires_in: 3600 };
+  }
+
+  async aprobarDocumento(documentoId: number, actor: AuthenticatedUser): Promise<DocumentoEmpleado> {
+    // Find the document to ensure it exists and get its employee_id and type
+    const doc = await this.docRepo.findById(documentoId);
+    if (!doc) {
+      throw new NotFoundError(`Documento con id ${documentoId} no encontrado`);
+    }
+
+    // Deactivate any other active approved document of the same type for this employee
+    await this.docRepo.desactivarPorTipo(doc.empleado_id, doc.tipo);
+
+    // Approve the document
+    const approvedDoc = await this.docRepo.approve(documentoId, actor.email);
+    if (!approvedDoc) {
+      throw new Error(`No se pudo aprobar el documento ${documentoId}`);
+    }
+
+    // Registrar auditoría de aprobación de documento
+    this.registrar({
+      empleado_id: doc.empleado_id,
+      entidad: 'documento',
+      entidad_id: approvedDoc.id,
+      campo_modificado: 'aprobacion',
+      valor_anterior: JSON.stringify({
+        activo: doc.activo,
+        aprobado_por: doc.aprobado_por,
+        fecha_aprobacion: doc.fecha_aprobacion,
+      }),
+      valor_nuevo: JSON.stringify({
+        activo: approvedDoc.activo,
+        aprobado_por: approvedDoc.aprobado_por,
+        fecha_aprobacion: approvedDoc.fecha_aprobacion,
+      }),
+      usuario_modificador: actor.email,
+      rol_modificador: actor.rol,
+    });
+
+    return approvedDoc;
   }
 
   async solicitarCorreccion(empleadoId: number, descripcion: string, solicitante: string): Promise<void> {

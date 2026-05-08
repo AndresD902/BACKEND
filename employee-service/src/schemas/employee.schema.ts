@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { JUSTIFICACIONES_ESTADO_INACTIVO, JustificacionEstadoInactivo } from '../shared/justificaciones';
 
 const tipoDocumentoEnum = z.enum([
   'cedula_ciudadania', 'cedula_extranjeria', 'pasaporte', 'tarjeta_identidad',
@@ -6,7 +7,7 @@ const tipoDocumentoEnum = z.enum([
 
 const generoEnum = z.enum(['masculino', 'femenino', 'otro', 'prefiero_no_decir']);
 
-const estadoEmpleadoEnum = z.enum(['activo', 'inactivo', 'vacaciones', 'licencia', 'retirado']);
+const estadoEmpleadoEnum = z.enum(['activo', 'inactivo', 'vacaciones', 'licencia', 'retirado', 'transicion']);
 
 const nivelEducativoEnum = z.enum([
   'bachiller', 'tecnico', 'tecnologo', 'universitario', 'posgrado',
@@ -66,6 +67,9 @@ export const updateEmpleadoSchema = z.object({
   fecha_retiro:       z.string().optional(),
   estado:             estadoEmpleadoEnum.optional(),
   razon_estado:       z.string().max(100).optional(),
+}).refine((data) => !(data.estado === 'inactivo' && (!data.razon_estado || data.razon_estado.trim() === '')), {
+  message: 'La razón de estado es requerida cuando el estado es inactivo',
+  path: ['razon_estado'],
 });
 
 export const createCargoSchema = z.object({

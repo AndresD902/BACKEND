@@ -8,6 +8,9 @@ import { RoleName } from '../shared/enums/role.enum';
 
 const router = Router();
 
+// Public endpoint for justificaciones (no authentication required)
+router.get('/justificaciones-public', employeeController.getJustificaciones);
+
 router.use(verifyToken);
 
 router.get('/export/csv', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.exportCsv);
@@ -24,6 +27,8 @@ router.get('/:id/contrato-activo', employeeController.getContratoLaboralActivo);
 router.post('/:id/cargo', requireRol(RoleName.ADMIN, RoleName.HR), validateBody(createCargoSchema), employeeController.crearCargo);
 router.get('/:id/documentos', employeeController.getDocumentos);
 router.post('/:id/documentos', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.confirmarDocumento);
+router.post('/:id/documentos/:docId/aprobar', requireRol(RoleName.HR), employeeController.aprobarDocumento);
 router.post('/:id/solicitar-correccion', employeeController.solicitarCorreccion);
+router.get('/justificaciones', employeeController.getJustificaciones);
 
 export default router;
