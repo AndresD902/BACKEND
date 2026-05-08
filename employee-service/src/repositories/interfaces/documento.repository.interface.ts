@@ -5,4 +5,5 @@ export interface IDocumentoRepository {
   findById(id: number): Promise<DocumentoEmpleado | null>;
   desactivarPorTipo(empleadoId: number, tipo: string): Promise<void>;
   create(data: Record<string, unknown>): Promise<DocumentoEmpleado>;
+  approve(documentoId: number, aprobadoPor: string): Promise<DocumentoEmpleado | null>;
 }

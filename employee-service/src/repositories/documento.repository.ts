@@ -37,6 +37,19 @@ export class DocumentoRepository {
     );
     return rows[0];
   }
+
+  async approve(documentoId: number, aprobadoPor: string): Promise<DocumentoEmpleado | null> {
+    const { rows } = await pool.query<DocumentoEmpleado>(
+      `UPDATE documentos_empleado
+       SET activo = TRUE,
+           aprobado_por = $2,
+           fecha_aprobacion = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING *`,
+      [documentoId, aprobadoPor],
+    );
+    return rows[0] ?? null;
+  }
 }
 
 export const documentoRepository = new DocumentoRepository();

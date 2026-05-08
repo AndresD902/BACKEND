@@ -91,6 +91,11 @@ export class EmployeeController {
     res.status(200).json({ success: true, data: result });
   });
 
+  public aprobarDocumento = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const doc = await this.service.aprobarDocumento(Number(req.params.docId), actor(req));
+    res.status(200).json({ success: true, data: doc });
+  });
+
   public solicitarCorreccion = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const solicitante = actor(req).email;
     const { descripcion } = req.body as { descripcion: string };
@@ -107,6 +112,11 @@ export class EmployeeController {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="empleados_${fecha}.csv"`);
     res.status(200).send('﻿' + csv);
+  });
+
+  public getJustificaciones = asyncHandler(async (_req: AuthenticatedRequest, res: Response) => {
+    const { JUSTIFICACIONES_ESTADO_INACTIVO } = require('../shared/justificaciones');
+    res.status(200).json({ success: true, data: JUSTIFICACIONES_ESTADO_INACTIVO });
   });
 }
 

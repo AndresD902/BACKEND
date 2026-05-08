@@ -154,9 +154,26 @@ export const empresaService = {
       console.warn('[EmpresaService] No se pudo obtener empleados:', (err as Error).message);
     }
 
-    return empleados.map((emp) => ({
-      ...emp,
-      detalle_estado: ESTADO_LABELS[emp['estado'] as string] ?? String(emp['estado']),
-    }));
+    return empleados.map((emp) => {
+      let detalle_estado: string;
+      switch (emp['estado']) {
+        case 'activo':
+          detalle_estado = 'Trabajando actualmente';
+          break;
+        case 'retirado':
+          detalle_estado = 'Ya no forma parte de la empresa';
+          break;
+        case 'inactivo':
+          const razon = emp['razon_estado'] as string | undefined;
+          detalle_estado = razon && razon.trim() !== '' ? razon : 'Ausentismo temporal';
+          break;
+        case 'transicion':
+          detalle_estado = 'Contrato próximo a vencer, en proceso de renovación';
+          break;
+        default:
+          detalle_estado = String(emp['estado']);
+      }
+      return { ...emp, detalle_estado };
+    });
   },
 };
