@@ -43,6 +43,12 @@ jest.mock('../src/utils/token.util', () => ({
   hashToken: jest.fn(),
 }));
 
+// validateEmailDomain hace un DNS lookup real; se mockea para que los tests no
+// dependan de conectividad de red ni de que el dominio tenga registros MX válidos.
+jest.mock('../src/utils/email-domain.util', () => ({
+  validateEmailDomain: jest.fn().mockResolvedValue(undefined),
+}));
+
 const baseUser = {
   id: '1',
   firstName: 'Andres',
