@@ -41,18 +41,35 @@ export class VacationService {
     return this.vacationRepo.findByEmpleadoId(empleadoId);
   }
 
+  /** Returns all vacation requests, optionally filtered for reporting views. */
+  async getAll(filters: {
+    empleadoId?: number;
+    estado?: Vacation['estado'];
+    desde?: string;
+    hasta?: string;
+  } = {}): Promise<Vacation[]> {
+    return this.vacationRepo.findAll(filters);
+  }
+
   /**
    * Returns the current-year `dias_disponibles` record for an employee.
-   * Throws `NotFoundError` when no record exists (i.e. the employee has
-   * never requested vacations this year).
+   * Creation is explicit so reporting views can read balances without creating
+   * records for every employee they aggregate.
    */
-  async getDiasDisponibles(empleadoId: number): Promise<DiasDisponibles> {
+  async getDiasDisponibles(
+    empleadoId: number,
+    options: { createIfMissing?: boolean } = {},
+  ): Promise<DiasDisponibles> {
+    const anio = currentYear();
+    if (options.createIfMissing) {
+      return this.diasDisponiblesService.obtenerOCrear(empleadoId, anio);
+    }
+
     const registro = await this.diasDisponiblesService.obtenerPorEmpleado(empleadoId);
     if (!registro) {
-      throw new NotFoundError(
-        `No se encontró registro de días disponibles para este empleado en ${currentYear()}`,
-      );
+      throw new NotFoundError(`No existe saldo de vacaciones para el empleado ${empleadoId} en ${anio}`);
     }
+
     return registro;
   }
 

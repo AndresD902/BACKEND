@@ -38,6 +38,7 @@ const ACTOR: AuthenticatedUser = { sub: '99', email: 'hr@empresa.com', role: 'HR
 
 function makeVacationRepo(): vi.Mocked<VacationRepository> {
   return {
+    findAll:         vi.fn(),
     findByEmpleadoId: vi.fn(),
     findById:         vi.fn(),
     create:           vi.fn(),
@@ -134,9 +135,22 @@ describe('VacationService', () => {
       expect(result).toBe(registro);
     });
 
-    it('throws NotFoundError when no record exists', async () => {
+    it('throws NotFoundError when none exists and creation was not requested', async () => {
       diasRepo.findByEmpleadoAnio.mockResolvedValue(null);
+
       await expect(svc.getDiasDisponibles(5)).rejects.toThrow(NotFoundError);
+      expect(diasRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('creates and returns the annual record when explicitly requested', async () => {
+      const nuevo = fakeDias();
+      diasRepo.findByEmpleadoAnio.mockResolvedValue(null);
+      diasRepo.create.mockResolvedValue(nuevo);
+
+      const result = await svc.getDiasDisponibles(5, { createIfMissing: true });
+
+      expect(diasRepo.create).toHaveBeenCalledWith(5, new Date().getFullYear(), 15);
+      expect(result).toBe(nuevo);
     });
   });
 
