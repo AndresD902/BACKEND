@@ -44,6 +44,7 @@ export class ReportController {
     if (req.query.desde) params['desde'] = String(req.query.desde);
     if (req.query.hasta) params['hasta'] = String(req.query.hasta);
     if (req.query.estado) params['estado'] = String(req.query.estado);
+    if (req.query.empleado_id) params['empleado_id'] = String(req.query.empleado_id);
     const reporte = await this.service.getReporteVacaciones(this.token(req), params);
     this.audit(req, 'vacaciones');
     res.status(200).json({ success: true, data: reporte });
@@ -55,6 +56,7 @@ export class ReportController {
     if (req.query.desde) params['desde'] = String(req.query.desde);
     if (req.query.hasta) params['hasta'] = String(req.query.hasta);
     if (req.query.estado) params['estado'] = String(req.query.estado);
+    if (req.query.empleado_id) params['empleado_id'] = String(req.query.empleado_id);
     const reporte = await this.service.getReporteContratos(this.token(req), params);
     this.audit(req, 'contratos');
     res.status(200).json({ success: true, data: reporte });
