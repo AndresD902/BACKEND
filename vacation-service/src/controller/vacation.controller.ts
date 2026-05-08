@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { VacationService } from '../services/vacation.service';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { asyncHandler } from '../utils/async-handler.util';
+import { EstadoVacacion } from '../entities/vacation.entity';
 
 /**
  * HTTP layer for vacation-related endpoints.
@@ -13,6 +14,18 @@ import { asyncHandler } from '../utils/async-handler.util';
 export class VacationController {
   constructor(private readonly vacationService: VacationService) {}
 
+  /** `GET /` — list vacation requests with optional filters. */
+  getAll = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const empleadoId = req.query.empleado_id ? parseInt(String(req.query.empleado_id), 10) : undefined;
+    const vacaciones = await this.vacationService.getAll({
+      empleadoId: Number.isFinite(empleadoId) ? empleadoId : undefined,
+      estado: req.query.estado ? String(req.query.estado) as EstadoVacacion : undefined,
+      desde: req.query.desde ? String(req.query.desde) : undefined,
+      hasta: req.query.hasta ? String(req.query.hasta) : undefined,
+    });
+    res.status(200).json(vacaciones);
+  });
+
   /** `GET /empleado/:id` — list all vacation requests for an employee. */
   getByEmpleadoId = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const empleadoId = parseInt(String(req.params.id), 10);
@@ -23,7 +36,10 @@ export class VacationController {
   /** `GET /empleado/:id/disponibles` — available vacation days for the current year. */
   getDiasDisponibles = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const empleadoId = parseInt(String(req.params.id), 10);
-    const dias = await this.vacationService.getDiasDisponibles(empleadoId);
+    const query = req.query ?? {};
+    const createParam = String(query.crear ?? query.create ?? '').toLowerCase();
+    const createIfMissing = ['true', '1', 'si', 'sí', 'yes'].includes(createParam);
+    const dias = await this.vacationService.getDiasDisponibles(empleadoId, { createIfMissing });
     res.status(200).json(dias);
   });
 
