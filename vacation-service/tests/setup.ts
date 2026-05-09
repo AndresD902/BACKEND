@@ -5,6 +5,7 @@ process.env.SERVICE_NAME = 'vacation-service-test';
 process.env.JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long!!';
 process.env.DATABASE_URL = 'postgres://postgres:password@localhost:5432/vacation_test';
 process.env.HISTORY_SERVICE_URL = 'http://localhost:3006';
+process.env.INTERNAL_API_KEY = 'test-internal-key';
 process.env.EMPLOYEE_SERVICE_URL = 'http://localhost:3002';
 process.env.DIAS_LEGALES_ANUALES = '15';
 process.env.SMTP_HOST = 'smtp.test.com';

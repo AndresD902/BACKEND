@@ -33,6 +33,12 @@ export class AuthService implements IAuthService {
     private readonly emailVerificationRepository: IEmailVerificationRepository = defaultEvRepository,
   ) {}
 
+  private sendEmailWithoutBlocking(operation: string, emailTask: Promise<void>): void {
+    emailTask.catch((error) => {
+      console.error(`[AuthService] ${operation} email could not be sent:`, (error as Error).message);
+    });
+  }
+
   public async register(createUserDto: CreateUserDto): Promise<UserProfile> {
     const normalizedEmail = createUserDto.email.toLowerCase().trim();
     const existingUser = await this.userRepository.findByEmail(normalizedEmail);
@@ -68,7 +74,10 @@ export class AuthService implements IAuthService {
     const expiresAt = new Date(Date.now() + env.emailVerificationExpiresMinutes * 60 * 1000);
     await this.emailVerificationRepository.create(createdUser.id, tokenHash, expiresAt);
     const verificationLink = `${env.frontendUrl}/verify-email?token=${rawToken}`;
-    this.emailService.sendVerificationEmail(createdUser.email, verificationLink).catch(() => {});
+    this.sendEmailWithoutBlocking(
+      'verification',
+      this.emailService.sendVerificationEmail(createdUser.email, verificationLink),
+    );
 
     return {
       id: createdUser.id,
@@ -117,7 +126,10 @@ export class AuthService implements IAuthService {
 
     // Fire-and-forget login alert — never blocks the login response
     if (user.notifLogin) {
-      this.emailService.sendLoginAlertEmail(user.email, ipOrigin, userAgent).catch(() => {});
+      this.sendEmailWithoutBlocking(
+        'login alert',
+        this.emailService.sendLoginAlertEmail(user.email, ipOrigin, userAgent),
+      );
     }
 
     return {
@@ -244,7 +256,10 @@ export class AuthService implements IAuthService {
   public async notifyEmployeeChange(userEmail: string, action: string, employeeName: string): Promise<void> {
     const user = await this.userRepository.findByEmail(userEmail);
     if (!user || !user.notifCambios) return;
-    this.emailService.sendEmployeeChangeEmail(user.email, action, employeeName).catch(() => {});
+    this.sendEmailWithoutBlocking(
+      'employee change',
+      this.emailService.sendEmployeeChangeEmail(user.email, action, employeeName),
+    );
   }
 
   public async notifyCorrectionRequest(empleadoNombre: string, descripcion: string, solicitante: string): Promise<void> {
@@ -253,7 +268,10 @@ export class AuthService implements IAuthService {
       (u) => u.isActive && (u.role === RoleName.ADMIN || u.role === RoleName.HR),
     );
     for (const u of hrAdmins) {
-      this.emailService.sendCorrectionRequestEmail(u.email, empleadoNombre, descripcion, solicitante).catch(() => {});
+      this.sendEmailWithoutBlocking(
+        'correction request',
+        this.emailService.sendCorrectionRequestEmail(u.email, empleadoNombre, descripcion, solicitante),
+      );
     }
   }
 

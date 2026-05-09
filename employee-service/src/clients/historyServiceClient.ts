@@ -17,7 +17,10 @@ export interface CambioPayload {
 // A failure in history-service must never block or roll back the main operation.
 export const registrarCambio = (datos: CambioPayload): void => {
   axios
-    .post(`${env.historyServiceUrl}/api/historial/cambios`, datos)
+    .post(`${env.historyServiceUrl}/api/historial/cambios`, datos, {
+      timeout: 3000,
+      headers: { 'x-internal-key': env.internalApiKey },
+    })
     .catch((err: Error) => {
       console.warn('[HistoryService] No se pudo registrar cambio:', err.message);
     });
