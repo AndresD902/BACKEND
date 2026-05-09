@@ -214,6 +214,8 @@ DATABASE_URL=postgres://postgres:password@localhost:5432/superadmin_db
 JWT_SECRET=minimo_32_caracteres_superadmin_muy_seguro_aqui
 JWT_EXPIRES_IN=1h
 REFRESH_TOKEN_EXPIRES_DAYS=7
+CORS_ORIGINS=http://localhost:5173
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 
 # ── Protección del endpoint de registro (bootstrap inicial) ───────────────────
 # Header requerido: X-Register-Secret: <valor>
@@ -245,6 +247,7 @@ RESET_TOKEN_EXPIRES_MINUTES=15
 
 - `JWT_SECRET` puede ser distinto al `JWT_SECRET` de los otros servicios. Los tokens de super admin solo son válidos aquí.
 - `REGISTER_SECRET` se usa **únicamente** para el endpoint de bootstrap. Mantenlo fuera del control de versiones.
+- `INTERNAL_API_KEY` protege la escritura de auditoría hacia History Service; en producción debe configurarse explícitamente.
 - Para Gmail, `SMTP_PASS` debe ser una **App Password** (no la contraseña de la cuenta).
 
 ---

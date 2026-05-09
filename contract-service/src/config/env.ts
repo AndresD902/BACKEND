@@ -16,15 +16,48 @@ function getOptionalEnvVariable(name: string, fallback = ''): string {
   return process.env[name] ?? fallback;
 }
 
+function getJwtSecret(): string {
+  const secret = getEnvVariable('JWT_SECRET');
+
+  if (secret.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters long');
+  }
+
+  return secret;
+}
+
+function getInternalApiKey(): string {
+  const value = process.env.INTERNAL_API_KEY;
+
+  if (value) {
+    return value;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Missing required environment variable: INTERNAL_API_KEY');
+  }
+
+  return 'dev-internal-key-change-in-prod';
+}
+
+function getCorsOrigins(): string[] {
+  return getOptionalEnvVariable('CORS_ORIGINS', 'http://localhost:5173')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+}
+
 export const env = {
   nodeEnv: getEnvVariable('NODE_ENV'),
   port: Number(getEnvVariable('PORT')),
   serviceName: getEnvVariable('SERVICE_NAME'),
-  jwtSecret: getEnvVariable('JWT_SECRET'),
+  jwtSecret: getJwtSecret(),
   jwtExpiresIn: getEnvVariable('JWT_EXPIRES_IN'),
   databaseUrl: getEnvVariable('DATABASE_URL'),
   employeeServiceUrl: getEnvVariable('EMPLOYEE_SERVICE_URL'),
   historyServiceUrl: process.env.HISTORY_SERVICE_URL ?? 'http://localhost:3006',
+  internalApiKey: getInternalApiKey(),
+  corsOrigins: getCorsOrigins(),
   awsRegion: getOptionalEnvVariable('AWS_REGION', 'us-east-1'),
   awsAccessKeyId: getOptionalEnvVariable('AWS_ACCESS_KEY_ID'),
   awsSecretAccessKey: getOptionalEnvVariable('AWS_SECRET_ACCESS_KEY'),

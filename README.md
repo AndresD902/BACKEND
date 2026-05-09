@@ -445,6 +445,8 @@ DATABASE_URL=postgres://postgres:password@postgres-auth:5432/auth_db
 JWT_SECRET=minimo_32_caracteres_muy_seguro_aqui
 JWT_EXPIRES_IN=1h
 REFRESH_TOKEN_EXPIRES_DAYS=7
+CORS_ORIGINS=http://localhost:5173
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 EMPLOYEE_SERVICE_URL=http://employee-service:3002
 HISTORY_SERVICE_URL=http://history-service:3006
 SMTP_HOST=smtp.gmail.com
@@ -2462,6 +2464,8 @@ SMTP_PASS=app_password_gmail
 PORT=3002
 DATABASE_URL=postgres://postgres:password@postgres-employee:5432/employee_db
 JWT_SECRET=min_32_caracteres_aqui_muy_seguro_1234
+CORS_ORIGINS=http://localhost:5173
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 HISTORY_SERVICE_URL=http://history-service:3006
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=AKIA...
@@ -2479,6 +2483,8 @@ RRHH_EMAIL=rrhh@empresa.com
 PORT=3003
 DATABASE_URL=postgres://postgres:password@postgres-contract:5432/contract_db
 JWT_SECRET=min_32_caracteres_aqui_muy_seguro_1234
+CORS_ORIGINS=http://localhost:5173
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 EMPLOYEE_SERVICE_URL=http://employee-service:3002
 HISTORY_SERVICE_URL=http://history-service:3006
 ```
@@ -2488,6 +2494,8 @@ HISTORY_SERVICE_URL=http://history-service:3006
 PORT=3004
 DATABASE_URL=postgres://postgres:password@postgres-vacation:5432/vacation_db
 JWT_SECRET=min_32_caracteres_aqui_muy_seguro_1234
+CORS_ORIGINS=http://localhost:5173
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 EMPLOYEE_SERVICE_URL=http://employee-service:3002
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -2500,9 +2508,12 @@ HISTORY_SERVICE_URL=http://history-service:3006
 ```env
 PORT=3005
 JWT_SECRET=min_32_caracteres_aqui_muy_seguro_1234
+CORS_ORIGINS=http://localhost:5173
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 EMPLOYEE_SERVICE_URL=http://employee-service:3002
 CONTRACT_SERVICE_URL=http://contract-service:3003
 VACATION_SERVICE_URL=http://vacation-service:3004
+HISTORY_SERVICE_URL=http://history-service:3006
 ```
 
 **history-service/.env**
@@ -2510,6 +2521,8 @@ VACATION_SERVICE_URL=http://vacation-service:3004
 PORT=3006
 DATABASE_URL=postgres://postgres:password@postgres-history:5432/history_db
 JWT_SECRET=min_32_caracteres_aqui_muy_seguro_1234
+CORS_ORIGINS=http://localhost:5173
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 ```
 
 **super-admin-service/.env**
@@ -2519,6 +2532,8 @@ DATABASE_URL=postgres://postgres:password@postgres-superadmin:5432/superadmin_db
 JWT_SECRET=min_32_caracteres_superadmin_muy_seguro
 JWT_EXPIRES_IN=1h
 REFRESH_TOKEN_EXPIRES_DAYS=7
+CORS_ORIGINS=http://localhost:5173
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 AUTH_SERVICE_URL=http://auth-service:3001
 EMPLOYEE_SERVICE_URL=http://employee-service:3002
 HISTORY_SERVICE_URL=http://history-service:3006
@@ -3072,6 +3087,8 @@ hr-system-frontend/
 - Política IAM con **mínimo privilegio**: solo `PutObject`, `GetObject`, `DeleteObject`.
 - Variables sensibles exclusivamente en **archivos `.env`** (nunca en código).
 - `.env` en `.gitignore`; `.env.example` como plantilla en el repo.
+- CORS restringido por `CORS_ORIGINS`; no se usa CORS abierto en producción.
+- Escritura interna hacia History Service protegida con `INTERNAL_API_KEY` via header `x-internal-key`.
 - **HTTPS obligatorio** en producción.
 - **Volumes en Docker Compose** para persistir datos entre reinicios.
 - **SonarCloud** analiza vulnerabilidades en cada Pull Request.

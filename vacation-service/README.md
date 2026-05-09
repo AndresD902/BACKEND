@@ -69,6 +69,7 @@ JWT_SECRET=clave_super_secreta_minimo_32_caracteres_aqui               # ← CAM
 
 HISTORY_SERVICE_URL=http://localhost:3006
 EMPLOYEE_SERVICE_URL=http://localhost:3002
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -338,6 +339,7 @@ JWT_SECRET=reemplaza_esto_con_una_clave_muy_larga_y_segura
 # ── Comunicación entre microservicios ─────────────────────────────────────────
 HISTORY_SERVICE_URL=http://history-service:3006
 EMPLOYEE_SERVICE_URL=http://employee-service:3002
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 
 # ── Correo SMTP ───────────────────────────────────────────────────────────────
 SMTP_HOST=smtp.gmail.com
