@@ -24,7 +24,10 @@ export interface CambioPayload {
  */
 export const registrarCambio = (datos: CambioPayload): void => {
   axios
-    .post(`${env.historyServiceUrl}/api/historial/cambios`, datos, { timeout: 3000 })
+    .post(`${env.historyServiceUrl}/api/historial/cambios`, datos, {
+      timeout: 3000,
+      headers: { 'x-internal-key': env.internalApiKey },
+    })
     .catch((err: Error) => {
       console.warn('[HistoryService] No se pudo registrar cambio:', err.message);
     });

@@ -13,7 +13,10 @@ export interface AccionPayload {
 
 export const registrarAccion = (datos: AccionPayload): void => {
   axios
-    .post(`${env.historyServiceUrl}/api/historial/acciones`, datos, { timeout: 3000 })
+    .post(`${env.historyServiceUrl}/api/historial/acciones`, datos, {
+      timeout: 3000,
+      headers: { 'x-internal-key': env.internalApiKey },
+    })
     .catch((err: Error) => {
       console.warn('[HistoryService] No se pudo registrar acción:', err.message);
     });

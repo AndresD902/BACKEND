@@ -40,6 +40,29 @@ export class HistoryController {
     } catch (err) { next(err); }
   }
 
+  async getCambios(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { empleado_id, entidad, entidad_id, desde, hasta, page = '1', limit = '50' } = req.query as Record<string, string>;
+      const parsedLimit = Math.min(Number(limit), 100);
+      const offset = (Number(page) - 1) * parsedLimit;
+
+      const result = await historyService.getCambios({
+        empleado_id: empleado_id ? Number(empleado_id) : undefined,
+        entidad,
+        entidad_id: entidad_id ? Number(entidad_id) : undefined,
+        desde,
+        hasta,
+        limit: parsedLimit,
+        offset,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: { ...result, page: Number(page), limit: parsedLimit },
+      });
+    } catch (err) { next(err); }
+  }
+
   async getAcciones(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { accion, resultado, usuario_email, desde, hasta, page = '1', limit = '50' } = req.query as Record<string, string>;

@@ -14,7 +14,10 @@ export interface AccionPayload {
 // Fire-and-forget — a history failure must never block report delivery.
 export const registrarAccion = (datos: AccionPayload): void => {
   axios
-    .post(`${env.historyServiceUrl}/api/historial/acciones`, datos, { timeout: 3000 })
+    .post(`${env.historyServiceUrl}/api/historial/acciones`, datos, {
+      timeout: 3000,
+      headers: { 'x-internal-key': env.internalApiKey },
+    })
     .catch((err: Error) => {
       console.warn('[HistoryClient] No se pudo registrar acción:', err.message);
     });

@@ -32,6 +32,7 @@ export function registrarCambio(payload: ContractHistoryPayload): void {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'x-internal-key': env.internalApiKey,
     },
     body: JSON.stringify(payload),
   }).catch((error: Error) => {
@@ -47,6 +48,7 @@ export function registrarAccion(payload: ContractActionPayload): void {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'x-internal-key': env.internalApiKey,
     },
     body: JSON.stringify(payload),
   }).catch((error: Error) => {

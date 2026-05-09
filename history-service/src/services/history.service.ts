@@ -23,6 +23,16 @@ class HistoryService {
     return { cambios, total };
   }
 
+  async getCambios(
+    filtros: FiltrosCambios,
+  ): Promise<{ cambios: HistorialCambio[]; total: number }> {
+    const [cambios, total] = await Promise.all([
+      historialCambiosRepository.findAll(filtros),
+      historialCambiosRepository.count(filtros),
+    ]);
+    return { cambios, total };
+  }
+
   async getAcciones(
     filtros: FiltrosAcciones,
   ): Promise<{ acciones: AccionSistema[]; total: number }> {
