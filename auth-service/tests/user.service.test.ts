@@ -1,9 +1,3 @@
-import { UserService } from '../src/services/user.service';
-import { NotFoundError } from '../src/shared/errors/not-found.error';
-import { UnauthorizedError } from '../src/shared/errors/unauthorized.error';
-import { RoleName } from '../src/entities/role.entity';
-import { hashPassword, comparePassword } from '../src/utils/password.util';
-
 // env.ts llama required() al importarse; se mockea para que los tests unitarios
 // no dependan de variables de entorno del sistema.
 jest.mock('../src/config/env', () => ({
@@ -26,6 +20,12 @@ jest.mock('../src/utils/password.util', () => ({
   hashPassword: jest.fn(),
   comparePassword: jest.fn(),
 }));
+
+import { UserService } from '../src/services/user.service';
+import { NotFoundError } from '../src/shared/errors/not-found.error';
+import { UnauthorizedError } from '../src/shared/errors/unauthorized.error';
+import { RoleName } from '../src/entities/role.entity';
+import { hashPassword, comparePassword } from '../src/utils/password.util';
 
 const baseUser = {
   id: '1',
