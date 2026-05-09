@@ -20,6 +20,10 @@ describe('registrarCambio', () => {
     expect(mockAxios.post).toHaveBeenCalledWith(
       expect.stringContaining('/api/historial/cambios'),
       expect.objectContaining({ empleado_id: 1 }),
+      expect.objectContaining({
+        timeout: 3000,
+        headers: expect.objectContaining({ 'x-internal-key': expect.any(String) }),
+      }),
     );
   });
 
@@ -39,6 +43,9 @@ describe('registrarCambio', () => {
     expect(mockAxios.post).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ entidad_id: 5, valor_anterior: 'Dev / 3000000' }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'x-internal-key': expect.any(String) }),
+      }),
     );
   });
 

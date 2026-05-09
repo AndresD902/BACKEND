@@ -51,7 +51,9 @@ describe('EmployeeController', () => {
       generarPresignedUrl:        jest.fn(),
       confirmarDocumento:         jest.fn(),
       generarUrlDescargaDocumento: jest.fn(),
+      aprobarDocumento:            jest.fn(),
       exportCsv:                   jest.fn(),
+      solicitarCorreccion:         jest.fn(),
     };
     controller = new EmployeeController(service);
   });

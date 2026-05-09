@@ -4,4 +4,6 @@ process.env.EMPLOYEE_SERVICE_URL = 'http://localhost:3002/api';
 process.env.CONTRACT_SERVICE_URL = 'http://localhost:3003/api';
 process.env.VACATION_SERVICE_URL = 'http://localhost:3004/api';
 process.env.HISTORY_SERVICE_URL  = 'http://localhost:3006';
+process.env.INTERNAL_API_KEY     = 'test-internal-key';
+process.env.CORS_ORIGINS         = 'http://localhost:5173';
 process.env.REQUEST_TIMEOUT_MS   = '8000';
