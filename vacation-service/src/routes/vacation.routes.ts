@@ -29,6 +29,7 @@ router.get('/festivos/:anio', authenticate, authorize(...READ_ROLES),  vacationC
 router.post('/festivos',      authenticate, authorize(...ADMIN_ROLES), vacationController.createFestivo);
 
 // Consultas por empleado
+router.get('/',                        authenticate, authorize(...READ_ROLES),  vacationController.getAll);
 router.get('/empleado/:id',             authenticate, authorize(...READ_ROLES),  vacationController.getByEmpleadoId);
 router.get('/empleado/:id/disponibles', authenticate, authorize(...READ_ROLES),  vacationController.getDiasDisponibles);
 

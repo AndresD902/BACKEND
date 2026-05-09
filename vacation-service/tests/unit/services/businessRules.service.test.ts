@@ -48,6 +48,14 @@ describe('BusinessRulesService', () => {
       expect(() => svc.validarAnticipacion(futureDate(45))).not.toThrow();
     });
 
+    it('does not reject the exact minimum allowed date because of the current hour', () => {
+      const now = new Date();
+      const minimumDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      minimumDate.setUTCMonth(minimumDate.getUTCMonth() + 1);
+
+      expect(() => svc.validarAnticipacion(minimumDate)).not.toThrow();
+    });
+
     it('throws BadRequestError when date is less than 1 month away', () => {
       expect(() => svc.validarAnticipacion(futureDate(10))).toThrow(BadRequestError);
     });

@@ -3,7 +3,10 @@ import axios from 'axios';
 
 vi.mock('axios');
 vi.mock('../../../src/config/env', () => ({
-  env: { historyServiceUrl: 'http://history-service:3006' },
+  env: {
+    historyServiceUrl: 'http://history-service:3006',
+    internalApiKey: 'test-internal-key',
+  },
 }));
 
 const mockedAxios = vi.mocked(axios);
@@ -42,7 +45,10 @@ describe('historyServiceClient', () => {
         campo_modificado: 'estado',
         valor_nuevo:      'pendiente',
       }),
-      expect.objectContaining({ timeout: 3000 }),
+      expect.objectContaining({
+        timeout: 3000,
+        headers: expect.objectContaining({ 'x-internal-key': 'test-internal-key' }),
+      }),
     );
   });
 

@@ -78,11 +78,11 @@ describe('ReportService', () => {
     });
 
     it('uses rejection reason directly when it has no message property', async () => {
-      jest.mocked(empClient.getEmpleado).mockResolvedValue(mockEmp);
-      jest.mocked(empClient.getHistorialCargo).mockResolvedValue([]);
-      jest.mocked(conClient.getContratosPorEmpleado).mockRejectedValue('string-error-reason');
-      jest.mocked(vacClient.getVacacionesPorEmpleado).mockResolvedValue([]);
-      jest.mocked(vacClient.getDiasDisponibles).mockResolvedValue(null);
+      vi.mocked(empClient.getEmpleado).mockResolvedValue(mockEmp);
+      vi.mocked(empClient.getHistorialCargo).mockResolvedValue([]);
+      vi.mocked(conClient.getContratosPorEmpleado).mockRejectedValue('string-error-reason');
+      vi.mocked(vacClient.getVacacionesPorEmpleado).mockResolvedValue([]);
+      vi.mocked(vacClient.getDiasDisponibles).mockResolvedValue(null);
 
       const result = await service.getReporteEmpleado(1, TOKEN);
 

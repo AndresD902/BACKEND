@@ -23,6 +23,44 @@ function mapRow(row: Record<string, unknown>): Vacation {
 export class VacationRepository {
   constructor(private readonly pool: Pool) {}
 
+  async findAll(filters: {
+    empleadoId?: number;
+    estado?: Vacation['estado'];
+    desde?: string;
+    hasta?: string;
+  } = {}): Promise<Vacation[]> {
+    const values: unknown[] = [];
+    const conditions: string[] = [];
+
+    if (filters.empleadoId) {
+      values.push(filters.empleadoId);
+      conditions.push(`empleado_id = $${values.length}`);
+    }
+
+    if (filters.estado) {
+      values.push(filters.estado);
+      conditions.push(`estado = $${values.length}`);
+    }
+
+    if (filters.desde) {
+      values.push(filters.desde);
+      conditions.push(`fecha_inicio >= $${values.length}`);
+    }
+
+    if (filters.hasta) {
+      values.push(filters.hasta);
+      conditions.push(`fecha_fin <= $${values.length}`);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const { rows } = await this.pool.query(
+      `SELECT * FROM vacaciones ${where} ORDER BY fecha_solicitud DESC`,
+      values,
+    );
+
+    return rows.map(mapRow);
+  }
+
   async findByEmpleadoId(empleadoId: number): Promise<Vacation[]> {
     const { rows } = await this.pool.query(
       `SELECT * FROM vacaciones WHERE empleado_id = $1 ORDER BY fecha_solicitud DESC`,
