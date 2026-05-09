@@ -9,7 +9,10 @@ const baseDoc: DocumentoEmpleado = {
   nombre_archivo: 'foto.jpg', s3_key: 'fotos/1.jpg',
   s3_url: 'https://s3...', mime_type: 'image/jpeg',
   tamano_bytes: null, activo: true,
-  subido_por: 'admin@empresa.com', created_at: new Date(),
+  subido_por: 'admin@empresa.com',
+  aprobado_por: null,
+  fecha_aprobacion: null,
+  created_at: new Date(),
 };
 
 describe('DocumentoRepository', () => {
@@ -64,6 +67,27 @@ describe('DocumentoRepository', () => {
         expect.stringContaining('INSERT INTO documentos_empleado'),
         expect.any(Array),
       );
+    });
+  });
+
+  describe('approve', () => {
+    it('marks document as approved and returns updated row', async () => {
+      const approved = { ...baseDoc, aprobado_por: 'hr@empresa.com', activo: true };
+      mockQuery.mockResolvedValue({ rows: [approved] });
+
+      const result = await repo.approve(1, 'hr@empresa.com');
+
+      expect(result).toEqual(approved);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('fecha_aprobacion = CURRENT_TIMESTAMP'),
+        [1, 'hr@empresa.com'],
+      );
+    });
+
+    it('returns null when document cannot be approved', async () => {
+      mockQuery.mockResolvedValue({ rows: [] });
+
+      await expect(repo.approve(999, 'hr@empresa.com')).resolves.toBeNull();
     });
   });
 });

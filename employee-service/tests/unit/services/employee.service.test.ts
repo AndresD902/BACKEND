@@ -33,6 +33,7 @@ const mockDoc: DocumentoEmpleado = {
   id: 1, empleado_id: 1, tipo: 'foto', nombre_archivo: 'foto.jpg',
   s3_key: 'fotos/1.jpg', s3_url: 'https://s3...', mime_type: 'image/jpeg',
   tamano_bytes: null, activo: true, subido_por: 'admin@empresa.com',
+  aprobado_por: null, fecha_aprobacion: null,
   created_at: new Date(),
 };
 
@@ -75,6 +76,7 @@ describe('EmployeeService', () => {
       findById:           jest.fn(),
       desactivarPorTipo:  jest.fn(),
       create:             jest.fn(),
+      approve:            jest.fn(),
     };
     mockUrlSubida  = jest.fn().mockResolvedValue({ url: 'https://s3.presigned', key: 'fotos/1.jpg' });
     mockUrlDescarga = jest.fn().mockResolvedValue('https://s3.download');
@@ -380,12 +382,13 @@ describe('EmployeeService', () => {
   describe('confirmarDocumento', () => {
     const docDto = { tipo: 'foto', s3_key: 'fotos/1.jpg', s3_url: 'https://s3...' };
 
-    it('deactivates previous doc of same type and creates new record', async () => {
+    it('creates a pending document without deactivating the active document', async () => {
       empRepo.findById.mockResolvedValue(mockEmpleado);
       docRepo.desactivarPorTipo.mockResolvedValue();
       docRepo.create.mockResolvedValue(mockDoc);
       const result = await service.confirmarDocumento(1, docDto, actor);
-      expect(docRepo.desactivarPorTipo).toHaveBeenCalledWith(1, 'foto');
+      expect(docRepo.desactivarPorTipo).not.toHaveBeenCalled();
+      expect(docRepo.create).toHaveBeenCalledWith(expect.objectContaining({ activo: false }));
       expect(result).toEqual(mockDoc);
     });
 
@@ -403,6 +406,26 @@ describe('EmployeeService', () => {
       empRepo.findById.mockResolvedValue(null);
       await expect(service.confirmarDocumento(999, docDto, actor)).rejects.toThrow(NotFoundError);
     });
+
+    it('throws ConflictError when mime type is not allowed', async () => {
+      empRepo.findById.mockResolvedValue(mockEmpleado);
+
+      await expect(
+        service.confirmarDocumento(1, { ...docDto, mime_type: 'text/plain' }, actor),
+      ).rejects.toThrow(ConflictError);
+
+      expect(docRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('throws ConflictError when file size exceeds the limit', async () => {
+      empRepo.findById.mockResolvedValue(mockEmpleado);
+
+      await expect(
+        service.confirmarDocumento(1, { ...docDto, tamano_bytes: 6 * 1024 * 1024 }, actor),
+      ).rejects.toThrow(ConflictError);
+
+      expect(docRepo.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('generarUrlDescargaDocumento', () => {
@@ -416,6 +439,39 @@ describe('EmployeeService', () => {
     it('throws NotFoundError when document not found', async () => {
       docRepo.findById.mockResolvedValue(null);
       await expect(service.generarUrlDescargaDocumento(999)).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('aprobarDocumento', () => {
+    it('approves document and deactivates previous active documents of the same type', async () => {
+      const approvedDoc = { ...mockDoc, activo: true, aprobado_por: actor.email };
+      docRepo.findById.mockResolvedValue(mockDoc);
+      docRepo.desactivarPorTipo.mockResolvedValue();
+      docRepo.approve.mockResolvedValue(approvedDoc);
+
+      const result = await service.aprobarDocumento(1, actor);
+
+      expect(result).toEqual(approvedDoc);
+      expect(docRepo.desactivarPorTipo).toHaveBeenCalledWith(mockDoc.empleado_id, mockDoc.tipo);
+      expect(docRepo.approve).toHaveBeenCalledWith(1, actor.email);
+      expect(mockRegistrar).toHaveBeenCalledWith(expect.objectContaining({
+        entidad: 'documento',
+        campo_modificado: 'aprobacion',
+      }));
+    });
+
+    it('throws NotFoundError when document does not exist', async () => {
+      docRepo.findById.mockResolvedValue(null);
+
+      await expect(service.aprobarDocumento(999, actor)).rejects.toThrow(NotFoundError);
+    });
+
+    it('throws when repository cannot approve the document', async () => {
+      docRepo.findById.mockResolvedValue(mockDoc);
+      docRepo.desactivarPorTipo.mockResolvedValue();
+      docRepo.approve.mockResolvedValue(null);
+
+      await expect(service.aprobarDocumento(1, actor)).rejects.toThrow('No se pudo aprobar el documento 1');
     });
   });
 
