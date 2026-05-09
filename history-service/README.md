@@ -224,6 +224,8 @@ Orden de ejecución:
 |----------|-----------|---------|-------------|
 | `DATABASE_URL` | Sí | — | `postgresql://user:pass@host:5432/history_db` |
 | `JWT_SECRET` | Sí | — | Mismo secreto compartido con auth-service |
+| `INTERNAL_API_KEY` | Producción | `dev-internal-key-...` en desarrollo | Clave compartida para proteger escrituras internas |
+| `CORS_ORIGINS` | No | `http://localhost:5173` | Orígenes permitidos separados por coma |
 | `PORT` | No | `3006` | Puerto del servidor |
 | `NODE_ENV` | No | `development` | `development`, `production`, `test` |
 
@@ -232,7 +234,7 @@ Orden de ejecución:
 ## Integración con otros Microservicios
 
 ### ← employee-service (Puerto 3002)
-Envía `POST /api/historial/cambios` sin esperar respuesta (fire-and-forget).
+Envía `POST /api/historial/cambios` con header `x-internal-key` sin esperar respuesta (fire-and-forget).
 Los eventos se generan automáticamente en:
 - Crear empleado → `campo_modificado: "empleado_creado"`
 - Actualizar empleado → un registro por cada campo que cambió
@@ -240,14 +242,14 @@ Los eventos se generan automáticamente en:
 - Crear cargo/salario → `campo_modificado: "cargo_salario_creado"`
 
 ### ← auth-service (Puerto 3001)
-Puede enviar `POST /api/historial/acciones` para registrar eventos de autenticación (LOGIN, LOGOUT, REFRESH, etc.).
+Puede enviar `POST /api/historial/acciones` con header `x-internal-key` para registrar eventos de autenticación (LOGIN, LOGOUT, REFRESH, etc.).
 
 ### JWT compartido
 Los endpoints de consulta (`GET`) validan el token localmente con `JWT_SECRET` — no hay llamada HTTP a auth-service.
 
 ```
-employee-service ──POST /cambios──► history-service (escritura, sin JWT)
-auth-service     ──POST /acciones─► history-service (escritura, sin JWT)
+employee-service ──POST /cambios + x-internal-key──► history-service (escritura interna, sin JWT)
+auth-service     ──POST /acciones + x-internal-key─► history-service (escritura interna, sin JWT)
 
 cliente          ──GET /cambios/empleado/:id──► history-service (lectura, con JWT)
 ```

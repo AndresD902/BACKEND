@@ -29,6 +29,8 @@ Variables principales:
 PORT=3003
 DATABASE_URL=postgresql://...
 JWT_SECRET=...
+CORS_ORIGINS=http://localhost:5173
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
 EMPLOYEE_SERVICE_URL=http://localhost:3002
 HISTORY_SERVICE_URL=http://localhost:3006
 AWS_REGION=us-east-1

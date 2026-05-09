@@ -291,7 +291,7 @@ npm run migrate:down   # Revierte la última migración
 
 ### Rutas internas — `/api/v1/internal`
 
-> Solo accesibles entre microservicios — requieren header `x-internal-api-key`.
+> Solo accesibles entre microservicios — requieren header `x-internal-key`.
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
@@ -587,7 +587,7 @@ employee-service llama al endpoint interno `POST /internal/notify-employee-chang
 
 ```
 employee-service ──POST /internal/notify-employee-change──► auth-service
-  Header: x-internal-api-key: <INTERNAL_API_KEY>
+  Header: x-internal-key: <INTERNAL_API_KEY>
   Body: { userEmail, action, employeeName }
   (fire-and-forget desde employee-service)
 ```

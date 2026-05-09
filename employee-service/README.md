@@ -262,7 +262,7 @@ Para descargar, usar `GET /documentos/:docId/url` que devuelve una presigned URL
 | `HISTORY_SERVICE_URL` | No | `http://localhost:3006` | URL base de history-service |
 | `CONTRACT_SERVICE_URL` | No | `http://localhost:3003` | URL base de contract-service |
 | `AUTH_SERVICE_URL` | No | `http://localhost:3001/api/v1` | URL base de auth-service (notificaciones) |
-| `INTERNAL_API_KEY` | No | `dev-internal-key-...` | Clave para endpoints internos entre servicios |
+| `INTERNAL_API_KEY` | Producción | `dev-internal-key-...` en desarrollo | Clave para endpoints internos entre servicios |
 | `AWS_REGION` | No | `us-east-1` | Región del bucket S3 |
 | `AWS_ACCESS_KEY_ID` | No* | `""` | Credencial AWS |
 | `AWS_SECRET_ACCESS_KEY` | No* | `""` | Credencial AWS |

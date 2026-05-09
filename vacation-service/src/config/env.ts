@@ -16,6 +16,20 @@ function getJwtSecret(): string {
   return secret;
 }
 
+function getInternalApiKey(): string {
+  const value = process.env.INTERNAL_API_KEY;
+
+  if (value) {
+    return value;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Missing required environment variable: INTERNAL_API_KEY');
+  }
+
+  return 'dev-internal-key-change-in-prod';
+}
+
 export const env = {
   nodeEnv:            getEnVariable('NODE_ENV'),
   port:               Number(getEnVariable('PORT')),
@@ -24,6 +38,7 @@ export const env = {
   databaseUrl:        getEnVariable('DATABASE_URL'),
   historyServiceUrl:  process.env.HISTORY_SERVICE_URL ?? 'http://localhost:3006',
   employeeServiceUrl: process.env.EMPLOYEE_SERVICE_URL ?? 'http://localhost:3002',
+  internalApiKey:     getInternalApiKey(),
   diasLegalesAnuales: Number(process.env.DIAS_LEGALES_ANUALES ?? '15'),
   smtpHost:           process.env.SMTP_HOST ?? 'smtp.gmail.com',
   smtpPort:           Number(process.env.SMTP_PORT ?? '587'),

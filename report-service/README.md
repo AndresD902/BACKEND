@@ -319,6 +319,8 @@ report-service/
 | `CONTRACT_SERVICE_URL` | No | `http://localhost:3003/api` | URL base del Contract Service. |
 | `VACATION_SERVICE_URL` | No | `http://localhost:3004/api` | URL base del Vacation Service. |
 | `HISTORY_SERVICE_URL` | No | `http://localhost:3006` | URL base del History Service (auditoría). Si falla, no bloquea reportes. |
+| `INTERNAL_API_KEY` | Producción | `dev-internal-key-...` en desarrollo | Clave para registrar auditoría interna en History Service. |
+| `CORS_ORIGINS` | No | `http://localhost:5173` | Orígenes permitidos separados por coma. |
 | `REQUEST_TIMEOUT_MS` | No | `8000` | Timeout en milisegundos para llamadas HTTP entre servicios. |
 
 > **En Docker Compose**, las URLs deben usar los nombres de los contenedores en lugar de `localhost`:
