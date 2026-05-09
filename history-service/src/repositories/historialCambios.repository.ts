@@ -14,6 +14,7 @@ export interface CreateCambioData {
 }
 
 export interface FiltrosCambios {
+  empleado_id?: number;
   entidad?: string;
   entidad_id?: number;
   desde?: string;
@@ -66,6 +67,28 @@ class HistorialCambiosRepository {
     return rows;
   }
 
+  async findAll(filtros: FiltrosCambios): Promise<HistorialCambio[]> {
+    const { empleado_id, entidad, entidad_id, desde, hasta, limit = 50, offset = 0 } = filtros;
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (empleado_id) { conditions.push(`empleado_id = $${idx++}`); values.push(empleado_id); }
+    if (entidad)     { conditions.push(`entidad = $${idx++}`); values.push(entidad); }
+    if (entidad_id)  { conditions.push(`entidad_id = $${idx++}`); values.push(entidad_id); }
+    if (desde)       { conditions.push(`fecha_modificacion >= $${idx++}`); values.push(desde); }
+    if (hasta)       { conditions.push(`fecha_modificacion <= $${idx++}::date + 1`); values.push(hasta); }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const { rows } = await pool.query<HistorialCambio>(
+      `SELECT * FROM historial_cambios ${where}
+       ORDER BY fecha_modificacion DESC
+       LIMIT $${idx++} OFFSET $${idx}`,
+      [...values, limit, offset],
+    );
+    return rows;
+  }
+
   async countByEmpleado(empleadoId: number, filtros: FiltrosCambios): Promise<number> {
     const { entidad, entidad_id, desde, hasta } = filtros;
     const conditions: string[] = ['empleado_id = $1'];
@@ -79,6 +102,26 @@ class HistorialCambiosRepository {
 
     const { rows } = await pool.query<{ count: string }>(
       `SELECT COUNT(*) FROM historial_cambios WHERE ${conditions.join(' AND ')}`,
+      values,
+    );
+    return parseInt(rows[0].count, 10);
+  }
+
+  async count(filtros: FiltrosCambios): Promise<number> {
+    const { empleado_id, entidad, entidad_id, desde, hasta } = filtros;
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (empleado_id) { conditions.push(`empleado_id = $${idx++}`); values.push(empleado_id); }
+    if (entidad)     { conditions.push(`entidad = $${idx++}`); values.push(entidad); }
+    if (entidad_id)  { conditions.push(`entidad_id = $${idx++}`); values.push(entidad_id); }
+    if (desde)       { conditions.push(`fecha_modificacion >= $${idx++}`); values.push(desde); }
+    if (hasta)       { conditions.push(`fecha_modificacion <= $${idx++}::date + 1`); values.push(hasta); }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const { rows } = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) FROM historial_cambios ${where}`,
       values,
     );
     return parseInt(rows[0].count, 10);

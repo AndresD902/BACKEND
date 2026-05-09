@@ -20,7 +20,10 @@ describe('registrarAccion', () => {
     expect(mockedAxios.post).toHaveBeenCalledWith(
       expect.stringContaining('/api/historial/acciones'),
       expect.objectContaining({ accion: 'login' }),
-      expect.objectContaining({ timeout: expect.any(Number) }),
+      expect.objectContaining({
+        timeout: expect.any(Number),
+        headers: expect.objectContaining({ 'x-internal-key': expect.any(String) }),
+      }),
     );
   });
 
@@ -51,10 +54,22 @@ describe('obtenerAcciones', () => {
     expect(mockedAxios.get).toHaveBeenCalledWith(
       expect.stringContaining('/api/historial/acciones'),
       expect.objectContaining({
-        headers: { Authorization: 'Bearer token123' },
+        headers: expect.objectContaining({
+          Authorization: 'Bearer token123',
+          'x-internal-key': expect.any(String),
+        }),
         params: { page: '1' },
       }),
     );
+  });
+
+  it('retorna acciones cuando History Service responde con objeto paginado', async () => {
+    const fakeData = [{ id: 1, accion: 'login' }];
+    mockedAxios.get = vi.fn().mockResolvedValue({ data: { data: { acciones: fakeData, total: 1 } } });
+
+    const result = await obtenerAcciones('Bearer token123', {});
+
+    expect(result).toEqual(fakeData);
   });
 
   it('retorna array vacío si data.data es undefined', async () => {
@@ -82,6 +97,15 @@ describe('obtenerCambios', () => {
     mockedAxios.get = vi.fn().mockResolvedValue({ data: { data: fakeData } });
 
     const result = await obtenerCambios('Bearer token', { empresa: '1' });
+
+    expect(result).toEqual(fakeData);
+  });
+
+  it('retorna cambios cuando History Service responde con objeto paginado', async () => {
+    const fakeData = [{ id: 1, campo_modificado: 'salario' }];
+    mockedAxios.get = vi.fn().mockResolvedValue({ data: { data: { cambios: fakeData, total: 1 } } });
+
+    const result = await obtenerCambios('Bearer token', {});
 
     expect(result).toEqual(fakeData);
   });

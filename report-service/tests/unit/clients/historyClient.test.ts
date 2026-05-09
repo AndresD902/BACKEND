@@ -6,6 +6,7 @@ vi.mock('axios');
 vi.mock('../../../src/config/env', () => ({
   env: {
     historyServiceUrl: 'http://localhost:3006',
+    internalApiKey: 'test-internal-key',
   },
 }));
 
@@ -26,7 +27,10 @@ describe('registrarAccion', () => {
     expect(axios.post).toHaveBeenCalledWith(
       'http://localhost:3006/api/historial/acciones',
       expect.objectContaining({ accion: 'reporte_generado', resultado: 'exitoso' }),
-      { timeout: 3000 },
+      {
+        timeout: 3000,
+        headers: { 'x-internal-key': 'test-internal-key' },
+      },
     );
   });
 
