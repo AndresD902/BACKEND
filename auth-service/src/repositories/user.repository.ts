@@ -34,10 +34,10 @@ export class UserRepository implements IUserRepository {
 
   public async create(data: CreateUserData): Promise<User> {
     const result = await pool.query(
-      `INSERT INTO users (first_name, last_name, email, password_hash, role, is_active, email_verified)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO users (first_name, last_name, email, password_hash, role, is_active, email_verified, notif_login)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [data.firstName, data.lastName, data.email.toLowerCase(), data.passwordHash, data.role, data.isActive ?? true, false],
+      [data.firstName, data.lastName, data.email.toLowerCase(), data.passwordHash, data.role, data.isActive ?? true, false, true],
     );
     return mapRowToUser(result.rows[0]);
   }
