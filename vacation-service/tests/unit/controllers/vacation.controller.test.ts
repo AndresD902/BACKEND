@@ -9,6 +9,7 @@ import { NotFoundError } from '../../../src/shared/errors/not-found.error';
 
 function makeSvc(): vi.Mocked<VacationService> {
   return {
+    getAll:             vi.fn(),
     getByEmpleadoId:    vi.fn(),
     getDiasDisponibles: vi.fn(),
     create:             vi.fn(),

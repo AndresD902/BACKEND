@@ -27,10 +27,10 @@ export class BusinessRulesService {
    * start date, giving HR enough time to plan.
    */
   validarAnticipacion(fechaInicio: Date): void {
-    const hoy   = new Date();
-    const unMes = new Date(hoy);
-    unMes.setMonth(unMes.getMonth() + 1);
-    if (fechaInicio < unMes) {
+    const hoy = new Date();
+    const fechaMinima = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()));
+    fechaMinima.setUTCMonth(fechaMinima.getUTCMonth() + 1);
+    if (fechaInicio < fechaMinima) {
       throw new BadRequestError('La solicitud debe realizarse con al menos 1 mes de anticipación');
     }
   }
