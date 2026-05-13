@@ -50,6 +50,9 @@ describe('UserService', () => {
     updateStatus: jest.Mock;
     updatePassword: jest.Mock;
   };
+  let mockRefreshTokenRepository: {
+    revokeAllByUserId: jest.Mock;
+  };
   let userService: UserService;
 
   beforeEach(() => {
@@ -60,7 +63,10 @@ describe('UserService', () => {
       updateStatus: jest.fn(),
       updatePassword: jest.fn(),
     };
-    userService = new UserService(mockUserRepository as any);
+    mockRefreshTokenRepository = {
+      revokeAllByUserId: jest.fn(),
+    };
+    userService = new UserService(mockUserRepository as any, mockRefreshTokenRepository as any);
   });
 
   describe('findAll', () => {
@@ -150,17 +156,19 @@ describe('UserService', () => {
   });
 
   describe('changePassword', () => {
-    it('should change password when current password is valid', async () => {
+    it('should change password and revoke all sessions when current password is valid', async () => {
       mockUserRepository.findById.mockResolvedValue(baseUser);
       (comparePassword as jest.Mock).mockResolvedValue(true);
       (hashPassword as jest.Mock).mockResolvedValue('new-hashed-password');
       mockUserRepository.updatePassword.mockResolvedValue(baseUser);
+      mockRefreshTokenRepository.revokeAllByUserId.mockResolvedValue(undefined);
 
       await userService.changePassword('1', 'currentPass', 'newPass');
 
       expect(comparePassword).toHaveBeenCalledWith('currentPass', 'hashed-password');
       expect(hashPassword).toHaveBeenCalledWith('newPass');
       expect(mockUserRepository.updatePassword).toHaveBeenCalledWith('1', 'new-hashed-password');
+      expect(mockRefreshTokenRepository.revokeAllByUserId).toHaveBeenCalledWith('1');
     });
 
     it('should throw NotFoundError when user does not exist', async () => {
@@ -176,6 +184,7 @@ describe('UserService', () => {
 
       await expect(userService.changePassword('1', 'wrongPass', 'newPass')).rejects.toThrow(UnauthorizedError);
       expect(hashPassword).not.toHaveBeenCalled();
+      expect(mockRefreshTokenRepository.revokeAllByUserId).not.toHaveBeenCalled();
     });
   });
 });

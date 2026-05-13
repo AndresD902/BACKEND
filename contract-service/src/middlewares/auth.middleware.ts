@@ -8,6 +8,7 @@ export interface AuthenticatedRequest {
     id: string;
     email: string;
     role: string;
+    employeeId?: number; // Included in JWT for CONSULTATION role users
 }
 
 export interface AuthenticatedRequestWithJwt extends Request {
@@ -43,6 +44,7 @@ export function authenticateToken(
         id: userId,
         email: decoded.email,
         role,
+        employeeId: decoded.employeeId,
        };
        next();
     }catch (error) {

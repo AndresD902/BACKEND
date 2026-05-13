@@ -13,9 +13,11 @@ router.get('/justificaciones-public', employeeController.getJustificaciones);
 
 router.use(verifyToken);
 
+router.get('/departamentos', employeeController.getDepartamentos);
 router.get('/export/csv', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.exportCsv);
 router.post('/presigned-url', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.generarPresignedUrl);
 router.get('/documentos/:docId/url', employeeController.generarUrlDescarga);
+router.get('/me', requireRol(RoleName.CONSULTATION), employeeController.getMe);
 router.get('/', employeeController.getAll);
 router.get('/:id', employeeController.getById);
 router.post('/', requireRol(RoleName.ADMIN, RoleName.HR), validateBody(createEmpleadoSchema), employeeController.create);
@@ -28,6 +30,7 @@ router.post('/:id/cargo', requireRol(RoleName.ADMIN, RoleName.HR), validateBody(
 router.get('/:id/documentos', employeeController.getDocumentos);
 router.post('/:id/documentos', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.confirmarDocumento);
 router.post('/:id/documentos/:docId/aprobar', requireRol(RoleName.HR), employeeController.aprobarDocumento);
+router.patch('/:id/documentos/:docId/rechazar', requireRol(RoleName.HR), employeeController.rechazarDocumento);
 router.post('/:id/solicitar-correccion', employeeController.solicitarCorreccion);
 router.get('/justificaciones', employeeController.getJustificaciones);
 

@@ -142,6 +142,16 @@ export class ContractService {
         return this.buildContractDocumentView(contract);
     }
 
+    public async findLatestContractForAuthenticatedUser(employeeId: number): Promise<ContractDocumentView> {
+        const contract = await this.contractRepository.findActiveByEmployeeId(employeeId);
+
+        if (!contract) {
+            throw new NotFoundError("Active contract not found for authenticated user");
+        }
+
+        return this.buildContractDocumentView(contract);
+    }
+
     public async updateContractStatus(id: number, data: UpdateContractStatusDto, actor: ContractActor): Promise<ContractWithPaymentDistribution> {
         const currentContract = await this.contractRepository.findById(id);
 

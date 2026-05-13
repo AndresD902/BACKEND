@@ -285,6 +285,27 @@ export class ContractController {
         }
     };
 
+    public findLatestContractForCurrentUser = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
+        try {
+            const user = (request as AuthenticatedRequestWithJwt).user;
+
+            if (!user || !user.employeeId) {
+                next(new AppError('Employee ID is required. CONSULTATION users must have an employee record.', 403));
+                return;
+            }
+
+            const contract = await this.contractService.findLatestContractForAuthenticatedUser(user.employeeId);
+
+            response.status(200).json({
+                success: true,
+                message: 'User contract retrieved successfully',
+                data: contract
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
     private getAuthorizationHeader(request: Request): string {
         const authorizationHeader = request.headers.authorization;
 

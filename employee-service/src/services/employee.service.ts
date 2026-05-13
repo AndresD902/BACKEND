@@ -62,6 +62,14 @@ export class EmployeeService implements IEmployeeService {
     return this.findOrFail(id);
   }
 
+  async getMe(userEmail: string): Promise<Empleado> {
+    const empleado = await this.empRepo.findByAnyEmail(userEmail);
+    if (!empleado) {
+      throw new NotFoundError('Authenticated user is not registered as an employee');
+    }
+    return empleado;
+  }
+
   async create(dto: CreateEmpleadoDto, actor: AuthenticatedUser): Promise<Empleado> {
     const [existeCedula, existeCorreo] = await Promise.all([
       dto.cedula ? this.empRepo.findByCedula(dto.cedula) : Promise.resolve(null),
@@ -370,6 +378,37 @@ export class EmployeeService implements IEmployeeService {
     return approvedDoc;
   }
 
+  async rechazarDocumento(documentoId: number, motivo: string, actor: AuthenticatedUser): Promise<DocumentoEmpleado> {
+    const doc = await this.docRepo.findById(documentoId);
+    if (!doc) {
+      throw new NotFoundError(`Documento ${documentoId} no encontrado`);
+    }
+
+    // Actualizar documento en BD con estado rechazado
+    const docActualizado = await this.docRepo.update(documentoId, {
+      estado: 'rechazado',
+      motivo_rechazo: motivo,
+    });
+
+    if (!docActualizado) {
+      throw new NotFoundError(`No se pudo actualizar el documento`);
+    }
+
+    // Registrar en History Service
+    this.registrar({
+      empleado_id: doc.empleado_id,
+      entidad: 'documento',
+      entidad_id: documentoId,
+      campo_modificado: 'estado',
+      valor_anterior: 'pendiente_aprobacion',
+      valor_nuevo: 'rechazado',
+      usuario_modificador: actor.email,
+      rol_modificador: actor.rol,
+    });
+
+    return docActualizado;
+  }
+
   async solicitarCorreccion(empleadoId: number, descripcion: string, solicitante: string): Promise<void> {
     const empleado = await this.findOrFail(empleadoId);
     this.notificarCorreccion({
@@ -401,6 +440,11 @@ export class EmployeeService implements IEmployeeService {
       e.fecha_ingreso, e.fecha_retiro, e.created_at,
     ].map(escape).join(','));
     return [HEADERS.join(','), ...rows].join('\r\n');
+  }
+
+  async getDepartamentos(): Promise<Array<{ id: number; nombre: string; codigo_dane?: string }>> {
+    const departamentos = await this.empRepo.findAllDepartamentos();
+    return departamentos;
   }
 }
 

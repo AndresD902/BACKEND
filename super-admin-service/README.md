@@ -1,142 +1,88 @@
-# super-admin-service
+# Super Admin Service
 
-Microservicio de administración global del sistema de RR. HH. Gestiona super administradores, empresas y sus admins desde un panel centralizado. Puerto **3007**, base de datos **superadmin_db**.
+> Microservicio 7 de 7 · Puerto **3007** · Base de datos: `superadmin_db`
 
----
-
-## Tabla de contenidos
-
-1. [Inicio rápido](#1-inicio-rápido)
-2. [Descripción del servicio](#2-descripción-del-servicio)
-3. [Stack tecnológico](#3-stack-tecnológico)
-4. [Estructura de carpetas](#4-estructura-de-carpetas)
-5. [Variables de entorno](#5-variables-de-entorno)
-6. [Base de datos y migraciones](#6-base-de-datos-y-migraciones)
-7. [Endpoints](#7-endpoints)
-8. [Flujos de negocio](#8-flujos-de-negocio)
-9. [Seguridad y autenticación](#9-seguridad-y-autenticación)
-10. [Conexiones con otros microservicios](#10-conexiones-con-otros-microservicios)
-11. [Arquitectura en capas](#11-arquitectura-en-capas)
-12. [Manejo de errores](#12-manejo-de-errores)
-13. [Ejecución con Docker](#13-ejecución-con-docker)
-14. [Testing](#14-testing)
+Panel de control global del sistema HR. Gestiona super administradores, empresas, administradores de empresa, flujo de demos, suscripciones y auditoría global. Es el único servicio con visibilidad sobre todas las empresas registradas en la plataforma.
 
 ---
 
-## 1. Inicio rápido
+## Tabla de Contenido
 
-Pasos para ejecutar el servicio en local desde cero.
-
-### Prerrequisitos
-
-- Node.js 18+
-- PostgreSQL 14+ corriendo localmente
-- Base de datos `superadmin_db` creada
-
-```bash
-# Crear la base de datos
-psql -U postgres -c "CREATE DATABASE superadmin_db;"
-```
-
-### Instalación
-
-```bash
-# 1. Clonar / ubicarse en la carpeta
-cd super-admin-service
-
-# 2. Instalar dependencias
-npm install
-
-# 3. Copiar variables de entorno
-cp .env.example .env
-# Editar .env con tus valores reales (ver sección 5)
-
-# 4. Ejecutar migraciones
-npm run migrate
-
-# 5. Iniciar en modo desarrollo
-npm run dev
-```
-
-El servicio queda disponible en `http://localhost:3007`.
-
-### Crear el primer super admin (bootstrap)
-
-El endpoint de registro está protegido por un header secreto para evitar acceso público.
-Solo se usa una vez para crear el primer super admin del sistema:
-
-```bash
-curl -X POST http://localhost:3007/api/super-admin/register \
-  -H "Content-Type: application/json" \
-  -H "X-Register-Secret: <valor de REGISTER_SECRET en .env>" \
-  -d '{
-    "nombre": "Super Admin",
-    "email": "superadmin@empresa.com",
-    "password": "contraseña_segura"
-  }'
-```
-
-Después de crear el primer super admin, guarda el header secreto en un lugar seguro.
-Los siguientes super admins los puede crear el primero desde el sistema con JWT.
+1. [Responsabilidades](#1-responsabilidades)
+2. [Tech Stack](#2-tech-stack)
+3. [Estructura de Carpetas](#3-estructura-de-carpetas)
+4. [Modelo de Datos](#4-modelo-de-datos)
+5. [Migraciones](#5-migraciones)
+6. [API Endpoints](#6-api-endpoints)
+7. [Flujos de Negocio](#7-flujos-de-negocio)
+8. [Variables de Entorno](#8-variables-de-entorno)
+9. [Seguridad y Autenticación](#9-seguridad-y-autenticación)
+10. [Conexiones con otros Microservicios](#10-conexiones-con-otros-microservicios)
+11. [Arquitectura en Capas](#11-arquitectura-en-capas)
+12. [Cómo Ejecutar](#12-cómo-ejecutar)
+13. [Pruebas](#13-pruebas)
 
 ---
 
-## 2. Descripción del servicio
+## 1. Responsabilidades
 
-El `super-admin-service` actúa como **panel de control global** del sistema. Es el único servicio con visibilidad sobre todas las empresas registradas y sus administradores.
+| Dominio | Descripción |
+|---------|-------------|
+| Super admins | Registro (bootstrap), login, refresh token con rotación, recuperación de contraseña |
+| Límite global | Solo pueden existir **2 super admins** — el link de registro se desactiva al alcanzar el límite |
+| Empresas | CRUD completo, cambio de plan y estado (activa / inactiva / suspendida) |
+| Admins de empresa | Alta de admins (máx. 2 por empresa) con credenciales enviadas por correo |
+| Flujo demo | Gestión de solicitudes de demo: aprobación, credenciales temporales (2 días, 1 dispositivo, máx. 2 activaciones) |
+| Flujo suscripción | Recepción de formularios de plan, activación de empresa con contrato PDF generado automáticamente |
+| Vista de empleados | Consulta de empleados de una empresa con `detalle_estado` legible |
+| Auditoría global | Consulta de acciones y cambios desde el History Service |
 
-### Responsabilidades
-
-| Dominio             | Descripción                                                                 |
-|---------------------|-----------------------------------------------------------------------------|
-| Super admins        | Registro (bootstrap), login, refresh token, recuperación de contraseña      |
-| Empresas            | CRUD completo de empresas, cambio de plan y estado                          |
-| Admins de empresa   | Alta de admins (máx. 2 por empresa) con credenciales enviadas por correo    |
-| Vista de empleados  | Consulta de empleados de una empresa con descripción legible del estado      |
-| Auditoría global    | Consulta de acciones y cambios desde el History Service                     |
-
-### Lo que NO hace este servicio
-
-- No gestiona empleados directamente (eso es `employee-service` :3002)
-- No emite tokens para admins de empresa (eso es `auth-service` :3001)
-- No guarda contratos ni vacaciones (otros microservicios)
-- No tiene su propia tabla de auditoría — delega en `history-service` :3006
+**Lo que NO hace este servicio:**
+- No gestiona empleados directamente (eso es employee-service :3002)
+- No emite tokens para admins de empresa (eso es auth-service :3001)
+- No guarda contratos ni vacaciones
+- No tiene tabla de auditoría propia — delega en history-service :3006
 
 ---
 
-## 3. Stack tecnológico
+## 2. Tech Stack
 
-| Categoría       | Tecnología                              |
-|-----------------|-----------------------------------------|
-| Runtime         | Node.js 18 + Express 5                  |
-| Lenguaje        | TypeScript 5                            |
-| Base de datos   | PostgreSQL 14+ con `pg` (sin ORM)       |
-| Migraciones     | `node-pg-migrate` (archivos TypeScript) |
-| Auth            | JWT (`jsonwebtoken`) + bcrypt           |
-| Validación      | Zod                                     |
-| HTTP saliente   | axios                                   |
-| Correos         | nodemailer                              |
-| Seguridad HTTP  | helmet, cors                            |
-| Logging HTTP    | morgan                                  |
-| Testing         | Vitest + @vitest/coverage-v8            |
-| Contenedor      | Docker                                  |
+| Capa | Tecnología |
+|------|-----------|
+| Runtime | Node.js 18 + TypeScript 5 |
+| Framework | Express.js v5 |
+| Base de datos | PostgreSQL 14+ con `pg` (sin ORM) |
+| Migraciones | node-pg-migrate (TypeScript) |
+| Auth | JWT (`jsonwebtoken`) + bcrypt (12 rounds) |
+| Validación | Zod |
+| HTTP saliente | axios |
+| Email | nodemailer + Gmail SMTP |
+| Seguridad HTTP | helmet, cors |
+| Logging | morgan |
+| Pruebas | Vitest + `@vitest/coverage-v8` |
+| Contenedor | Docker |
 
 ---
 
-## 4. Estructura de carpetas
+## 3. Estructura de Carpetas
 
 ```
 super-admin-service/
+├── migrations/
+│   ├── 001_create_super_admins.ts
+│   ├── 002_create_empresas.ts
+│   ├── 003_create_admins_empresa.ts
+│   └── 004_create_refresh_tokens_superadmin.ts
 ├── src/
 │   ├── config/
-│   │   ├── database.ts          # Pool pg, connect/disconnect, healthcheck
-│   │   └── env.ts               # Variables de entorno validadas al arranque
+│   │   ├── database.ts              # Pool pg, connect/disconnect, healthcheck
+│   │   └── env.ts                   # Variables validadas al arranque
 │   ├── shared/
 │   │   ├── errors/
-│   │   │   ├── app-error.ts     # Clase base AppError(message, statusCode, code)
-│   │   │   ├── conflict.error.ts      # 409
-│   │   │   ├── not-found.error.ts     # 404
-│   │   │   └── unauthorized.error.ts  # 401
+│   │   │   ├── app-error.ts
+│   │   │   ├── conflict.error.ts       # 409
+│   │   │   ├── not-found.error.ts      # 404
+│   │   │   └── unauthorized.error.ts   # 401
 │   │   └── enums/
 │   │       ├── plan.enum.ts            # basico | profesional | enterprise
 │   │       └── estado-empresa.enum.ts  # activa | inactiva | suspendida
@@ -145,33 +91,33 @@ super-admin-service/
 │   │   ├── empresa.entity.ts
 │   │   └── admin-empresa.entity.ts
 │   ├── dtos/
-│   │   ├── register-super-admin.dto.ts  # Zod schema para registro
+│   │   ├── register-super-admin.dto.ts
 │   │   ├── login.dto.ts
 │   │   ├── create-empresa.dto.ts
-│   │   ├── update-empresa.dto.ts        # + updateEstadoSchema
+│   │   ├── update-empresa.dto.ts       # + updateEstadoSchema
 │   │   └── create-admin.dto.ts
 │   ├── utils/
-│   │   ├── jwt.util.ts          # signJwt / verifyJwt
-│   │   ├── crypto.util.ts       # randomToken, sha256, randomTempPassword
+│   │   ├── jwt.util.ts                 # signJwt / verifyJwt
+│   │   ├── crypto.util.ts              # randomToken, sha256, randomTempPassword
 │   │   └── async-handler.util.ts
 │   ├── middlewares/
-│   │   ├── auth.middleware.ts        # verifySuperAdminToken, verifyRegisterSecret
-│   │   ├── error-handler.middleware.ts
-│   │   └── validation.middleware.ts  # validateBody(zodSchema)
+│   │   ├── auth.middleware.ts          # verifySuperAdminToken, verifyRegisterSecret
+│   │   ├── error-handler.middleware.ts # Manejo centralizado de errores HTTP
+│   │   └── validation.middleware.ts    # validateBody(zodSchema) — valida req.body con Zod
 │   ├── clients/
-│   │   ├── authClient.ts        # POST /auth/register en Auth Service
-│   │   ├── employeeClient.ts    # GET /empleados en Employee Service
-│   │   └── historyClient.ts     # registrarAccion, obtenerAcciones, obtenerCambios
+│   │   ├── authClient.ts              # POST /auth/register en Auth Service
+│   │   ├── employeeClient.ts          # GET /empleados en Employee Service
+│   │   └── historyClient.ts           # registrarAccion, obtenerAcciones, obtenerCambios
 │   ├── repositories/
 │   │   ├── superAdmin.repository.ts
 │   │   ├── empresa.repository.ts
 │   │   ├── adminEmpresa.repository.ts
 │   │   └── refreshToken.repository.ts
 │   ├── services/
-│   │   ├── auth.service.ts      # login, refresh, logout, recover/reset password
-│   │   ├── empresa.service.ts   # CRUD empresas, admins, empleados
-│   │   ├── email.service.ts     # nodemailer con transporter inyectable
-│   │   └── auditoria.service.ts # delega en historyClient
+│   │   ├── auth.service.ts            # login, refresh, logout, recover/reset password
+│   │   ├── empresa.service.ts         # CRUD empresas, admins, demos, empleados
+│   │   ├── email.service.ts           # nodemailer con transporter inyectable
+│   │   └── auditoria.service.ts       # delega en historyClient
 │   ├── controller/
 │   │   ├── auth.controller.ts
 │   │   ├── empresa.controller.ts
@@ -182,95 +128,46 @@ super-admin-service/
 │   │   ├── empresa.routes.ts
 │   │   ├── auditoria.routes.ts
 │   │   └── health.routes.ts
-│   ├── app.ts                   # Express: helmet, cors, morgan, rutas
-│   └── server.ts                # Arranque: DB + listen
-├── migrations/
-│   ├── 001_create_super_admins.ts
-│   ├── 002_create_empresas.ts
-│   ├── 003_create_admins_empresa.ts
-│   └── 004_create_refresh_tokens_superadmin.ts
-├── Dockerfile
+│   ├── app.ts
+│   └── server.ts
+├── tests/
+│   ├── setup.ts
+│   └── unit/
+│       ├── services/
+│       │   ├── auth.service.test.ts
+│       │   └── empresa.service.test.ts
+│       ├── controllers/
+│       │   ├── auth.controller.test.ts
+│       │   └── empresa.controller.test.ts
+│       ├── middlewares/
+│       │   ├── auth.middleware.test.ts
+│       │   ├── error-handler.middleware.test.ts
+│       │   └── validation.middleware.test.ts
+│       ├── utils/
+│       │   ├── jwt.util.test.ts
+│       │   ├── crypto.util.test.ts
+│       │   └── async-handler.util.test.ts
+│       ├── clients/
+│       │   └── historyClient.test.ts
+│       └── shared/errors/
+│           └── app-error.test.ts
+├── vitest.config.ts
 ├── .env.example
-├── package.json
+├── Dockerfile
 ├── tsconfig.json
 └── tsconfig.build.json
 ```
 
 ---
 
-## 5. Variables de entorno
-
-Copia `.env.example` a `.env` y completa los valores:
-
-```env
-NODE_ENV=development
-PORT=3007
-SERVICE_NAME=super-admin-service
-
-# ── Base de datos propia ──────────────────────────────────────────────────────
-DATABASE_URL=postgres://postgres:password@localhost:5432/superadmin_db
-
-# ── JWT del super admin ────────────────────────────────────────────────────────
-JWT_SECRET=minimo_32_caracteres_superadmin_muy_seguro_aqui
-JWT_EXPIRES_IN=1h
-REFRESH_TOKEN_EXPIRES_DAYS=7
-CORS_ORIGINS=http://localhost:5173
-INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
-
-# ── Protección del endpoint de registro (bootstrap inicial) ───────────────────
-# Header requerido: X-Register-Secret: <valor>
-REGISTER_SECRET=clave_secreta_para_crear_primer_superadmin
-
-# ── URLs de microservicios dependientes ───────────────────────────────────────
-AUTH_SERVICE_URL=http://localhost:3001/api/v1
-EMPLOYEE_SERVICE_URL=http://localhost:3002/api
-HISTORY_SERVICE_URL=http://localhost:3006
-
-# ── Timeout HTTP entre servicios ──────────────────────────────────────────────
-REQUEST_TIMEOUT_MS=8000
-
-# ── SMTP para correos ─────────────────────────────────────────────────────────
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=tucorreo@gmail.com
-SMTP_PASS=tu_app_password_gmail
-
-# ── Frontend (enlace en correos de recuperación) ──────────────────────────────
-FRONTEND_URL=http://localhost:5173
-
-# ── Expiración del token de recuperación de contraseña (minutos) ─────────────
-RESET_TOKEN_EXPIRES_MINUTES=15
-```
-
-### Notas importantes
-
-- `JWT_SECRET` puede ser distinto al `JWT_SECRET` de los otros servicios. Los tokens de super admin solo son válidos aquí.
-- `REGISTER_SECRET` se usa **únicamente** para el endpoint de bootstrap. Mantenlo fuera del control de versiones.
-- `INTERNAL_API_KEY` protege la escritura de auditoría hacia History Service; en producción debe configurarse explícitamente.
-- Para Gmail, `SMTP_PASS` debe ser una **App Password** (no la contraseña de la cuenta).
-
----
-
-## 6. Base de datos y migraciones
-
-### Tablas
-
-| Tabla                        | Descripción                                              |
-|------------------------------|----------------------------------------------------------|
-| `super_admins`               | Usuarios super admin con hash bcrypt y tokens de reset   |
-| `empresas`                   | Empresas del sistema con plan y estado                   |
-| `admins_empresa`             | Admins de empresa registrados por el super admin         |
-| `refresh_tokens_superadmin`  | Refresh tokens con hash SHA-256, revocables por registro |
-
-### Schema resumido
+## 4. Modelo de Datos
 
 ```sql
 -- Enums
-CREATE TYPE plan_enum          AS ENUM ('basico', 'profesional', 'enterprise');
+CREATE TYPE plan_enum           AS ENUM ('basico', 'profesional', 'enterprise');
 CREATE TYPE estado_empresa_enum AS ENUM ('activa', 'inactiva', 'suspendida');
 
--- super_admins
+-- Tabla 1: Super administradores (máx. 2 globalmente)
 CREATE TABLE super_admins (
   id                  BIGSERIAL PRIMARY KEY,
   nombre              VARCHAR(100) NOT NULL,
@@ -278,13 +175,13 @@ CREATE TABLE super_admins (
   password_hash       VARCHAR(255) NOT NULL,
   activo              BOOLEAN NOT NULL DEFAULT TRUE,
   ultimo_login        TIMESTAMP,
-  reset_token         VARCHAR(255),
-  reset_token_expires TIMESTAMP,
+  reset_token         VARCHAR(255),         -- SHA-256 del token de recuperación
+  reset_token_expires TIMESTAMP,            -- TTL: RESET_TOKEN_EXPIRES_MINUTES
   created_at          TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- empresas
+-- Tabla 2: Empresas registradas en la plataforma
 CREATE TABLE empresas (
   id         BIGSERIAL PRIMARY KEY,
   nombre     VARCHAR(150) NOT NULL,
@@ -297,99 +194,169 @@ CREATE TABLE empresas (
   updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- admins_empresa (max 2 por empresa)
+-- Tabla 3: Administradores por empresa (máx. 2 activos por empresa)
 CREATE TABLE admins_empresa (
   id         BIGSERIAL PRIMARY KEY,
   empresa_id BIGINT NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
   email      VARCHAR(150) NOT NULL,
   nombre     VARCHAR(100),
   activo     BOOLEAN NOT NULL DEFAULT TRUE,
-  creado_en  TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  creado_en  TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (empresa_id, email)
 );
 
--- refresh_tokens_superadmin
+-- Tabla 4: Refresh tokens del super admin
 CREATE TABLE refresh_tokens_superadmin (
   id             BIGSERIAL PRIMARY KEY,
   super_admin_id BIGINT NOT NULL REFERENCES super_admins(id) ON DELETE CASCADE,
-  token_hash     VARCHAR(255) NOT NULL UNIQUE,
+  token_hash     VARCHAR(255) NOT NULL UNIQUE,   -- SHA-256 del token
   expires_at     TIMESTAMP NOT NULL,
   revocado       BOOLEAN NOT NULL DEFAULT FALSE,
   ip_origen      VARCHAR(50),
   user_agent     TEXT,
   created_at     TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_admins_empresa_id        ON admins_empresa(empresa_id);
+CREATE INDEX idx_refresh_tokens_sa_hash   ON refresh_tokens_superadmin(token_hash);
+CREATE INDEX idx_refresh_tokens_sa_sa_id  ON refresh_tokens_superadmin(super_admin_id);
 ```
-
-### Ejecutar migraciones
-
-```bash
-# Aplicar todas las migraciones pendientes
-npm run migrate
-
-# Revertir la última migración
-npm run migrate:down
-```
-
-Las migraciones se nombran `001_`, `002_` etc. y se ejecutan en orden. En Docker, el contenedor las aplica automáticamente al arrancar.
 
 ---
 
-## 7. Endpoints
+## 5. Migraciones
 
-Base path: `/api`
+```bash
+npm run migrate        # Aplica migraciones pendientes
+npm run migrate:down   # Revierte la última migración
+```
 
-### Autenticación de super admin
+Orden de ejecución:
 
-| Método | Endpoint                          | Auth requerida               | Descripción                                |
-|--------|-----------------------------------|------------------------------|--------------------------------------------|
-| POST   | `/super-admin/register`           | `X-Register-Secret` header   | Crea el primer super admin (bootstrap)     |
-| POST   | `/super-admin/login`              | Ninguna                      | Login → devuelve JWT + refresh token       |
-| POST   | `/super-admin/refresh`            | Ninguna (body: refresh_token)| Renueva el access token                    |
-| POST   | `/super-admin/logout`             | JWT super admin              | Revoca el refresh token                    |
-| POST   | `/super-admin/recover-password`   | Ninguna                      | Envía email con token de recuperación      |
-| POST   | `/super-admin/reset-password`     | Ninguna (body: token)        | Resetea la contraseña con el token         |
+```
+001_create_super_admins.ts                → tabla super_admins + enums
+002_create_empresas.ts                    → tabla empresas
+003_create_admins_empresa.ts              → tabla admins_empresa (máx. 2 por empresa)
+004_create_refresh_tokens_superadmin.ts   → tabla refresh_tokens_superadmin
+```
+
+---
+
+## 6. API Endpoints
+
+Base path: `/api/super-admin`
+
+### Autenticación del super admin
+
+| Método | Endpoint | Auth requerida | Descripción |
+|--------|----------|---------------|-------------|
+| POST | `/register` | `X-Register-Secret` header | Bootstrap — crea el primer super admin |
+| POST | `/login` | ❌ | Login → access_token + refresh_token |
+| POST | `/refresh` | ❌ (body: refresh_token) | Renueva tokens (rotación) |
+| POST | `/logout` | ✅ JWT super admin | Revoca el refresh_token actual |
+| POST | `/recover-password` | ❌ | Envía email con token de recuperación |
+| POST | `/reset-password` | ❌ (body: token) | Restablece contraseña con token |
 
 ### Empresas
 
-Todos los endpoints de empresas requieren JWT de super admin.
+Todos requieren JWT de super admin.
 
-| Método | Endpoint                              | Descripción                                              |
-|--------|---------------------------------------|----------------------------------------------------------|
-| GET    | `/super-admin/empresas`               | Listar empresas (paginado, incluye admins)               |
-| POST   | `/super-admin/empresas`               | Crear empresa + auto-crear 2 admins + enviar credenciales|
-| GET    | `/super-admin/empresas/:id`           | Detalle de empresa con sus admins                        |
-| PATCH  | `/super-admin/empresas/:id`           | Actualizar nombre, correo, teléfono o plan               |
-| PATCH  | `/super-admin/empresas/:id/estado`    | Cambiar estado (activa / inactiva / suspendida)          |
-| POST   | `/super-admin/empresas/:id/admins`    | Agregar admin manual (máx. 2 activos por empresa)        |
-| GET    | `/super-admin/empresas/:id/empleados` | Listar empleados de la empresa con `detalle_estado`      |
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/empresas` | Listar empresas paginadas (query: `page`, `limit`) |
+| POST | `/empresas` | Crear empresa + 2 admins automáticos + enviar credenciales |
+| GET | `/empresas/:id` | Detalle de empresa con sus admins |
+| PATCH | `/empresas/:id` | Actualizar nombre, correo, teléfono o plan |
+| PATCH | `/empresas/:id/estado` | Cambiar estado (activa / inactiva / suspendida) |
+| POST | `/empresas/:id/admins` | Agregar admin manual (máx. 2 activos) |
+| GET | `/empresas/:id/empleados` | Empleados de la empresa con `detalle_estado` |
 
 ### Auditoría
 
-| Método | Endpoint                              | Auth requerida  | Descripción                        |
-|--------|---------------------------------------|-----------------|------------------------------------|
-| GET    | `/super-admin/auditoria/acciones`     | JWT super admin | Acciones globales del History Service |
-| GET    | `/super-admin/auditoria/cambios`      | JWT super admin | Cambios de entidades globales       |
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/auditoria/acciones` | Acciones globales del History Service (query: `empresa`, `accion`, `desde`, `hasta`, `email`, `page`, `limit`) |
+| GET | `/auditoria/cambios` | Cambios de entidades globales (query: `empresa`, `tipo`, `desde`, `hasta`, `email`, `page`, `limit`) |
 
-### Health
+### Salud
 
-| Método | Endpoint   | Auth requerida | Descripción                        |
-|--------|------------|----------------|------------------------------------|
-| GET    | `/health`  | Ninguna        | Estado del servicio y conexión a BD |
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| GET | `/health` | ❌ | Estado del servicio y BD |
+
+---
+
+### Parámetros de Query
+
+#### `GET /api/super-admin/empresas` — Listar empresas
+
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| `page` | number | 1 | Número de página |
+| `limit` | number | 20 | Registros por página |
+
+#### `GET /api/super-admin/auditoria/acciones` — Acciones globales
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `empresa` | string | Filtrar por nombre/NIT de empresa |
+| `accion` | string | Filtrar por tipo de acción (login, registro, etc.) |
+| `desde` | `YYYY-MM-DD` | Fecha inicial (inclusive) |
+| `hasta` | `YYYY-MM-DD` | Fecha final (inclusive) |
+| `email` | string | Filtrar por email del usuario |
+| `page` | number | Número de página (default: 1) |
+| `limit` | number | Registros por página (default: 50) |
+
+#### `GET /api/super-admin/auditoria/cambios` — Cambios de entidades
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `empresa` | string | Filtrar por nombre/NIT de empresa |
+| `tipo` | string | Filtrar por tipo de entidad (empresa, admin, etc.) |
+| `desde` | `YYYY-MM-DD` | Fecha inicial (inclusive) |
+| `hasta` | `YYYY-MM-DD` | Fecha final (inclusive) |
+| `email` | string | Filtrar por email del usuario que hizo el cambio |
+| `page` | number | Número de página (default: 1) |
+| `limit` | number | Registros por página (default: 50) |
 
 ---
 
 ### Ejemplos de request / response
 
+**POST `/api/super-admin/register`** (bootstrap)
+```bash
+curl -X POST http://localhost:3007/api/super-admin/register \
+  -H "Content-Type: application/json" \
+  -H "X-Register-Secret: <valor de REGISTER_SECRET>" \
+  -d '{"nombre":"Duber Zapata","email":"superadmin@empresa.com","password":"Segura#1234"}'
+```
+```json
+// Response 201
+{
+  "success": true,
+  "data": { "id": 1, "nombre": "Duber Zapata", "email": "superadmin@empresa.com" }
+}
+
+// Response 409 — ya existen 2 super admins
+{
+  "success": false,
+  "error": { "code": "CONFLICT", "message": "Ya existen 2 super administradores registrados. No se pueden crear más." }
+}
+```
+
 **POST `/api/super-admin/login`**
 ```json
 // Request
-{ "email": "superadmin@empresa.com", "password": "mi_contraseña" }
+{ "email": "superadmin@empresa.com", "password": "Segura#1234" }
 
 // Response 200
 {
-  "access_token": "eyJhbGciOiJIUzI1NiJ9...",
-  "refresh_token": "a3f9d2...",
-  "expires_in": 3600
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+    "refreshToken": "a3f9d2...",
+    "expiresIn": 3600
+  }
 }
 ```
 
@@ -406,17 +373,14 @@ Todos los endpoints de empresas requieren JWT de super admin.
 
 // Response 201
 {
-  "empresa": {
-    "id": 1,
-    "nombre": "Tech Corp S.A.S",
-    "nit": "900123456-7",
-    "plan": "profesional",
-    "estado": "activa"
-  },
-  "admins": [
-    { "email": "admin1.9001234567@techcorp.com", "nombre": "Administrador 1 — Tech Corp S.A.S" },
-    { "email": "admin2.9001234567@techcorp.com", "nombre": "Administrador 2 — Tech Corp S.A.S" }
-  ]
+  "success": true,
+  "data": {
+    "empresa": { "id": 1, "nombre": "Tech Corp S.A.S", "plan": "profesional", "estado": "activa" },
+    "admins": [
+      { "email": "admin1.9001234567@techcorp.com", "nombre": "Administrador 1 — Tech Corp S.A.S" },
+      { "email": "admin2.9001234567@techcorp.com", "nombre": "Administrador 2 — Tech Corp S.A.S" }
+    ]
+  }
 }
 ```
 
@@ -426,7 +390,10 @@ Todos los endpoints de empresas requieren JWT de super admin.
 { "estado": "suspendida" }
 
 // Response 200
-{ "id": 1, "estado": "suspendida", "updated_at": "2026-05-07T15:30:00.000Z" }
+{
+  "success": true,
+  "data": { "id": 1, "estado": "suspendida", "updated_at": "2026-05-07T15:30:00.000Z" }
+}
 ```
 
 **POST `/api/super-admin/empresas/:id/admins`**
@@ -435,51 +402,131 @@ Todos los endpoints de empresas requieren JWT de super admin.
 { "nombre": "María López", "email": "maria.lopez@techcorp.com" }
 
 // Response 201 — admin creado en Auth Service y credenciales enviadas por email
+{
+  "success": true,
+  "data": { "id": 123, "email": "maria.lopez@techcorp.com", "nombre": "María López", "activo": true }
+}
 
 // Response 409 — empresa ya tiene 2 admins activos
-{ "error": "La empresa ya tiene el máximo de 2 administradores activos." }
+{
+  "success": false,
+  "error": { "code": "MAX_ADMINS_REACHED", "message": "La empresa ya tiene el máximo de 2 administradores activos." }
+}
 ```
 
 **GET `/api/super-admin/empresas/:id/empleados`**
 ```json
 // Response 200
-[
-  {
-    "id": 1,
-    "nombre": "Juan",
-    "apellido": "Pérez",
-    "estado": "activo",
-    "detalle_estado": "Trabajando actualmente"
-  },
-  {
-    "id": 2,
-    "nombre": "Ana",
-    "apellido": "García",
-    "estado": "retirado",
-    "detalle_estado": "Ya no forma parte de la empresa"
-  }
-]
+{
+  "success": true,
+  "data": [
+    { "id": 1, "nombre": "Ana", "apellido": "García", "estado": "activo",
+      "detalle_estado": "Trabajando actualmente" },
+    { "id": 2, "nombre": "Carlos", "apellido": "Ruiz", "estado": "retirado",
+      "detalle_estado": "Ya no forma parte de la empresa" },
+    { "id": 3, "nombre": "Laura", "apellido": "Pérez", "estado": "inactivo",
+      "detalle_estado": "Ausentismo temporal: Incapacidad médica" }
+  ]
+}
 ```
 
 ---
 
-## 8. Flujos de negocio
+## 6B. Funcionalidades Implementadas (No documentadas en secciones previas)
 
-### Crear empresa con admins automáticos
+### Response wrapper estándar
+
+Todos los endpoints retornan un wrapper consistente:
+```json
+{
+  "success": true | false,
+  "data": {...},         // En caso de éxito
+  "error": {...}         // En caso de error
+}
+```
+
+**Propósito:** Estandarizar todas las respuestas para facilitar el manejo en cliente.
+
+### Parámetros query en auditoría con múltiples filtros
+
+Los endpoints de auditoría (`/auditoria/acciones` y `/auditoria/cambios`) soportan filtrado combinado:
+- **Filtrado por empresa:** parámetro `empresa` busca en nombre o NIT
+- **Filtrado por tipo:** `accion` para acciones, `tipo` para cambios
+- **Rango de fechas:** `desde` y `hasta` (YYYY-MM-DD, inclusive)
+- **Por usuario:** parámetro `email` filtra por actor
+- **Paginación:** `page` (default 1) y `limit` (default 50)
+
+**Razón:** Permite auditoría granular de eventos globales del sistema.
+
+### Paginación en listar empresas
+
+`GET /empresas` soporta:
+- `page` (default: 1)
+- `limit` (default: 20)
+
+**Nota:** No documentado explícitamente pero implementado en controller.
+
+### Enriquecimiento de `detalle_estado` en empleados
+
+`GET /empresas/:id/empleados` enriquece cada empleado con un campo legible:
+- `activo` → "Trabajando actualmente"
+- `inactivo` → "Ausentismo temporal: [justificación]"
+- `transicion` → "Contrato próximo a vencer, en proceso de renovación"
+- `retirado` → "Ya no forma parte de la empresa"
+
+**Propósito:** Mostrar estado legible sin exponer campos técnicos a usuarios finales.
+
+### Creación automática de 2 admins por empresa
+
+Cuando se crea una empresa (`POST /empresas`):
+1. Se crean automáticamente 2 admins (admin1 y admin2)
+2. Se registran en Auth Service
+3. Se envían credenciales temporales por correo
+4. Se genera un PDF de contrato y se envía también
+
+**Razón:** Automatiza el flujo de onboarding; una empresa nueva tiene inmediatamente acceso.
+
+### Anti-enumeración en recover password
+
+`POST /recover-password` siempre retorna:
+```json
+{ "success": true, "message": "Si el correo existe, recibirás un enlace..." }
+```
+
+Incluso si el email no existe en BD.
+
+**Propósito:** Prevenir ataques que enumeren usuarios válidos.
+
+### Rotación de refresh tokens
+
+`POST /refresh` implementa rotación obligatoria:
+1. El token anterior se marca como revocado
+2. Se genera un nuevo refresh_token
+3. El cliente DEBE usar el nuevo token en la próxima renovación
+
+**Propósito:** Reduce el impacto de tokens comprometidos.
+
+### Reset password revoca todos los tokens
+
+`POST /reset-password` revoca **todos** los refresh_tokens del super admin, no solo el actual.
+
+**Propósito:** Fuerza cierre de todas las sesiones activas en otros dispositivos.
+
+---
+
+## 7. Flujos de Negocio
+
+### Bootstrap — crear primer super admin
 
 ```
-POST /api/super-admin/empresas
-  1. Verificar JWT super admin
-  2. Validar NIT único en BD
-  3. INSERT en empresas
-  4. Para i = 1..2:
-     a. Generar contraseña temporal aleatoria
-     b. Construir email: admin{i}.{nit_limpio}@{dominio_empresa}
-     c. POST a Auth Service /auth/register (rol: 'admin')
-     d. INSERT en admins_empresa
-     e. Enviar email con credenciales al correo de la empresa
-  5. Retornar 201 con { empresa, admins }
-  ⚠ Si falla la creación de un admin, se loguea el error y se continúa
+POST /api/super-admin/register
+  Header: X-Register-Secret: <REGISTER_SECRET>
+  1. Middleware verifyRegisterSecret valida el header
+  2. Verificar que el total de super admins en BD < 2
+     → Si ya hay 2 → 409 "Ya existen 2 super administradores registrados"
+  3. bcrypt.hash(password, 12 rounds)
+  4. INSERT en super_admins
+  5. Retornar 201
 ```
 
 ### Login y refresh token
@@ -488,19 +535,19 @@ POST /api/super-admin/empresas
 POST /api/super-admin/login
   1. Buscar super admin por email
   2. bcrypt.compare(password, password_hash)
-  3. Si falla: registrar intento fallido en History (fire-and-forget) → 401
-  4. Generar access_token (JWT, expira en JWT_EXPIRES_IN)
+  3. Si falla → registrar intento fallido en History (fire-and-forget) → 401
+  4. Generar access_token (JWT, exp: JWT_EXPIRES_IN)
+     Payload: { id, email, rol: 'super_admin' }
   5. Generar refresh_token (crypto.randomBytes → SHA-256 almacenado)
   6. INSERT en refresh_tokens_superadmin
-  7. Registrar login exitoso en History (fire-and-forget)
-  8. Retornar { access_token, refresh_token, expires_in }
+  7. Registrar 'login' exitoso en History (fire-and-forget)
+  8. Retornar { accessToken, refreshToken, expiresIn }
 
 POST /api/super-admin/refresh
   1. SHA-256(refresh_token del body) → buscar en BD
   2. Verificar: no revocado, no expirado
-  3. Revocar el refresh token actual
-  4. Generar nuevo access_token y nuevo refresh_token (rotación)
-  5. Retornar nuevos tokens
+  3. Revocar token actual → generar nuevo access_token y nuevo refresh_token (rotación)
+  4. Retornar nuevos tokens
 ```
 
 ### Recuperación de contraseña
@@ -508,100 +555,181 @@ POST /api/super-admin/refresh
 ```
 POST /api/super-admin/recover-password
   1. Buscar super admin por email
-  2. Si no existe → retornar 200 con mensaje genérico (anti-enumeración)
-  3. Generar token aleatorio → guardar SHA-256 en BD con TTL (RESET_TOKEN_EXPIRES_MINUTES)
-  4. Enviar email con enlace: {FRONTEND_URL}/reset-password?token=<token_en_claro>
+  2. Si no existe → 200 con mensaje genérico (anti-enumeración)
+  3. Generar token → SHA-256 guardado en super_admins.reset_token con TTL
+  4. Enviar email: {FRONTEND_URL}/reset-password?token=<token_en_claro>
 
 POST /api/super-admin/reset-password
-  1. SHA-256(token del body) → buscar en BD
+  1. SHA-256(token) → buscar en super_admins
   2. Verificar que no haya expirado
   3. bcrypt.hash(nueva contraseña)
-  4. UPDATE super_admins SET password_hash, reset_token=NULL, reset_token_expires=NULL
+  4. UPDATE super_admins: password_hash, reset_token=NULL, reset_token_expires=NULL
   5. Revocar TODOS los refresh tokens del super admin
   6. Retornar 200
 ```
 
+### Crear empresa con admins automáticos
+
+```
+POST /api/super-admin/empresas
+  1. Verificar JWT con rol 'super_admin'
+  2. Validar NIT único en BD
+  3. INSERT en empresas
+  4. Para i = 1..2:
+     a. Generar contraseña temporal (crypto.randomBytes(8).toString('hex'))
+     b. Construir email: admin{i}.{nit_limpio}@{dominio_empresa}
+     c. POST a Auth Service /api/v1/auth/register { email, password, role: 'ADMIN' }
+     d. INSERT en admins_empresa
+     e. Enviar email al correo de la empresa con usuario y contraseña por defecto
+  5. Generar PDF de contrato de servicio (nombre empresa, plan, 2 usuarios admin)
+  6. Enviar PDF por correo a la empresa
+  7. Retornar 201 con { empresa, admins }
+  ⚠ Si falla la creación de un admin: se loguea el error y continúa con el siguiente
+```
+
+### Vista de empleados con detalle_estado
+
+```
+GET /api/super-admin/empresas/:id/empleados
+  1. Verificar JWT super admin
+  2. GET http://employee-service:3002/api/empleados (con token de super admin)
+  3. Enriquecer cada empleado con detalle_estado legible:
+     activo     → "Trabajando actualmente"
+     inactivo   → "Ausentismo temporal" + justificación si existe
+     transicion → "Contrato próximo a vencer, en proceso de renovación"
+     retirado   → "Ya no forma parte de la empresa"
+  4. Retornar lista enriquecida
+```
+
 ---
 
-## 9. Seguridad y autenticación
+## 8. Variables de Entorno
 
-### Tokens JWT
+```env
+# Aplicación
+NODE_ENV=development
+PORT=3007
+SERVICE_NAME=super-admin-service
 
-- Los JWTs llevan `{ id, email, rol: 'super_admin' }` en el payload.
-- El middleware `verifySuperAdminToken` verifica la firma y que `rol === 'super_admin'`.
-- Los tokens son stateless y expiran en `JWT_EXPIRES_IN` (default: 1h).
+# Base de datos propia
+DATABASE_URL=postgres://postgres:password@localhost:5432/superadmin_db
+
+# JWT del super admin (puede ser distinto al JWT_SECRET de los demás servicios)
+JWT_SECRET=minimo_32_caracteres_superadmin_muy_seguro_aqui
+JWT_EXPIRES_IN=1h
+REFRESH_TOKEN_EXPIRES_DAYS=7
+
+# Bootstrap — protección del endpoint de registro
+# Header requerido: X-Register-Secret: <valor>
+REGISTER_SECRET=clave_secreta_para_crear_primer_superadmin
+
+# Recuperación de contraseña
+RESET_TOKEN_EXPIRES_MINUTES=15
+FRONTEND_URL=http://localhost:5173
+
+# Comunicación entre servicios
+AUTH_SERVICE_URL=http://localhost:3001/api/v1
+EMPLOYEE_SERVICE_URL=http://localhost:3002/api
+HISTORY_SERVICE_URL=http://localhost:3006
+INTERNAL_API_KEY=clave_interna_muy_segura_cambiar_en_produccion
+REQUEST_TIMEOUT_MS=8000
+CORS_ORIGINS=http://localhost:5173
+
+# SMTP para correos (credenciales, contratos PDF, demos)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=tucorreo@gmail.com
+SMTP_PASS=app_password_16_chars   # App Password de Gmail
+```
+
+### Notas importantes
+
+- `JWT_SECRET` puede ser distinto al de los demás servicios — los tokens de super admin solo son válidos aquí.
+- `REGISTER_SECRET` se usa **únicamente** para el bootstrap. Mantenlo fuera del control de versiones.
+- `INTERNAL_API_KEY` protege la escritura de auditoría hacia History Service.
+- Para Gmail, `SMTP_PASS` debe ser una **App Password** (no la contraseña de la cuenta de Google).
+
+---
+
+## 9. Seguridad y Autenticación
+
+### Tokens JWT del super admin
+
+- Payload: `{ id, email, rol: 'super_admin' }`
+- `verifySuperAdminToken` verifica la firma y que `rol === 'super_admin'`
+- Los tokens son stateless y expiran en `JWT_EXPIRES_IN` (default 1h)
 
 ### Refresh tokens
 
-- Se almacenan como **SHA-256 del token en claro** — nunca el token en texto plano.
-- Cada renovación **rota** el refresh token (el anterior se revoca).
-- Al resetear contraseña se revocan **todos** los refresh tokens del usuario.
+- Almacenados como **SHA-256** del token en claro — nunca el token en texto plano
+- Cada renovación **rota** el refresh token (el anterior se revoca)
+- Al resetear contraseña se revocan **todos** los refresh tokens del usuario
 
 ### Bootstrap register
 
-- `POST /api/super-admin/register` requiere el header `X-Register-Secret: <REGISTER_SECRET>`.
-- Sin este header devuelve `401`. Nunca exponer este endpoint al público.
+- `POST /api/super-admin/register` requiere `X-Register-Secret: <REGISTER_SECRET>`
+- Sin el header devuelve `401`
+- Se desactiva automáticamente cuando ya existen 2 super admins en BD
 
 ### Contraseñas
 
-- Bcrypt con **12 rounds** para passwords de super admins.
-- Las contraseñas temporales de admins de empresa se generan con `crypto.randomBytes` y se envían por correo.
+- Bcrypt con **12 rounds** para passwords de super admins
+- Contraseñas temporales de admins de empresa generadas con `crypto.randomBytes`
+- Contraseñas temporales enviadas por correo — deben cambiarse en el primer login
 
 ### Correos HTML
 
-- Todos los valores de usuario se pasan por `escapeHtml()` antes de insertarlos en las plantillas HTML, previniendo inyección XSS en el body del correo.
+- Todos los valores de usuario se pasan por `escapeHtml()` antes de insertarlos en plantillas HTML (previene XSS en el body del correo)
 
 ---
 
-## 10. Conexiones con otros microservicios
+## 10. Conexiones con otros Microservicios
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                    super-admin-service :3007                 │
-│                                                              │
-│  authClient ──────────────────────────► auth-service :3001  │
-│  (POST /auth/register al crear empresa)                      │
-│                                                              │
-│  employeeClient ───────────────────────► employee-service :3002│
-│  (GET /empleados al listar empleados de empresa)             │
-│                                                              │
-│  historyClient ────────────────────────► history-service :3006│
-│  (fire-and-forget: logins, acciones)                         │
-│  (GET: consulta de auditoría global)                         │
-└──────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                 super-admin-service :3007                      │
+│                                                                │
+│  authClient ──────────────────────────► auth-service :3001    │
+│  (POST /auth/register al crear empresa)                        │
+│                                                                │
+│  employeeClient ───────────────────────► employee-svc :3002   │
+│  (GET /empleados al listar empleados)                          │
+│                                                                │
+│  historyClient ────────────────────────► history-svc :3006    │
+│  (fire-and-forget: logins, acciones del super admin)           │
+│  (GET: consulta de auditoría global)                           │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-| Cliente             | Servicio destino      | Operaciones                                              |
-|---------------------|-----------------------|----------------------------------------------------------|
-| `authClient`        | Auth Service :3001    | `registrarUsuario` — crea admins de empresa              |
-| `employeeClient`    | Employee Service :3002| `getEmpleados` — lista empleados de una empresa          |
-| `historyClient`     | History Service :3006 | `registrarAccion` (fire-and-forget), `obtenerAcciones`, `obtenerCambios` |
+| Cliente | Servicio destino | Operaciones |
+|---------|-----------------|-------------|
+| `authClient` | Auth Service :3001 | `registrarUsuario` — crea admins de empresa |
+| `employeeClient` | Employee Service :3002 | `getEmpleados` — lista empleados de una empresa |
+| `historyClient` | History Service :3006 | `registrarAccion` (fire-and-forget), `obtenerAcciones`, `obtenerCambios` |
 
 ### Fire-and-forget
 
-El `historyClient.registrarAccion()` nunca bloquea la operación principal. Si el History Service no responde, se loguea un warning y la operación continúa con éxito:
-
 ```typescript
-// historyClient.ts
+// historyClient.ts — nunca bloquea ni lanza
 export const registrarAccion = async (datos: RegistrarAccionDto): Promise<void> => {
   axios.post(`${env.historyServiceUrl}/api/historial/acciones`, datos)
     .catch((err) => console.warn('[HistoryClient] No se pudo registrar acción:', err.message));
-  // Void — no await, no throw
 };
 ```
 
 ---
 
-## 11. Arquitectura en capas
+## 11. Arquitectura en Capas
 
 ```
 Request HTTP
     │
     ▼
-routes/          ← define método + path + middlewares
+routes/          ← define método + path + middlewares + validación Zod
     │
     ▼
-middlewares/     ← verifyToken, validateBody(Zod), errorHandler
+middlewares/     ← verifySuperAdminToken, verifyRegisterSecret, validateBody, errorHandler
     │
     ▼
 controller/      ← extrae req.body / req.params, llama al service, devuelve res.json()
@@ -615,164 +743,105 @@ repositories/    ← queries SQL puras con pg Pool (sin lógica de negocio)
     ▼
 PostgreSQL (superadmin_db)
 
-services/ también llama a →  clients/  →  otros microservicios
+services/ también llama a → clients/ → otros microservicios
 ```
 
 **Regla:** ninguna capa salta a otra no adyacente. El controller no toca la BD. El repository no tiene lógica de negocio.
 
 ---
 
-## 12. Manejo de errores
+## 12. Cómo Ejecutar
 
-Todas las rutas usan `asyncHandler` para capturar rechazos de promesas:
+### Prerrequisitos
 
-```typescript
-// asyncHandler evita try/catch en cada controller
-router.get('/', asyncHandler(async (req, res) => {
-  const data = await empresaService.listar();
-  res.json(data);
-}));
-```
-
-El `errorHandler` middleware centraliza las respuestas de error:
-
-| Clase de error        | Status | `code` en respuesta      |
-|-----------------------|--------|--------------------------|
-| `AppError`            | Custom | `code` del constructor   |
-| `UnauthorizedError`   | 401    | `UNAUTHORIZED`           |
-| `NotFoundError`       | 404    | `NOT_FOUND`              |
-| `ConflictError`       | 409    | `CONFLICT`               |
-| Error desconocido     | 500    | `INTERNAL_SERVER_ERROR`  |
-
-En `NODE_ENV=development` la respuesta incluye el stack trace.
-
-Formato de respuesta de error:
-```json
-{
-  "error": "Mensaje legible para el usuario",
-  "code": "MAX_ADMINS_REACHED",
-  "details": { "campo": "descripción" }
-}
-```
-
----
-
-## 13. Ejecución con Docker
-
-### Dockerfile
-
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY . .
-RUN npm run build
-EXPOSE 3007
-CMD ["node", "dist/server.js"]
-```
-
-### Docker Compose (fragmento relevante)
-
-```yaml
-super-admin-service:
-  build: ./super-admin-service
-  ports:
-    - "3007:3007"
-  environment:
-    NODE_ENV: production
-    PORT: 3007
-    DATABASE_URL: postgres://postgres:password@postgres-superadmin:5432/superadmin_db
-    JWT_SECRET: ${SUPER_ADMIN_JWT_SECRET}
-    REGISTER_SECRET: ${SUPER_ADMIN_REGISTER_SECRET}
-    AUTH_SERVICE_URL: http://auth-service:3001/api/v1
-    EMPLOYEE_SERVICE_URL: http://employee-service:3002/api
-    HISTORY_SERVICE_URL: http://history-service:3006
-  depends_on:
-    - postgres-superadmin
-    - auth-service
-    - employee-service
-    - history-service
-```
-
-Las migraciones se ejecutan automáticamente en el `CMD` del contenedor (el `server.ts` llama a `connectDatabase` que verifica la conexión; las migraciones se aplican vía `npm run migrate` como paso previo en el entrypoint si así está configurado en Compose).
-
----
-
-## 14. Testing
-
-### Configuración
-
-El proyecto usa **Vitest** con cobertura via `@vitest/coverage-v8`.
+- Node.js 18+
+- PostgreSQL 14+ con base de datos `superadmin_db` creada
 
 ```bash
-# Ejecutar todas las pruebas
-npm test
-
-# Ejecutar en modo watch (re-run al guardar)
-npm run test:watch
-
-# Generar reporte de cobertura
-npm run test:coverage
+psql -U postgres -c "CREATE DATABASE superadmin_db;"
 ```
 
-### Estructura de tests
+### Desarrollo local
 
+```bash
+npm install
+cp .env.example .env
+# Editar .env con valores reales
+
+npm run migrate
+npm run dev
+# → http://localhost:3007
 ```
-tests/
-├── setup.ts                          # Configuración global de Vitest
-└── unit/
-    ├── services/
-    │   ├── auth.service.test.ts      # Login, refresh, logout, recover/reset
-    │   └── empresa.service.test.ts   # CRUD empresas, max admins, empleados
-    ├── controllers/
-    │   ├── auth.controller.test.ts
-    │   └── empresa.controller.test.ts
-    ├── middlewares/
-    │   ├── auth.middleware.test.ts   # verifySuperAdminToken, verifyRegisterSecret
-    │   ├── error-handler.middleware.test.ts
-    │   └── validation.middleware.test.ts
-    ├── utils/
-    │   ├── jwt.util.test.ts
-    │   ├── crypto.util.test.ts
-    │   └── async-handler.util.test.ts
-    ├── clients/
-    │   └── historyClient.test.ts     # fire-and-forget, no-throw, console.warn
-    └── shared/errors/
-        └── app-error.test.ts
+
+### Crear el primer super admin (solo una vez)
+
+```bash
+curl -X POST http://localhost:3007/api/super-admin/register \
+  -H "Content-Type: application/json" \
+  -H "X-Register-Secret: <valor de REGISTER_SECRET en .env>" \
+  -d '{
+    "nombre": "Duber Zapata",
+    "email": "superadmin@empresa.com",
+    "password": "Segura#1234"
+  }'
 ```
+
+### Producción
+
+```bash
+npm run build
+npm start
+```
+
+### Docker
+
+```bash
+docker build -t super-admin-service .
+docker run -p 3007:3007 --env-file .env super-admin-service
+```
+
+---
+
+## 13. Pruebas
+
+```bash
+npm test                    # Ejecutar todas las pruebas
+npm run test:watch          # Modo watch
+npm run test:coverage       # Con reporte de cobertura
+```
+
+### Umbrales de cobertura configurados
+
+| Métrica | Umbral |
+|---------|--------|
+| Lines | 80% |
+| Functions | 80% |
+| Branches | 70% |
+| Statements | 80% |
 
 ### Patrones de testing usados
 
 - `vi.mock()` para aislar dependencias externas (pg Pool, axios, nodemailer, jsonwebtoken)
-- El `EmailService` acepta un `Transporter` inyectado en el constructor para facilitar el testeo sin SMTP real
-- El `historyClient` se testea verificando que nunca lanza aunque axios rechace
-- Los tests de middlewares usan objetos `req/res/next` simulados manualmente
+- `EmailService` acepta un `Transporter` inyectado en el constructor (testeable sin SMTP real)
+- `historyClient` se testea verificando que nunca lanza aunque axios rechace
+- Tests de middlewares con objetos `req/res/next` simulados manualmente
 
-### Cobertura objetivo
+### Casos cubiertos
 
-| Métrica    | Umbral mínimo |
-|------------|---------------|
-| Lines      | 80%           |
-| Functions  | 80%           |
-| Branches   | 70%           |
-| Statements | 80%           |
-
-Los reportes de cobertura se generan en `coverage/` en formatos `text`, `html` y `lcov` (para SonarCloud).
-
----
-
-## Scripts disponibles
-
-| Script                | Descripción                                      |
-|-----------------------|--------------------------------------------------|
-| `npm run dev`         | Desarrollo con hot-reload (`ts-node-dev`)        |
-| `npm run build`       | Compilar TypeScript a `dist/`                    |
-| `npm start`           | Ejecutar build compilado                         |
-| `npm test`            | Ejecutar suite de pruebas                        |
-| `npm run test:watch`  | Pruebas en modo watch                            |
-| `npm run test:coverage` | Pruebas con reporte de cobertura              |
-| `npm run migrate`     | Aplicar migraciones pendientes                   |
-| `npm run migrate:down`| Revertir la última migración                     |
-| `npm run lint`        | Verificar estilo con ESLint                      |
-| `npm run format`      | Formatear código con Prettier                    |
+| ID | Caso | Tipo |
+|----|------|------|
+| TC-SA-001 | Bootstrap cuando hay 0 super admins → 201 | Positivo |
+| TC-SA-002 | Bootstrap cuando ya hay 2 super admins → 409 | Negativo |
+| TC-SA-003 | Bootstrap sin X-Register-Secret → 401 | Negativo |
+| TC-SA-004 | Login exitoso → tokens + registra en History | Positivo |
+| TC-SA-005 | Login con contraseña incorrecta → 401 | Negativo |
+| TC-SA-006 | Refresh con rotación → nuevos tokens | Positivo |
+| TC-SA-007 | Refresh revocado → 401 | Negativo |
+| TC-SA-008 | Crear empresa → 2 admins automáticos + correo | Positivo |
+| TC-SA-009 | Crear empresa con NIT duplicado → 409 | Negativo |
+| TC-SA-010 | Agregar 3er admin → 409 (máx. 2) | Negativo |
+| TC-SA-011 | Cambiar estado empresa → activa/inactiva/suspendida | Positivo |
+| TC-SA-012 | Recover password → respuesta genérica (anti-enumeración) | Positivo |
+| TC-SA-013 | Reset password con token expirado → 401 | Negativo |
+| TC-SA-014 | historyClient no lanza aunque axios falle | Positivo |
+| TC-SA-015 | Vista empleados con detalle_estado enriquecido | Positivo |

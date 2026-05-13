@@ -50,6 +50,17 @@ export class DocumentoRepository {
     );
     return rows[0] ?? null;
   }
+
+  async update(documentoId: number, data: Record<string, unknown>): Promise<DocumentoEmpleado | null> {
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+    const { rows } = await pool.query<DocumentoEmpleado>(
+      `UPDATE documentos_empleado SET ${setClause} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, documentoId],
+    );
+    return rows[0] ?? null;
+  }
 }
 
 export const documentoRepository = new DocumentoRepository();

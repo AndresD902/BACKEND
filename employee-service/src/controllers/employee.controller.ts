@@ -30,6 +30,15 @@ export class EmployeeController {
     res.status(200).json({ success: true, data: empleado });
   });
 
+  public getMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      throw new UnauthorizedError('User email is required');
+    }
+    const empleado = await this.service.getMe(userEmail);
+    res.status(200).json({ success: true, data: empleado });
+  });
+
   public create = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const empleado = await this.service.create(req.body, actor(req));
     res.status(201).json({ success: true, data: empleado });
@@ -96,6 +105,12 @@ export class EmployeeController {
     res.status(200).json({ success: true, data: doc });
   });
 
+  public rechazarDocumento = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const motivo = (req.body as { motivo?: string }).motivo || 'Sin motivo especificado';
+    const doc = await this.service.rechazarDocumento(Number(req.params.docId), motivo, actor(req));
+    res.status(200).json({ success: true, data: doc });
+  });
+
   public solicitarCorreccion = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const solicitante = actor(req).email;
     const { descripcion } = req.body as { descripcion: string };
@@ -117,6 +132,11 @@ export class EmployeeController {
   public getJustificaciones = asyncHandler(async (_req: AuthenticatedRequest, res: Response) => {
     const { JUSTIFICACIONES_ESTADO_INACTIVO } = require('../shared/justificaciones');
     res.status(200).json({ success: true, data: JUSTIFICACIONES_ESTADO_INACTIVO });
+  });
+
+  public getDepartamentos = asyncHandler(async (_req: AuthenticatedRequest, res: Response) => {
+    const departamentos = await this.service.getDepartamentos();
+    res.status(200).json({ success: true, data: departamentos });
   });
 }
 

@@ -9,14 +9,10 @@ export async function validateEmailDomain(email: string): Promise<void> {
   // El formato ya fue validado previamente por Zod
   if (!domain) return;
 
-  try {
-    const mxRecords = await dns.resolveMx(domain);
+  let mxRecords: Awaited<ReturnType<typeof dns.resolveMx>>;
 
-    if (mxRecords.length === 0) {
-      throw new RequestValidationError(
-        `El dominio "${domain}" no puede recibir correos electrónicos.`,
-      );
-    }
+  try {
+    mxRecords = await dns.resolveMx(domain);
   } catch (error: unknown) {
     const code = (error as NodeJS.ErrnoException).code;
 
@@ -29,5 +25,12 @@ export async function validateEmailDomain(email: string): Promise<void> {
 
     // Fail-open:
     // errores temporales DNS no deben bloquear usuarios legítimos
+    return;
+  }
+
+  if (mxRecords.length === 0) {
+    throw new RequestValidationError(
+      `El dominio "${domain}" no puede recibir correos electrónicos.`,
+    );
   }
 }

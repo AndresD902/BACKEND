@@ -1,20 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../utils/async-handler.util';
-import { env } from '../config/env';
-import { UnauthorizedError } from '../shared/errors/unauthorized.error';
 import { authService as defaultAuthService } from '../services/auth.service';
 import { IAuthService } from '../services/interfaces/auth-service.interface';
 
+// La validación del x-internal-key se aplica en internal.routes.ts como middleware del router
 export class InternalController {
   constructor(private readonly authService: IAuthService = defaultAuthService) {}
 
   public notifyEmployeeChange = asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
-    const headerKey = req.headers['x-internal-key'];
-
-    if (typeof headerKey !== 'string' || headerKey !== env.internalApiKey) {
-      throw new UnauthorizedError('Invalid internal API key');
-    }
-
     const { userEmail, action, employeeName } = req.body;
 
     await this.authService.notifyEmployeeChange(userEmail, action, employeeName);
@@ -26,12 +19,6 @@ export class InternalController {
   });
 
   public notifyCorrectionRequest = asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
-    const headerKey = req.headers['x-internal-key'];
-
-    if (typeof headerKey !== 'string' || headerKey !== env.internalApiKey) {
-      throw new UnauthorizedError('Invalid internal API key');
-    }
-
     const { empleadoNombre, descripcion, solicitante } = req.body;
 
     await this.authService.notifyCorrectionRequest(empleadoNombre, descripcion, solicitante);

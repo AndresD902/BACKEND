@@ -1,12 +1,17 @@
 import { userRepository } from '../repositories/user.repository';
 import { IUserRepository } from '../repositories/interfaces/user-repository.interface';
+import { refreshTokenRepository } from '../repositories/refreshToken.repository';
+import { IRefreshTokenRepository } from '../repositories/interfaces/refresh-token-repository.interface';
 import { IUserService, UserSummary, UserStatusResult } from './interfaces/user-service.interface';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { UnauthorizedError } from '../shared/errors/unauthorized.error';
 import { hashPassword, comparePassword } from '../utils/password.util';
 
 export class UserService implements IUserService {
-  constructor(private readonly userRepository: IUserRepository) {}
+  constructor(
+    private readonly userRepository: IUserRepository,
+    private readonly refreshTokenRepository: IRefreshTokenRepository,
+  ) {}
 
   public async findAll(): Promise<UserSummary[]> {
     const users = await this.userRepository.findAll();
@@ -86,7 +91,10 @@ export class UserService implements IUserService {
 
     const newPasswordHash = await hashPassword(newPassword);
     await this.userRepository.updatePassword(userId, newPasswordHash);
+
+    // Revocar todas las sesiones activas — igual que reset-password, por seguridad
+    await this.refreshTokenRepository.revokeAllByUserId(userId);
   }
 }
 
-export const userService = new UserService(userRepository);
+export const userService = new UserService(userRepository, refreshTokenRepository);

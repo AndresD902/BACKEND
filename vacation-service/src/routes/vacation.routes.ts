@@ -10,6 +10,7 @@ import { authenticate, authorize } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validation.middleware';
 import { createVacationSchema } from '../dtos/create-vacation.dto';
 import { rejectVacationSchema } from '../dtos/reject-vacation.dto';
+import { createFestivoSchema } from '../dtos/create-festivo.dto';
 
 const router = Router();
 
@@ -26,7 +27,7 @@ const ADMIN_ROLES = ['ADMIN'] as const;
 
 // Festivos — rutas estáticas ANTES de las dinámicas con :id
 router.get('/festivos/:anio', authenticate, authorize(...READ_ROLES),  vacationController.getFestivosByAnio);
-router.post('/festivos',      authenticate, authorize(...ADMIN_ROLES), vacationController.createFestivo);
+router.post('/festivos',      authenticate, authorize(...ADMIN_ROLES), validateRequest(createFestivoSchema), vacationController.createFestivo);
 
 // Consultas por empleado
 router.get('/',                        authenticate, authorize(...READ_ROLES),  vacationController.getAll);

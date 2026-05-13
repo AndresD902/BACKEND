@@ -5,7 +5,7 @@ const BASE = env.employeeServiceUrl;
 const TIMEOUT = env.requestTimeoutMs;
 
 function headers(token: string) {
-  return { Authorization: token, timeout: TIMEOUT };
+  return { Authorization: token };
 }
 
 export async function getEmpleados(

@@ -11,6 +11,7 @@ export interface CreateCambioData {
   usuario_modificador: string;
   rol_modificador?: string;
   ip_origen?: string;
+  user_agent?: string;
 }
 
 export interface FiltrosCambios {
@@ -28,8 +29,8 @@ class HistorialCambiosRepository {
     const { rows } = await pool.query<HistorialCambio>(
       `INSERT INTO historial_cambios
          (empleado_id, entidad, entidad_id, campo_modificado, valor_anterior,
-          valor_nuevo, usuario_modificador, rol_modificador, ip_origen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          valor_nuevo, usuario_modificador, rol_modificador, ip_origen, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        RETURNING *`,
       [
         data.empleado_id,
@@ -41,6 +42,7 @@ class HistorialCambiosRepository {
         data.usuario_modificador,
         data.rol_modificador ?? null,
         data.ip_origen ?? null,
+        data.user_agent ?? null,
       ],
     );
     return rows[0];

@@ -15,6 +15,7 @@ contractRouter.post('/renovaciones', authorizeRoles(writeRoles), contractControl
 contractRouter.post('/', authorizeRoles(writeRoles), contractController.createContract);
 
 contractRouter.get('/', authorizeRoles(readRoles), contractController.findAllContracts);
+contractRouter.get('/me/latest', authorizeRoles(['CONSULTATION']), contractController.findLatestContractForCurrentUser);
 contractRouter.get('/employee/:employeeId/active', authorizeRoles(readRoles), contractController.findActiveContractByEmployeeId);
 contractRouter.get('/empleado/:employeeId/activo', authorizeRoles(readRoles), contractController.findActiveContractByEmployeeId);
 contractRouter.get('/employee/:employeeId', authorizeRoles(readRoles), contractController.findContractsByEmployeeId);

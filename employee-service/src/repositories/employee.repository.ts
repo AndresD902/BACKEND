@@ -115,6 +115,13 @@ export class EmployeeRepository {
     );
     return rows[0] ?? null;
   }
+
+  async findAllDepartamentos(): Promise<Array<{ id: number; nombre: string; codigo_dane?: string }>> {
+    const { rows } = await pool.query<{ id: number; nombre: string; codigo_dane?: string }>(
+      'SELECT id, nombre, codigo_dane FROM departamentos WHERE activo = TRUE ORDER BY nombre ASC',
+    );
+    return rows;
+  }
 }
 
 export const employeeRepository = new EmployeeRepository();

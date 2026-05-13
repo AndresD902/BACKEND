@@ -21,7 +21,7 @@ import { ConflictError } from '../shared/errors/conflict.error';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { RoleName } from '../entities/role.entity';
 import { env } from '../config/env';
-import { isRegisteredEmployee } from '../clients/employeeServiceClient';
+import { isRegisteredEmployee, getEmployeeIdByEmail } from '../clients/employeeServiceClient';
 import { validateEmailDomain } from '../utils/email-domain.util';
 
 export class AuthService implements IAuthService {
@@ -37,6 +37,24 @@ export class AuthService implements IAuthService {
     emailTask.catch((error) => {
       console.error(`[AuthService] ${operation} email could not be sent:`, (error as Error).message);
     });
+  }
+
+  private async generateAccessToken(userId: string, email: string, role: RoleName): Promise<string> {
+    const payload: any = {
+      sub: userId,
+      email,
+      role,
+    };
+
+    // Include employeeId for CONSULTATION role users
+    if (role === RoleName.CONSULTATION) {
+      const employeeId = await getEmployeeIdByEmail(email);
+      if (employeeId) {
+        payload.employeeId = employeeId;
+      }
+    }
+
+    return generateJwtToken(payload);
   }
 
   public async register(createUserDto: CreateUserDto): Promise<UserProfile> {
@@ -111,11 +129,7 @@ export class AuthService implements IAuthService {
       throw new UnauthorizedError('Invalid email or password');
     }
 
-    const accessToken = generateJwtToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role as RoleName,
-    });
+    const accessToken = await this.generateAccessToken(user.id, user.email, user.role as RoleName);
 
     const refreshToken = generateRefreshToken();
     const tokenHash = hashToken(refreshToken);
@@ -160,11 +174,7 @@ export class AuthService implements IAuthService {
       throw new UnauthorizedError('User not found or inactive');
     }
 
-    const accessToken = generateJwtToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role as RoleName,
-    });
+    const accessToken = await this.generateAccessToken(user.id, user.email, user.role as RoleName);
 
     return { accessToken, email: user.email, role: user.role };
   }

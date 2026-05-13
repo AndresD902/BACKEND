@@ -17,3 +17,19 @@ export async function isRegisteredEmployee(email: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function getEmployeeIdByEmail(email: string): Promise<number | null> {
+  try {
+    const { data } = await axios.get<{ success: boolean; id: number }>(
+      `${env.employeeServiceUrl}/internal/employee-id-by-email`,
+      {
+        params: { email },
+        headers: { 'x-internal-key': env.internalApiKey },
+        timeout: 5000,
+      },
+    );
+    return data.id ?? null;
+  } catch {
+    return null;
+  }
+}

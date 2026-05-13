@@ -256,8 +256,10 @@ vacation-service/
 │   │   └── validation.middleware.ts    ← Valida req.body con esquemas Zod
 │   │
 │   ├── dtos/
-│   │   ├── create-vacation.dto.ts      ← Esquema Zod para crear solicitud
-│   │   └── reject-vacation.dto.ts      ← Esquema Zod para rechazar solicitud
+│   │   ├── create-vacation.dto.ts      ← Esquema Zod para crear solicitud (empleado_id, fecha_inicio, fecha_fin, justificacion)
+│   │   ├── reject-vacation.dto.ts      ← Esquema Zod para rechazar solicitud (motivo_rechazo)
+│   │   ├── approve-vacation.dto.ts     ← Esquema Zod para aprobar (actualmente sin campos)
+│   │   └── create-festivo.dto.ts       ← Esquema Zod para crear festivo (fecha, descripcion, anio, tipo, activo)
 │   │
 │   ├── entities/
 │   │   ├── vacation.entity.ts          ← Interface TypeScript de Vacation
@@ -395,15 +397,33 @@ Todos los endpoints requieren `Authorization: Bearer <access_token>` en el heade
 
 | Método | Endpoint | Descripción | Roles permitidos |
 |--------|----------|-------------|-----------------|
-| `GET` | `/empleado/:id` | Listar vacaciones de un empleado | ADMIN, HR, CONSULTATION |
-| `GET` | `/empleado/:id/disponibles` | Días disponibles del año actual | ADMIN, HR, CONSULTATION |
+| `GET` | `/` | Listar todas las vacaciones con filtros opcionales | ADMIN, HR, CONSULTATION |
+| `GET` | `/empleado/:id` | Listar vacaciones de un empleado específico | ADMIN, HR, CONSULTATION |
+| `GET` | `/empleado/:id/disponibles` | Días disponibles del año actual (con opción de crear si falta) | ADMIN, HR, CONSULTATION |
 | `POST` | `/` | Crear solicitud de vacaciones | ADMIN, HR |
 | `PATCH` | `/:id/aprobar` | Aprobar solicitud pendiente | ADMIN, HR |
 | `PATCH` | `/:id/rechazar` | Rechazar con motivo obligatorio | ADMIN, HR |
 | `PATCH` | `/:id/cancelar` | Cancelar solicitud pendiente | ADMIN, HR |
-| `GET` | `/festivos/:anio` | Listar festivos de un año | ADMIN, HR, CONSULTATION |
-| `POST` | `/festivos` | Agregar festivo manualmente | ADMIN |
+| `GET` | `/festivos/:anio` | Listar festivos activos de un año | ADMIN, HR, CONSULTATION |
+| `POST` | `/festivos` | Crear nuevo festivo | ADMIN |
 | `GET` | `/health` *(vía `/api/health`)* | Estado del servicio y BD | Público |
+
+### Parámetros de Query
+
+#### `GET /` — Listar todas las vacaciones
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `empleado_id` | number | Filtrar por empleado específico |
+| `estado` | string | `pendiente`, `aprobada`, `rechazada`, `cancelada` |
+| `desde` | `YYYY-MM-DD` | Fecha inicio mínima (inclusive) |
+| `hasta` | `YYYY-MM-DD` | Fecha fin máxima (inclusive) |
+
+#### `GET /empleado/:id/disponibles` — Días disponibles
+
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `crear` o `create` | boolean | Si es `true` / `1` / `si` / `sí` / `yes`, crea el registro si no existe. Default: `false` |
 
 ### Ejemplos de request / response
 
@@ -445,6 +465,27 @@ Todos los endpoints requieren `Authorization: Bearer <access_token>` en el heade
 }
 ```
 
+**Crear festivo — `POST /api/vacaciones/festivos`**
+```json
+// Body
+{
+  "fecha": "2025-11-03",
+  "descripcion": "Independencia de Colombia",
+  "anio": 2025,
+  "tipo": "nacional",
+  "activo": true
+}
+
+// Response 201
+{
+  "fecha": "2025-11-03",
+  "descripcion": "Independencia de Colombia",
+  "anio": 2025,
+  "tipo": "nacional",
+  "activo": true
+}
+```
+
 **Errores de validación de negocio — `400 Bad Request`**
 ```json
 { "success": false, "message": "Las vacaciones deben ser de mínimo 5 días hábiles",
@@ -456,6 +497,79 @@ Todos los endpoints requieren `Authorization: Bearer <access_token>` en el heade
 { "success": false, "message": "El empleado solo tiene 3 días disponibles y solicitó 8",
   "error": { "code": "BAD_REQUEST_ERROR", "details": null } }
 ```
+
+---
+
+## 8B. Funcionalidades Implementadas (No documentadas en secciones previas)
+
+### Parámetro `crear` en `GET /empleado/:id/disponibles`
+
+El endpoint soporta un parámetro query `crear` (o `create`) que acepta múltiples formatos booleanos:
+- `crear=true` / `crear=1` / `crear=si` / `crear=sí` / `crear=yes` → crea el registro si no existe
+- Cualquier otro valor → retorna error si no existe
+
+**Razón:** Los servicios de reporting pueden opcionalmente auto-crear saldos de días sin afectar flujos normales.
+
+**Ejemplo:**
+```bash
+GET /api/vacaciones/empleado/5/disponibles?crear=true
+# Si el empleado no tiene saldo en 2025, se crea con 15 días (DIAS_LEGALES_ANUALES)
+```
+
+### Validación Zod en todos los endpoints de escritura
+
+Todos los endpoints POST/PATCH que reciben body usan esquemas Zod validados:
+- `POST /vacaciones` → `createVacationSchema`
+- `PATCH /:id/rechazar` → `rejectVacationSchema`
+- `POST /festivos` → `createFestivoSchema`
+
+**Razón:** Garantiza validación consistente, mensajes de error claros, y previene datos malformados en BD.
+
+### Lógica de creación automática de `dias_disponibles`
+
+En `create()`, si el registro `dias_disponibles` no existe para el empleado en el año actual:
+```typescript
+const diasDisp = await this.diasDisponiblesService.obtenerOCrear(empleadoId, anio);
+```
+
+Se crea automáticamente con `dias_totales = DIAS_LEGALES_ANUALES` (default: 15 días colombianos).
+
+**Razón:** Simplifica el flujo: no hay que pre-crear registros de disponibilidad en otro proceso.
+
+### Fire-and-forget para notificaciones
+
+Las operaciones de crear/aprobar/rechazar ejecutan:
+1. **Transacción BD** (bloqueante)
+2. **Correo SMTP** (fire-and-forget — no bloquea respuesta)
+3. **History Service** (fire-and-forget — no bloquea respuesta)
+
+Si email o History Service fallan, la operación se completó en BD y se retorna respuesta exitosa.
+
+**Propósito:** Las fallas externas no reviertan cambios ya persisted.
+
+### Mapeo de tipos: snake_case (BD) → camelCase (API)
+
+El `VacationRepository` implementa `mapRow()` que convierte automáticamente:
+- `empleado_id` → `empleadoId`
+- `fecha_inicio` → `fechaInicio`
+- `dias_habiles` → `diasHabiles`
+- Y 8+ campos más
+
+**Razón:** La BD usa snake_case (convención SQL), la API JSON devuelve camelCase (convención REST).
+
+### Validación de anticipación: 1 mes de anticipación
+
+`BusinessRulesService.validarAnticipacion()` calcula:
+```typescript
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() + 1);
+const earliestAllowed = new Date(tomorrow);
+earliestAllowed.setMonth(earliestAllowed.getMonth() + 1);
+
+if (fechaInicio < earliestAllowed) throw new BadRequestError(...);
+```
+
+**Razón:** Previene solicitudes extemporáneas y da tiempo a RRHH para planificar.
 
 ---
 

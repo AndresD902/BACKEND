@@ -22,4 +22,27 @@ internalRouter.get('/check-email', async (req: Request, res: Response) => {
   res.status(200).json({ success: true, exists: !!empleado });
 });
 
+internalRouter.get('/employee-id-by-email', async (req: Request, res: Response) => {
+  const headerKey = req.headers['x-internal-key'];
+
+  if (headerKey !== env.internalApiKey) {
+    res.status(401).json({ success: false, message: 'Invalid internal API key' });
+    return;
+  }
+
+  const { email } = req.query;
+  if (!email || typeof email !== 'string') {
+    res.status(400).json({ success: false, message: 'Query param "email" is required' });
+    return;
+  }
+
+  const empleado = await employeeRepository.findByAnyEmail(email);
+  if (!empleado) {
+    res.status(404).json({ success: false, message: 'Employee not found' });
+    return;
+  }
+
+  res.status(200).json({ success: true, id: empleado.id });
+});
+
 export default internalRouter;
