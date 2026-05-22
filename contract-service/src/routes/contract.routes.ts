@@ -4,7 +4,7 @@ import { authenticateToken, authorizeRoles } from '../middlewares/auth.middlewar
 
 export const contractRouter = Router();
 
-const readRoles = ['ADMIN', 'HR', 'CONSULTATION'];
+const readRoles = ['ADMIN', 'HR'];
 const writeRoles = ['ADMIN', 'HR'];
 
 contractRouter.use(authenticateToken);

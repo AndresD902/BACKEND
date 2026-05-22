@@ -39,6 +39,59 @@ export class EmployeeController {
     res.status(200).json({ success: true, data: empleado });
   });
 
+  public getCargoActualMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      throw new UnauthorizedError('User email is required');
+    }
+    const cargo = await this.service.getCargoActualMe(userEmail);
+    res.status(200).json({ success: true, data: cargo });
+  });
+
+  public getContratoLaboralActivoMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      throw new UnauthorizedError('User email is required');
+    }
+
+    const authorizationHeader = req.headers.authorization;
+
+    if (!authorizationHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedError('Token requerido');
+    }
+
+    const contrato = await this.service.getContratoLaboralActivoMe(userEmail, authorizationHeader);
+    res.status(200).json({ success: true, data: contrato });
+  });
+
+  public getDocumentosMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      throw new UnauthorizedError('User email is required');
+    }
+    const docs = await this.service.getDocumentosMe(userEmail);
+    res.status(200).json({ success: true, data: docs });
+  });
+
+  public generarUrlDescargaDocumentoPropio = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      throw new UnauthorizedError('User email is required');
+    }
+    const result = await this.service.generarUrlDescargaDocumentoPropio(userEmail, Number(req.params.docId));
+    res.status(200).json({ success: true, data: result });
+  });
+
+  public solicitarCorreccionMe = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      throw new UnauthorizedError('User email is required');
+    }
+    const { descripcion } = req.body as { descripcion: string };
+    await this.service.solicitarCorreccionMe(userEmail, descripcion);
+    res.status(200).json({ success: true, message: 'Solicitud de correccion enviada a RRHH' });
+  });
+
   public create = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const empleado = await this.service.create(req.body, actor(req));
     res.status(201).json({ success: true, data: empleado });

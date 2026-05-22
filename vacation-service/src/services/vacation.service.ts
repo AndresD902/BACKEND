@@ -4,6 +4,7 @@ import { FestivosRepository } from '../repositories/festivos.repository';
 import { BusinessRulesService } from './businessRules.service';
 import { DiasDisponiblesService } from './diasDisponibles.service';
 import { EmailService } from './email.service';
+import { employeeServiceClient, IEmployeeServiceClient } from '../clients/employeeServiceClient';
 import { registrarCambio } from '../clients/historyServiceClient';
 import { Vacation } from '../entities/vacation.entity';
 import { DiasDisponibles } from '../entities/diasDisponibles.entity';
@@ -11,6 +12,8 @@ import { Festivo } from '../entities/festivo.entity';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { BadRequestError } from '../shared/errors/bad-request.error';
 import { ConflictError } from '../shared/errors/conflict.error';
+import { UnauthorizedError } from '../shared/errors/unauthorized.error';
+import { env } from '../config/env';
 import { parseDate, toDateOnly, currentYear } from '../utils/date.util';
 import { AuthenticatedUser } from '../middlewares/auth.middleware';
 
@@ -31,6 +34,7 @@ export class VacationService {
     private readonly diasRepo: DiasDisponiblesRepository,
     private readonly festivosRepo: FestivosRepository,
     private readonly emailService: EmailService,
+    private readonly employeeClient: IEmployeeServiceClient = employeeServiceClient,
   ) {
     this.businessRules        = new BusinessRulesService(this.festivosRepo);
     this.diasDisponiblesService = new DiasDisponiblesService(this.diasRepo);
@@ -71,6 +75,67 @@ export class VacationService {
     }
 
     return registro;
+  }
+
+  async getEligibility(
+    empleadoId: number,
+    authorizationHeader: string,
+  ): Promise<{
+    eligible: boolean;
+    employeeId: number;
+    eligibleFrom: string | null;
+    minimumSeniorityMonths: number;
+    legalAnnualDays: number;
+    message: string;
+  }> {
+    const employee = await this.employeeClient.getCurrentEmployee(authorizationHeader);
+    if (employee.id !== empleadoId) {
+      throw new UnauthorizedError('El usuario no corresponde al empleado consultado');
+    }
+
+    const minimumSeniorityMonths = 12;
+    const legalAnnualDays = env.diasLegalesAnuales;
+
+    if (!employee.fecha_ingreso) {
+      return {
+        eligible: false,
+        employeeId: empleadoId,
+        eligibleFrom: null,
+        minimumSeniorityMonths,
+        legalAnnualDays,
+        message: 'No hay fecha de ingreso registrada para calcular elegibilidad de vacaciones.',
+      };
+    }
+
+    const ingreso = new Date(employee.fecha_ingreso);
+    if (Number.isNaN(ingreso.getTime())) {
+      return {
+        eligible: false,
+        employeeId: empleadoId,
+        eligibleFrom: null,
+        minimumSeniorityMonths,
+        legalAnnualDays,
+        message: 'La fecha de ingreso registrada no es valida.',
+      };
+    }
+
+    const eligibleFromDate = new Date(Date.UTC(ingreso.getUTCFullYear(), ingreso.getUTCMonth(), ingreso.getUTCDate()));
+    eligibleFromDate.setUTCMonth(eligibleFromDate.getUTCMonth() + minimumSeniorityMonths);
+
+    const today = new Date();
+    const todayDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const eligible = todayDate >= eligibleFromDate;
+
+    return {
+      eligible,
+      employeeId: empleadoId,
+      eligibleFrom: toDateOnly(eligibleFromDate),
+      minimumSeniorityMonths,
+      legalAnnualDays,
+      message: eligible
+        ? `Puedes solicitar vacaciones. Politica actual: ${legalAnnualDays} dias legales anuales.`
+        : `Aun no puedes solicitar vacaciones. Estaras habilitado desde ${toDateOnly(eligibleFromDate)}.`,
+    };
   }
 
   /**

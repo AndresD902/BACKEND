@@ -43,6 +43,7 @@ export const empresaService = {
     correo:    string;
     telefono?: string;
     plan:      string;
+    adminEmails?: string[];
   }) {
     const existente = await empresaRepository.findByNit(data.nit);
     if (existente) throw new ConflictError(`Ya existe una empresa con el NIT ${data.nit}`);
@@ -52,18 +53,22 @@ export const empresaService = {
     // Auto-create 2 admins and register them in the Auth Service
     const dominio  = data.correo.split('@')[1] ?? 'empresa.com';
     const adminsCreadados: Array<{ email: string; nombre: string }> = [];
+    const adminEmails = data.adminEmails?.length === 2
+      ? data.adminEmails
+      : [1, 2].map((i) => `admin${i}.${data.nit.toLowerCase().replace(/\D/g, '')}@${dominio}`);
 
     for (let i = 1; i <= 2; i++) {
       const passwordTemporal = randomTempPassword();
-      const adminEmail       = `admin${i}.${data.nit.toLowerCase().replace(/\D/g, '')}@${dominio}`;
+      const adminEmail       = adminEmails[i - 1];
       const adminNombre      = `Administrador ${i} — ${data.nombre}`;
 
       try {
         await registrarUsuario({
-          cedula:   `ADMIN${data.nit}${i}`,
-          email:    adminEmail,
-          password: passwordTemporal,
-          rol:      'admin',
+          firstName: 'Administrador',
+          lastName:  `${i} - ${data.nombre}`,
+          email:     adminEmail,
+          password:  passwordTemporal,
+          role:      'ADMIN',
         });
 
         await adminEmpresaRepository.create({
@@ -121,10 +126,11 @@ export const empresaService = {
     const passwordTemporal = randomTempPassword();
 
     await registrarUsuario({
-      cedula:   `ADMIN${empresa.nit}${total + 1}`,
-      email:    data.email,
-      password: passwordTemporal,
-      rol:      'admin',
+      firstName: 'Administrador',
+      lastName:  data.nombre,
+      email:     data.email,
+      password:  passwordTemporal,
+      role:      'ADMIN',
     });
 
     const admin = await adminEmpresaRepository.create({

@@ -22,6 +22,7 @@ const vacationService = new VacationService(vacationRepo, diasRepo, festivosRepo
 const vacationController = new VacationController(vacationService);
 
 const READ_ROLES  = ['ADMIN', 'HR', 'CONSULTATION'] as const;
+const ADMIN_READ_ROLES = ['ADMIN', 'HR'] as const;
 const WRITE_ROLES = ['ADMIN', 'HR'] as const;
 const ADMIN_ROLES = ['ADMIN'] as const;
 
@@ -29,10 +30,16 @@ const ADMIN_ROLES = ['ADMIN'] as const;
 router.get('/festivos/:anio', authenticate, authorize(...READ_ROLES),  vacationController.getFestivosByAnio);
 router.post('/festivos',      authenticate, authorize(...ADMIN_ROLES), validateRequest(createFestivoSchema), vacationController.createFestivo);
 
+// Autoconsulta y solicitud propia del Consultante
+router.get('/me/eligibility', authenticate, authorize('CONSULTATION'), vacationController.getMyEligibility);
+router.get('/me/disponibles', authenticate, authorize('CONSULTATION'), vacationController.getMyDiasDisponibles);
+router.get('/me',             authenticate, authorize('CONSULTATION'), vacationController.getMine);
+router.post('/me',            authenticate, authorize('CONSULTATION'), validateRequest(createVacationSchema.omit({ empleado_id: true })), vacationController.createMine);
+
 // Consultas por empleado
-router.get('/',                        authenticate, authorize(...READ_ROLES),  vacationController.getAll);
-router.get('/empleado/:id',             authenticate, authorize(...READ_ROLES),  vacationController.getByEmpleadoId);
-router.get('/empleado/:id/disponibles', authenticate, authorize(...READ_ROLES),  vacationController.getDiasDisponibles);
+router.get('/',                        authenticate, authorize(...ADMIN_READ_ROLES),  vacationController.getAll);
+router.get('/empleado/:id',             authenticate, authorize(...ADMIN_READ_ROLES),  vacationController.getByEmpleadoId);
+router.get('/empleado/:id/disponibles', authenticate, authorize(...ADMIN_READ_ROLES),  vacationController.getDiasDisponibles);
 
 // CRUD de solicitudes
 router.post('/',              authenticate, authorize(...WRITE_ROLES), validateRequest(createVacationSchema), vacationController.create);
