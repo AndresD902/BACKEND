@@ -12,18 +12,27 @@ export interface ActiveContractDocument {
 
 export interface IContractServiceClient {
   getActiveContractForEmployee(employeeId: number, authorizationHeader: string): Promise<ActiveContractDocument | null>;
+  getLatestContractForCurrentUser(authorizationHeader: string): Promise<ActiveContractDocument | null>;
 }
 
 export class ContractServiceClient implements IContractServiceClient {
   private readonly timeoutMs = 5000;
 
+  async getLatestContractForCurrentUser(authorizationHeader: string): Promise<ActiveContractDocument | null> {
+    return this.requestContract('/api/contratos/me/latest', authorizationHeader);
+  }
+
   async getActiveContractForEmployee(employeeId: number, authorizationHeader: string): Promise<ActiveContractDocument | null> {
+    return this.requestContract(`/api/contratos/empleado/${employeeId}/activo`, authorizationHeader);
+  }
+
+  private async requestContract(path: string, authorizationHeader: string): Promise<ActiveContractDocument | null> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
       const contractServiceUrl = env.contractServiceUrl.replace(/\/$/, '');
-      const response = await fetch(`${contractServiceUrl}/api/contratos/empleado/${employeeId}/activo`, {
+      const response = await fetch(`${contractServiceUrl}${path}`, {
         method: 'GET',
         headers: {
           authorization: authorizationHeader,

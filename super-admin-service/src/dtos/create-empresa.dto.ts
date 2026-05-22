@@ -7,6 +7,7 @@ export const createEmpresaSchema = z.object({
   correo:   z.string().trim().email().toLowerCase(),
   telefono: z.string().trim().max(20).optional(),
   plan:     z.nativeEnum(Plan).default(Plan.BASICO),
+  adminEmails: z.array(z.string().trim().email().toLowerCase()).length(2).optional(),
 });
 
 export type CreateEmpresaDto = z.infer<typeof createEmpresaSchema>;

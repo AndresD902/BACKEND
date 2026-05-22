@@ -10,6 +10,7 @@ export interface AuthenticatedUser {
   sub:   string;
   email: string;
   role:  RoleName;
+  employeeId?: number;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -20,6 +21,7 @@ interface JwtPayload {
   sub:   string;
   email: string;
   role:  RoleName;
+  employeeId?: number;
 }
 
 /**
@@ -41,7 +43,7 @@ export const authenticate = (
 
   try {
     const payload = jwt.verify(token, env.jwtSecret) as JwtPayload;
-    req.user = { sub: payload.sub, email: payload.email, role: payload.role };
+    req.user = { sub: payload.sub, email: payload.email, role: payload.role, employeeId: payload.employeeId };
     next();
   } catch {
     next(new UnauthorizedError('Invalid or expired token'));

@@ -12,6 +12,7 @@ import { IDocumentoRepository } from '../repositories/interfaces/documento.repos
 import { IEmployeeService } from './interfaces/employee.service.interface';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { ConflictError } from '../shared/errors/conflict.error';
+import { ForbiddenError } from '../shared/errors/forbidden.error';
 import { CreateEmpleadoDto } from '../dtos/create-employee.dto';
 import { UpdateEmpleadoDto, CreateCargoDto, ConfirmarDocumentoDto, PresignedUrlDto } from '../dtos/update-employee.dto';
 import { AuthenticatedUser } from '../types/authenticated-user.type';
@@ -47,6 +48,14 @@ export class EmployeeService implements IEmployeeService {
     return empleado;
   }
 
+  private async findOwnEmployeeOrFail(userEmail: string): Promise<Empleado> {
+    const empleado = await this.empRepo.findByAnyEmail(userEmail);
+    if (!empleado) {
+      throw new NotFoundError('Authenticated user is not registered as an employee');
+    }
+    return empleado;
+  }
+
   // ─── Empleados ─────────────────────────────────────────────────────────────
 
   async getAll(page: number, limit: number, filters?: EmployeeFilters) {
@@ -63,11 +72,42 @@ export class EmployeeService implements IEmployeeService {
   }
 
   async getMe(userEmail: string): Promise<Empleado> {
-    const empleado = await this.empRepo.findByAnyEmail(userEmail);
-    if (!empleado) {
-      throw new NotFoundError('Authenticated user is not registered as an employee');
+    return this.findOwnEmployeeOrFail(userEmail);
+  }
+
+  async getCargoActualMe(userEmail: string): Promise<CargoSalario | null> {
+    const empleado = await this.findOwnEmployeeOrFail(userEmail);
+    return this.cargoRepo.findActivo(empleado.id);
+  }
+
+  async getContratoLaboralActivoMe(userEmail: string, authorizationHeader: string): Promise<ActiveContractDocument | null> {
+    await this.findOwnEmployeeOrFail(userEmail);
+    return this.contractClient.getLatestContractForCurrentUser(authorizationHeader);
+  }
+
+  async getDocumentosMe(userEmail: string): Promise<DocumentoEmpleado[]> {
+    const empleado = await this.findOwnEmployeeOrFail(userEmail);
+    return this.docRepo.findAll(empleado.id);
+  }
+
+  async generarUrlDescargaDocumentoPropio(userEmail: string, docId: number): Promise<{ url: string; expires_in: number }> {
+    const empleado = await this.findOwnEmployeeOrFail(userEmail);
+    const doc = await this.docRepo.findById(docId);
+    if (!doc) throw new NotFoundError(`Documento con id ${docId} no encontrado`);
+    if (doc.empleado_id !== empleado.id) {
+      throw new ForbiddenError('No tienes permisos para descargar este documento');
     }
-    return empleado;
+    const url = await this.urlDescarga(doc.s3_key);
+    return { url, expires_in: 3600 };
+  }
+
+  async solicitarCorreccionMe(userEmail: string, descripcion: string): Promise<void> {
+    const empleado = await this.findOwnEmployeeOrFail(userEmail);
+    this.notificarCorreccion({
+      empleadoNombre: `${empleado.nombre} ${empleado.apellido}`,
+      descripcion,
+      solicitante: userEmail,
+    });
   }
 
   async create(dto: CreateEmpleadoDto, actor: AuthenticatedUser): Promise<Empleado> {

@@ -3,6 +3,7 @@ import { VacationService } from '../services/vacation.service';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { asyncHandler } from '../utils/async-handler.util';
 import { EstadoVacacion } from '../entities/vacation.entity';
+import { UnauthorizedError } from '../shared/errors/unauthorized.error';
 
 /**
  * HTTP layer for vacation-related endpoints.
@@ -43,12 +44,45 @@ export class VacationController {
     res.status(200).json(dias);
   });
 
+  getMyEligibility = asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const empleadoId = this.getCurrentEmployeeId(req);
+    const eligibility = await this.vacationService.getEligibility(empleadoId, this.getAuthorizationHeader(req));
+    res.status(200).json(eligibility);
+  });
+
+  getMine = asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const empleadoId = this.getCurrentEmployeeId(req);
+    const vacaciones = await this.vacationService.getByEmpleadoId(empleadoId);
+    res.status(200).json(vacaciones);
+  });
+
+  getMyDiasDisponibles = asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const empleadoId = this.getCurrentEmployeeId(req);
+    const dias = await this.vacationService.getDiasDisponibles(empleadoId, { createIfMissing: true });
+    res.status(200).json(dias);
+  });
+
   /** `POST /` — create a new vacation request (validated by `createVacationSchema`). */
   create = asyncHandler(async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     const actor    = req.user!;
     const ip       = req.ip ?? '';
     const userAgent = req.headers['user-agent'] ?? '';
     const solicitud = await this.vacationService.create(req.body, actor, ip, userAgent);
+    res.status(201).json(solicitud);
+  });
+
+  createMine = asyncHandler(async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const empleadoId = this.getCurrentEmployeeId(req);
+    const eligibility = await this.vacationService.getEligibility(empleadoId, this.getAuthorizationHeader(req));
+
+    if (!eligibility.eligible) {
+      throw new UnauthorizedError(eligibility.message);
+    }
+
+    const actor     = req.user!;
+    const ip        = req.ip ?? '';
+    const userAgent = req.headers['user-agent'] ?? '';
+    const solicitud = await this.vacationService.create({ ...req.body, empleado_id: empleadoId }, actor, ip, userAgent);
     res.status(201).json(solicitud);
   });
 
@@ -94,4 +128,20 @@ export class VacationController {
     const festivo = await this.vacationService.createFestivo(req.body);
     res.status(201).json(festivo);
   });
+
+  private getCurrentEmployeeId(req: AuthenticatedRequest): number {
+    const employeeId = req.user?.employeeId;
+    if (!employeeId) {
+      throw new UnauthorizedError('El usuario consultante no tiene empleado asociado');
+    }
+    return employeeId;
+  }
+
+  private getAuthorizationHeader(req: Request): string {
+    const authorizationHeader = req.headers.authorization;
+    if (!authorizationHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedError('Token requerido');
+    }
+    return authorizationHeader;
+  }
 }

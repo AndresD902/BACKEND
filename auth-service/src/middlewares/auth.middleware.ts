@@ -8,6 +8,7 @@ export interface AuthenticatedUser {
     sub: string;
     email: string;
     role: RoleName;
+    employeeId?: number;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -37,6 +38,7 @@ export const authenticate = (
             sub: payload.sub,
             email: payload.email,
             role: payload.role,
+            employeeId: payload.employeeId,
         };
         next();
     } catch{
