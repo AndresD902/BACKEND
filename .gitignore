@@ -1,21 +1,58 @@
-# Claude Code workspace (herramienta de desarrollo local)
-.claude/
-
-# Archivos de entorno — nunca commitear credenciales
-.env
-.env.local
-.env.*.local
-
-# OS
-.DS_Store
-Thumbs.db
-coverage/
-# build/artifacts
-.runtime/
-**/dist/
+# Dependencies
+node_modules/
 **/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+
+# Runtime files and logs
+.runtime/
+**/.runtime/
+logs/
+**/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test and coverage artifacts
+coverage/
+**/coverage/
+.nyc_output/
+**/.nyc_output/
+.vite/
 **/.vite/
+.vitest/
+**/.vitest/
+test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
+
+# Environment files
 .env
+.env.*
 **/.env
 **/.env.*
+!.env.example
+!**/.env.example
 
+# Local tools
+.claude/
+.vscode/
+**/.vscode/
+.idea/
+**/.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated/local uploads
+**/src/generated/prisma/
+employee-service/src/img/
