@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 
-dotenv.config();
+if (process.env.NODE_ENV !== 'test') {
+  dotenv.config();
+}
 
 function getEnVariable(name: string): string {
   const value = process.env[name];
@@ -64,6 +66,9 @@ export const env = {
   corsOrigins: getCorsOrigins(),
   rbacV2Enabled: flag('RBAC_V2_ENABLED', true),
   consultantSelfServiceEnabled: flag('CONSULTANT_SELF_SERVICE_ENABLED', true),
+  authRateLimitEnabled: flag('AUTH_RATE_LIMIT_ENABLED', true),
+  authRateLimitWindowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS ?? '900000'),
+  authRateLimitMax: Number(process.env.AUTH_RATE_LIMIT_MAX ?? '20'),
 
   // Email SMTP
   smtpHost: process.env.SMTP_HOST ?? 'smtp.gmail.com',

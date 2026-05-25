@@ -59,11 +59,19 @@ describe('HistorialCambiosRepository.create', () => {
     });
 
     const calledValues = mockQuery.mock.calls[0][1];
-    expect(calledValues[2]).toBeNull();
-    expect(calledValues[4]).toBeNull();
-    expect(calledValues[5]).toBeNull();
-    expect(calledValues[7]).toBeNull();
-    expect(calledValues[8]).toBeNull();
+    expect(calledValues).toEqual([
+      10,
+      null,
+      'empleado',
+      null,
+      'nombre',
+      null,
+      null,
+      'admin@test.com',
+      null,
+      null,
+      null,
+    ]);
   });
 });
 

@@ -5,6 +5,7 @@ const config = {
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   moduleDirectories: ['node_modules', 'src'],
   moduleFileExtensions: ['ts', 'js', 'json'],
+  setupFiles: ['<rootDir>/tests/setup.ts'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/server.ts',
