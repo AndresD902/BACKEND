@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import path from 'node:path';
 import { UnauthorizedError } from '../../../src/shared/errors/unauthorized.error';
 import { AppError } from '../../../src/shared/errors/app-error';
 
@@ -15,28 +14,6 @@ vi.mock('../../../src/config/env', () => ({
     jwtExpiresIn: '1h',
   },
 }));
-
-// verifyRegisterSecret uses require('../config/env') inside the function body at runtime.
-// setup.ts patches Module._resolveFilename to fall back to .ts, so the resolved path will
-// be the .ts file. We pre-register the module in require.cache under the .ts path so
-// Node returns our mock without trying to execute the raw TypeScript source.
-const ENV_CACHE_KEY = path.resolve(process.cwd(), 'src/config/env.ts');
-const ENV_MOCK_EXPORTS = { env: { registerSecret: 'test-register-secret-value' } };
-
-beforeAll(() => {
-  require.cache[ENV_CACHE_KEY] = {
-    id: ENV_CACHE_KEY,
-    filename: ENV_CACHE_KEY,
-    loaded: true,
-    exports: ENV_MOCK_EXPORTS,
-    children: [],
-    paths: [],
-  } as NodeModule;
-});
-
-afterAll(() => {
-  delete require.cache[ENV_CACHE_KEY];
-});
 
 import { verifyJwt } from '../../../src/utils/jwt.util';
 import {
