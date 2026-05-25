@@ -1,16 +1,66 @@
 import { Response } from 'express';
 import { userService as defaultUserService } from '../services/user.service';
 import { IUserService } from '../services/interfaces/user-service.interface';
+import { authService as defaultAuthService } from '../services/auth.service';
+import { IAuthService } from '../services/interfaces/auth-service.interface';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { asyncHandler } from '../utils/async-handler.util';
-import { ChangePasswordSchema } from '../schemas/auth.schema';
+import { ChangePasswordSchema, CreateManagedUserSchema } from '../schemas/auth.schema';
 import { UnauthorizedError } from '../shared/errors/unauthorized.error';
+import { ForbiddenError } from '../shared/errors/forbidden.error';
+import { RoleName } from '../entities/role.entity';
+import { registrarAccion } from '../clients/historyServiceClient';
 
 export class UserController {
-  constructor(private readonly userService: IUserService = defaultUserService) {}
+  constructor(
+    private readonly userService: IUserService = defaultUserService,
+    private readonly authService: IAuthService = defaultAuthService,
+  ) {}
 
-  public findAll = asyncHandler(async (_req: AuthenticatedRequest, res: Response) => {
-    const users = await this.userService.findAll();
+  public create = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError('User not authenticated');
+    }
+    if (!req.user.companyId) {
+      throw new ForbiddenError('Admin user must belong to a company');
+    }
+
+    const body = req.body as CreateManagedUserSchema;
+    if (body.role && body.role !== RoleName.HR) {
+      throw new ForbiddenError('Admins can only create HR users from this endpoint');
+    }
+
+    const user = await this.authService.registerSystemUser({
+      ...body,
+      role: RoleName.HR,
+      companyId: req.user.companyId,
+      emailVerified: true,
+      mustChangePassword: true,
+    });
+
+    registrarAccion({
+      usuario_email: req.user.email,
+      rol: req.user.role,
+      accion: 'creacion_hr',
+      entidad: 'usuario',
+      detalle: JSON.stringify({
+        targetUserId: user.id,
+        targetEmail: user.email,
+        companyId: req.user.companyId,
+      }),
+      ip_origen: req.ip,
+      user_agent: req.headers['user-agent'],
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'HR user created successfully',
+      data: user,
+    });
+  });
+
+  public findAll = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const users = await this.userService.findAll(req.user?.companyId);
     res.status(200).json({
       success: true,
       message: 'Users retrieved successfully',

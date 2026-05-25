@@ -20,6 +20,7 @@ import { ForbiddenError } from '../shared/errors/forbidden.error';
 import { ConflictError } from '../shared/errors/conflict.error';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { RoleName } from '../entities/role.entity';
+import { User } from '../entities/user.entity';
 import { env } from '../config/env';
 import { isRegisteredEmployee, getEmployeeIdByEmail } from '../clients/employeeServiceClient';
 import { validateEmailDomain } from '../utils/email-domain.util';
@@ -39,16 +40,36 @@ export class AuthService implements IAuthService {
     });
   }
 
-  private async generateAccessToken(userId: string, email: string, role: RoleName): Promise<string> {
+  private buildUserProfile(user: User): UserProfile {
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+      companyId: user.companyId,
+      employeeId: user.employeeId,
+      mustChangePassword: user.mustChangePassword,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
+  private async generateAccessToken(user: User): Promise<string> {
     const payload: any = {
-      sub: userId,
-      email,
-      role,
+      sub: user.id,
+      email: user.email,
+      role: user.role,
     };
 
-    // Include employeeId for CONSULTATION role users
-    if (role === RoleName.CONSULTATION) {
-      const employeeId = await getEmployeeIdByEmail(email);
+    if (user.companyId) {
+      payload.companyId = user.companyId;
+    }
+
+    if (user.role === RoleName.CONSULTATION) {
+      const employeeId = user.employeeId ?? await getEmployeeIdByEmail(user.email);
       if (employeeId) {
         payload.employeeId = employeeId;
       }
@@ -58,6 +79,31 @@ export class AuthService implements IAuthService {
   }
 
   public async register(createUserDto: CreateUserDto): Promise<UserProfile> {
+    return this.createUser(createUserDto, { systemManaged: false });
+  }
+
+  public async registerSystemUser(createUserDto: CreateUserDto): Promise<UserProfile> {
+    const profile = await this.createUser(
+      {
+        ...createUserDto,
+        emailVerified: createUserDto.emailVerified ?? true,
+        mustChangePassword: createUserDto.mustChangePassword ?? true,
+      },
+      { systemManaged: true },
+    );
+
+    this.sendEmailWithoutBlocking(
+      'initial credentials',
+      this.emailService.sendInitialCredentialsEmail(profile.email, createUserDto.password, profile.role),
+    );
+
+    return profile;
+  }
+
+  private async createUser(
+    createUserDto: CreateUserDto,
+    options: { systemManaged: boolean },
+  ): Promise<UserProfile> {
     const normalizedEmail = createUserDto.email.toLowerCase().trim();
     const existingUser = await this.userRepository.findByEmail(normalizedEmail);
 
@@ -67,12 +113,25 @@ export class AuthService implements IAuthService {
 
     await validateEmailDomain(normalizedEmail);
 
+    const employeeId = createUserDto.role === RoleName.CONSULTATION
+      ? createUserDto.employeeId ?? await getEmployeeIdByEmail(normalizedEmail)
+      : createUserDto.employeeId;
+
     if (createUserDto.role === RoleName.CONSULTATION) {
-      const exists = await isRegisteredEmployee(normalizedEmail);
-      if (!exists) {
+      if (!employeeId && !(await isRegisteredEmployee(normalizedEmail))) {
         throw new ForbiddenError(
           'Users with CONSULTATION role must be registered employees. Contact HR to register your employee record first.',
         );
+      }
+    }
+
+    if (env.rbacV2Enabled && createUserDto.role === RoleName.HR) {
+      if (!createUserDto.companyId) {
+        throw new ForbiddenError('HR users must belong to a company');
+      }
+      const activeHrUsers = await this.userRepository.countActiveByRoleAndCompany(RoleName.HR, createUserDto.companyId);
+      if (activeHrUsers >= 2) {
+        throw new ConflictError('A company can only have two active HR users');
       }
     }
 
@@ -84,30 +143,26 @@ export class AuthService implements IAuthService {
       passwordHash: hashedPassword,
       role: createUserDto.role,
       isActive: true,
+      companyId: createUserDto.companyId,
+      employeeId,
+      emailVerified: createUserDto.emailVerified ?? options.systemManaged,
+      mustChangePassword: createUserDto.mustChangePassword ?? options.systemManaged,
     });
 
     // Send verification email — fire-and-forget, never blocks registration response
-    const rawToken  = crypto.randomBytes(32).toString('hex');
-    const tokenHash = hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + env.emailVerificationExpiresMinutes * 60 * 1000);
-    await this.emailVerificationRepository.create(createdUser.id, tokenHash, expiresAt);
-    const verificationLink = `${env.frontendUrl}/verify-email?token=${rawToken}`;
-    this.sendEmailWithoutBlocking(
-      'verification',
-      this.emailService.sendVerificationEmail(createdUser.email, verificationLink),
-    );
+    if (!createdUser.emailVerified) {
+      const rawToken  = crypto.randomBytes(32).toString('hex');
+      const tokenHash = hashToken(rawToken);
+      const expiresAt = new Date(Date.now() + env.emailVerificationExpiresMinutes * 60 * 1000);
+      await this.emailVerificationRepository.create(createdUser.id, tokenHash, expiresAt);
+      const verificationLink = `${env.frontendUrl}/verify-email?token=${rawToken}`;
+      this.sendEmailWithoutBlocking(
+        'verification',
+        this.emailService.sendVerificationEmail(createdUser.email, verificationLink),
+      );
+    }
 
-    return {
-      id: createdUser.id,
-      firstName: createdUser.firstName,
-      lastName: createdUser.lastName,
-      email: createdUser.email,
-      role: createdUser.role,
-      isActive: createdUser.isActive,
-      emailVerified: createdUser.emailVerified,
-      createdAt: createdUser.createdAt,
-      updatedAt: createdUser.updatedAt,
-    };
+    return this.buildUserProfile(createdUser);
   }
 
   public async login(loginDto: LoginDto, ipOrigin?: string, userAgent?: string): Promise<LoginResult> {
@@ -129,7 +184,7 @@ export class AuthService implements IAuthService {
       throw new UnauthorizedError('Invalid email or password');
     }
 
-    const accessToken = await this.generateAccessToken(user.id, user.email, user.role as RoleName);
+    const accessToken = await this.generateAccessToken(user);
 
     const refreshToken = generateRefreshToken();
     const tokenHash = hashToken(refreshToken);
@@ -157,6 +212,9 @@ export class AuthService implements IAuthService {
         role: user.role as RoleName,
         isActive: user.isActive,
         emailVerified: user.emailVerified,
+        companyId: user.companyId,
+        employeeId: user.employeeId,
+        mustChangePassword: user.mustChangePassword,
       },
     };
   }
@@ -174,7 +232,7 @@ export class AuthService implements IAuthService {
       throw new UnauthorizedError('User not found or inactive');
     }
 
-    const accessToken = await this.generateAccessToken(user.id, user.email, user.role as RoleName);
+    const accessToken = await this.generateAccessToken(user);
 
     return { accessToken, email: user.email, role: user.role };
   }
@@ -260,7 +318,8 @@ export class AuthService implements IAuthService {
   public async updatePreferences(userId: string, prefs: NotificationPrefs): Promise<void> {
     const user = await this.userRepository.findById(userId);
     if (!user) throw new NotFoundError('User not found');
-    await this.userRepository.updateNotificationPrefs(userId, prefs.notifLogin, prefs.notifCambios);
+    const notifCambios = user.role === RoleName.CONSULTATION ? false : prefs.notifCambios;
+    await this.userRepository.updateNotificationPrefs(userId, prefs.notifLogin, notifCambios);
   }
 
   public async notifyEmployeeChange(userEmail: string, action: string, employeeName: string): Promise<void> {

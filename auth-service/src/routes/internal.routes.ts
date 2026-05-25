@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { validateRequest } from '../middlewares/validate-request.middleware';
 import { internalController } from '../controllers/internal.controller';
-import { notifyEmployeeChangeSchema, notifyCorrectionRequestSchema } from '../schemas/auth.schema';
+import { internalCreateUserSchema, notifyEmployeeChangeSchema, notifyCorrectionRequestSchema } from '../schemas/auth.schema';
 import { env } from '../config/env';
 import { UnauthorizedError } from '../shared/errors/unauthorized.error';
 
@@ -15,6 +15,12 @@ internalRouter.use((_req: Request, _res: Response, next: NextFunction) => {
   }
   next();
 });
+
+internalRouter.post(
+  '/users',
+  validateRequest(internalCreateUserSchema),
+  internalController.createUser,
+);
 
 internalRouter.post(
   '/notify-employee-change',

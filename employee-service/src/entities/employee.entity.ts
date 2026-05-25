@@ -7,6 +7,7 @@ export type TipoDocumentoS3 = 'foto' | 'hoja_vida' | 'certificado' | 'diploma' |
 
 export interface Empleado {
   id: number;
+  empresa_id?: number | null;
   cedula: string;
   tipo_documento: TipoDocumento;
   nombre: string;
@@ -25,6 +26,25 @@ export interface Empleado {
   razon_estado: string | null;
   fecha_ingreso: Date | null;
   fecha_retiro: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type EmployeeChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface EmployeeChangeRequest {
+  id: number;
+  empleado_id: number;
+  empresa_id: number | null;
+  category: string;
+  current_value: string | null;
+  requested_value: string | null;
+  justification: string;
+  status: EmployeeChangeRequestStatus;
+  requested_by_email: string | null;
+  reviewed_by: string | null;
+  review_notes: string | null;
+  reviewed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }

@@ -11,8 +11,11 @@ function mapRowToUser(row: Record<string, unknown>): User {
     email: row.email as string,
     passwordHash: row.password_hash as string,
     role: row.role as RoleName,
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    employeeId: row.employee_id === null || row.employee_id === undefined ? null : Number(row.employee_id),
     isActive: row.is_active as boolean,
     emailVerified: (row.email_verified as boolean) ?? true,
+    mustChangePassword: (row.must_change_password as boolean) ?? false,
     lastLogin: row.last_login as Date | null,
     notifLogin: (row.notif_login as boolean) ?? false,
     notifCambios: (row.notif_cambios as boolean) ?? false,
@@ -34,10 +37,24 @@ export class UserRepository implements IUserRepository {
 
   public async create(data: CreateUserData): Promise<User> {
     const result = await pool.query(
-      `INSERT INTO users (first_name, last_name, email, password_hash, role, is_active, email_verified, notif_login, notif_cambios)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO users
+         (first_name, last_name, email, password_hash, role, company_id, employee_id, is_active, email_verified, must_change_password, notif_login, notif_cambios)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [data.firstName, data.lastName, data.email.toLowerCase(), data.passwordHash, data.role, data.isActive ?? true, false, true, true],
+      [
+        data.firstName,
+        data.lastName,
+        data.email.toLowerCase(),
+        data.passwordHash,
+        data.role,
+        data.companyId ?? null,
+        data.employeeId ?? null,
+        data.isActive ?? true,
+        data.emailVerified ?? false,
+        data.mustChangePassword ?? false,
+        true,
+        data.role === RoleName.CONSULTATION ? false : true,
+      ],
     );
     return mapRowToUser(result.rows[0]);
   }
@@ -53,6 +70,14 @@ export class UserRepository implements IUserRepository {
   public async findAll(): Promise<User[]> {
     const result = await pool.query('SELECT * FROM users ORDER BY created_at DESC');
     return result.rows.map(mapRowToUser);
+  }
+
+  public async countActiveByRoleAndCompany(role: RoleName, companyId: number): Promise<number> {
+    const result = await pool.query<{ count: string }>(
+      'SELECT COUNT(*) FROM users WHERE role = $1 AND company_id = $2 AND is_active = TRUE',
+      [role, companyId],
+    );
+    return Number(result.rows[0]?.count ?? 0);
   }
 
   public async updateLastLogin(id: string): Promise<void> {

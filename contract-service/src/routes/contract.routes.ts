@@ -1,11 +1,23 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { contractController } from '../controller/contract.controller';
 import { authenticateToken, authorizeRoles } from '../middlewares/auth.middleware';
+import { env } from '../config/env';
 
 export const contractRouter = Router();
 
 const readRoles = ['ADMIN', 'HR'];
 const writeRoles = ['ADMIN', 'HR'];
+
+function requireConsultantSelfService(_req: Request, res: Response, next: NextFunction): void {
+  if (!env.consultantSelfServiceEnabled) {
+    res.status(404).json({
+      success: false,
+      message: 'Consultant self-service is disabled',
+    });
+    return;
+  }
+  next();
+}
 
 contractRouter.use(authenticateToken);
 
@@ -15,7 +27,7 @@ contractRouter.post('/renovaciones', authorizeRoles(writeRoles), contractControl
 contractRouter.post('/', authorizeRoles(writeRoles), contractController.createContract);
 
 contractRouter.get('/', authorizeRoles(readRoles), contractController.findAllContracts);
-contractRouter.get('/me/latest', authorizeRoles(['CONSULTATION']), contractController.findLatestContractForCurrentUser);
+contractRouter.get('/me/latest', requireConsultantSelfService, authorizeRoles(['CONSULTATION']), contractController.findLatestContractForCurrentUser);
 contractRouter.get('/employee/:employeeId/active', authorizeRoles(readRoles), contractController.findActiveContractByEmployeeId);
 contractRouter.get('/empleado/:employeeId/activo', authorizeRoles(readRoles), contractController.findActiveContractByEmployeeId);
 contractRouter.get('/employee/:employeeId', authorizeRoles(readRoles), contractController.findContractsByEmployeeId);

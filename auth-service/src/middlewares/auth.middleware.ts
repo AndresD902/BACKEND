@@ -8,6 +8,7 @@ export interface AuthenticatedUser {
     sub: string;
     email: string;
     role: RoleName;
+    companyId?: number;
     employeeId?: number;
 }
 
@@ -38,6 +39,7 @@ export const authenticate = (
             sub: payload.sub,
             email: payload.email,
             role: payload.role,
+            companyId: payload.companyId,
             employeeId: payload.employeeId,
         };
         next();

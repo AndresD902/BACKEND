@@ -5,6 +5,8 @@ export interface AccionPayload {
   usuario_email?: string;
   rol?:           string;
   accion:         string;
+  entidad?:       string;
+  entidad_id?:    number;
   resultado?:     'exitoso' | 'fallido' | 'denegado';
   detalle?:       string;
   ip_origen?:     string;

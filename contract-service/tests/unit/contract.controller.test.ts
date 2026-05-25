@@ -316,7 +316,7 @@ describe('ContractController', () => {
   describe('findAllContracts', () => {
     it('responds 200 with all contracts on success', async () => {
       service.findAllContracts.mockResolvedValue([BASE_CONTRACT]);
-      const req = makeReq();
+      const req = makeAuthReq();
 
       await controller.findAllContracts(req, res, next);
 
@@ -324,13 +324,14 @@ describe('ContractController', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: true, data: [BASE_CONTRACT] }),
       );
+      expect(service.findAllContracts).toHaveBeenCalledWith(BEARER_TOKEN);
       expect(next).not.toHaveBeenCalled();
     });
 
     it('passes error to next when the service throws', async () => {
       service.findAllContracts.mockRejectedValue(new Error('DB error'));
 
-      await controller.findAllContracts(makeReq(), res, next);
+      await controller.findAllContracts(makeAuthReq(), res, next);
 
       expect(next).toHaveBeenCalledWith(expect.any(Error));
     });
@@ -341,17 +342,17 @@ describe('ContractController', () => {
   describe('findContractById', () => {
     it('responds 200 with the contract when found', async () => {
       service.findContractById.mockResolvedValue(BASE_CONTRACT);
-      const req = makeReq({ params: { id: '7' } });
+      const req = makeAuthReq({ params: { id: '7' } });
 
       await controller.findContractById(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(service.findContractById).toHaveBeenCalledWith(7);
+      expect(service.findContractById).toHaveBeenCalledWith(7, BEARER_TOKEN);
     });
 
     it('passes error to next when the service throws', async () => {
       service.findContractById.mockRejectedValue(new Error('not found'));
-      const req = makeReq({ params: { id: '7' } });
+      const req = makeAuthReq({ params: { id: '7' } });
 
       await controller.findContractById(req, res, next);
 
@@ -412,12 +413,12 @@ describe('ContractController', () => {
   describe('findContractsByEmployeeId', () => {
     it('responds 200 with employee contracts on success', async () => {
       service.findContractsByEmployeeId.mockResolvedValue([BASE_CONTRACT]);
-      const req = makeReq({ params: { employeeId: '1' } });
+      const req = makeAuthReq({ params: { employeeId: '1' } });
 
       await controller.findContractsByEmployeeId(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(service.findContractsByEmployeeId).toHaveBeenCalledWith(1);
+      expect(service.findContractsByEmployeeId).toHaveBeenCalledWith(1, BEARER_TOKEN);
     });
 
     it('passes ValidationError to next when employeeId is invalid', async () => {
@@ -430,7 +431,7 @@ describe('ContractController', () => {
 
     it('passes error to next when the service throws', async () => {
       service.findContractsByEmployeeId.mockRejectedValue(new Error('DB error'));
-      const req = makeReq({ params: { employeeId: '1' } });
+      const req = makeAuthReq({ params: { employeeId: '1' } });
 
       await controller.findContractsByEmployeeId(req, res, next);
 
@@ -444,12 +445,12 @@ describe('ContractController', () => {
     it('responds 200 with the active contract on success', async () => {
       const result = { contract: BASE_CONTRACT, document: null };
       service.findActiveContractByEmployeeId.mockResolvedValue(result);
-      const req = makeReq({ params: { employeeId: '1' } });
+      const req = makeAuthReq({ params: { employeeId: '1' } });
 
       await controller.findActiveContractByEmployeeId(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(service.findActiveContractByEmployeeId).toHaveBeenCalledWith(1);
+      expect(service.findActiveContractByEmployeeId).toHaveBeenCalledWith(1, BEARER_TOKEN);
     });
 
     it('passes ValidationError to next when employeeId is invalid', async () => {
@@ -462,7 +463,7 @@ describe('ContractController', () => {
 
     it('passes error to next when the service throws', async () => {
       service.findActiveContractByEmployeeId.mockRejectedValue(new Error('Not found'));
-      const req = makeReq({ params: { employeeId: '1' } });
+      const req = makeAuthReq({ params: { employeeId: '1' } });
 
       await controller.findActiveContractByEmployeeId(req, res, next);
 
@@ -485,6 +486,7 @@ describe('ContractController', () => {
         7,
         expect.objectContaining({ status: 'vencido' }),
         ACTOR,
+        BEARER_TOKEN,
       );
     });
 
@@ -547,6 +549,7 @@ describe('ContractController', () => {
         7,
         expect.objectContaining({ description: 'Salary adjustment' }),
         ACTOR,
+        BEARER_TOKEN,
       );
     });
 
@@ -593,12 +596,12 @@ describe('ContractController', () => {
   describe('findContractAmendments', () => {
     it('responds 200 with amendments on success', async () => {
       service.findContractAmendments.mockResolvedValue([{ id: 1, contractId: 7 }]);
-      const req = makeReq({ params: { id: '7' } });
+      const req = makeAuthReq({ params: { id: '7' } });
 
       await controller.findContractAmendments(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(service.findContractAmendments).toHaveBeenCalledWith(7);
+      expect(service.findContractAmendments).toHaveBeenCalledWith(7, BEARER_TOKEN);
     });
 
     it('passes ValidationError to next when contract id is invalid', async () => {
@@ -611,7 +614,7 @@ describe('ContractController', () => {
 
     it('passes error to next when the service throws', async () => {
       service.findContractAmendments.mockRejectedValue(new Error('DB error'));
-      const req = makeReq({ params: { id: '7' } });
+      const req = makeAuthReq({ params: { id: '7' } });
 
       await controller.findContractAmendments(req, res, next);
 
@@ -670,12 +673,12 @@ describe('ContractController', () => {
 
     it('responds 200 with the download URL on success', async () => {
       service.generateContractDocumentUrl.mockResolvedValue(DOCUMENT_RESULT);
-      const req = makeReq({ params: { id: '7' } });
+      const req = makeAuthReq({ params: { id: '7' } });
 
       await controller.generateContractDocumentUrl(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(service.generateContractDocumentUrl).toHaveBeenCalledWith(7);
+      expect(service.generateContractDocumentUrl).toHaveBeenCalledWith(7, BEARER_TOKEN);
     });
 
     it('passes ValidationError to next when contract id is invalid', async () => {
@@ -688,7 +691,7 @@ describe('ContractController', () => {
 
     it('passes error to next when the service throws', async () => {
       service.generateContractDocumentUrl.mockRejectedValue(new Error('S3 error'));
-      const req = makeReq({ params: { id: '7' } });
+      const req = makeAuthReq({ params: { id: '7' } });
 
       await controller.generateContractDocumentUrl(req, res, next);
 
@@ -703,7 +706,7 @@ describe('ContractController', () => {
 
     it('responds 200 with the upload URL on success', async () => {
       service.generateContractAmendmentUploadUrl.mockResolvedValue(AMENDMENT_UPLOAD_RESULT);
-      const req = makeReq({ params: { id: '7' }, body: VALID_AMENDMENT_UPLOAD_BODY });
+      const req = makeAuthReq({ params: { id: '7' }, body: VALID_AMENDMENT_UPLOAD_BODY });
 
       await controller.generateContractAmendmentUploadUrl(req, res, next);
 
@@ -711,6 +714,7 @@ describe('ContractController', () => {
       expect(service.generateContractAmendmentUploadUrl).toHaveBeenCalledWith(
         7,
         expect.objectContaining({ contentType: 'application/pdf' }),
+        BEARER_TOKEN,
       );
     });
 
@@ -732,7 +736,7 @@ describe('ContractController', () => {
 
     it('passes error to next when the service throws', async () => {
       service.generateContractAmendmentUploadUrl.mockRejectedValue(new Error('S3 error'));
-      const req = makeReq({ params: { id: '7' }, body: VALID_AMENDMENT_UPLOAD_BODY });
+      const req = makeAuthReq({ params: { id: '7' }, body: VALID_AMENDMENT_UPLOAD_BODY });
 
       await controller.generateContractAmendmentUploadUrl(req, res, next);
 
@@ -747,12 +751,12 @@ describe('ContractController', () => {
 
     it('responds 200 with the download URL on success', async () => {
       service.generateContractAmendmentDocumentUrl.mockResolvedValue(AMENDMENT_DOCUMENT_RESULT);
-      const req = makeReq({ params: { id: '7', amendmentId: '2' } });
+      const req = makeAuthReq({ params: { id: '7', amendmentId: '2' } });
 
       await controller.generateContractAmendmentDocumentUrl(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(service.generateContractAmendmentDocumentUrl).toHaveBeenCalledWith(7, 2);
+      expect(service.generateContractAmendmentDocumentUrl).toHaveBeenCalledWith(7, 2, BEARER_TOKEN);
     });
 
     it('passes ValidationError to next when contract id is invalid', async () => {
@@ -781,7 +785,7 @@ describe('ContractController', () => {
 
     it('passes error to next when the service throws', async () => {
       service.generateContractAmendmentDocumentUrl.mockRejectedValue(new Error('S3 error'));
-      const req = makeReq({ params: { id: '7', amendmentId: '2' } });
+      const req = makeAuthReq({ params: { id: '7', amendmentId: '2' } });
 
       await controller.generateContractAmendmentDocumentUrl(req, res, next);
 

@@ -218,7 +218,7 @@ describe('contract routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data.id).toBe(7);
-    expect(mockContractService.findContractById).toHaveBeenCalledWith(7);
+    expect(mockContractService.findContractById).toHaveBeenCalledWith(7, expect.stringContaining('Bearer '));
   });
 
   it('returns 400 for non-integer contract id', async () => {
@@ -239,7 +239,7 @@ describe('contract routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data).toHaveLength(1);
-    expect(mockContractService.findContractsByEmployeeId).toHaveBeenCalledWith(1);
+    expect(mockContractService.findContractsByEmployeeId).toHaveBeenCalledWith(1, expect.stringContaining('Bearer '));
   });
 
   // ── findActiveContractByEmployeeId ────────────────────────────────────────
@@ -256,7 +256,7 @@ describe('contract routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data.document.expiresIn).toBe(3600);
-    expect(mockContractService.findActiveContractByEmployeeId).toHaveBeenCalledWith(1);
+    expect(mockContractService.findActiveContractByEmployeeId).toHaveBeenCalledWith(1, expect.stringContaining('Bearer '));
   });
 
   // ── updateContractStatus ──────────────────────────────────────────────────
@@ -274,6 +274,7 @@ describe('contract routes', () => {
       7,
       expect.objectContaining({ status: 'vencido' }),
       expect.objectContaining({ email: 'admin@example.com' }),
+      expect.stringContaining('Bearer '),
     );
   });
 
@@ -311,6 +312,7 @@ describe('contract routes', () => {
       7,
       expect.objectContaining({ description: 'Salary adjustment' }),
       expect.objectContaining({ email: 'admin@example.com' }),
+      expect.stringContaining('Bearer '),
     );
   });
 
@@ -343,7 +345,7 @@ describe('contract routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data).toHaveLength(1);
-    expect(mockContractService.findContractAmendments).toHaveBeenCalledWith(7);
+    expect(mockContractService.findContractAmendments).toHaveBeenCalledWith(7, expect.stringContaining('Bearer '));
   });
 
   // ── generateContractDocumentUrl ───────────────────────────────────────────
@@ -360,7 +362,7 @@ describe('contract routes', () => {
       .set('Authorization', `Bearer ${token('HR')}`);
 
     expect(response.status).toBe(200);
-    expect(mockContractService.generateContractDocumentUrl).toHaveBeenCalledWith(7);
+    expect(mockContractService.generateContractDocumentUrl).toHaveBeenCalledWith(7, expect.stringContaining('Bearer '));
   });
 
   // ── generateContractAmendmentUploadUrl ────────────────────────────────────
@@ -381,6 +383,7 @@ describe('contract routes', () => {
     expect(mockContractService.generateContractAmendmentUploadUrl).toHaveBeenCalledWith(
       7,
       expect.objectContaining({ contentType: 'application/pdf' }),
+      expect.stringContaining('Bearer '),
     );
   });
 
@@ -423,8 +426,8 @@ describe('contract routes', () => {
 
     expect(contractResponse.status).toBe(200);
     expect(amendmentResponse.status).toBe(200);
-    expect(mockContractService.generateContractDocumentUrl).toHaveBeenCalledWith(7);
-    expect(mockContractService.generateContractAmendmentDocumentUrl).toHaveBeenCalledWith(7, 2);
+    expect(mockContractService.generateContractDocumentUrl).toHaveBeenCalledWith(7, expect.stringContaining('Bearer '));
+    expect(mockContractService.generateContractAmendmentDocumentUrl).toHaveBeenCalledWith(7, 2, expect.stringContaining('Bearer '));
   });
 
   it('returns 400 for non-integer amendmentId in document URL', async () => {

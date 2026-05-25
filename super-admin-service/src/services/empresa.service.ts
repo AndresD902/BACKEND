@@ -4,6 +4,7 @@ import { registrarUsuario } from '../clients/authClient';
 import { getEmpleados } from '../clients/employeeClient';
 import { emailService } from './email.service';
 import { randomTempPassword } from '../utils/crypto.util';
+import { registrarAccion } from '../clients/historyClient';
 import { ConflictError } from '../shared/errors/conflict.error';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { AppError } from '../shared/errors/app-error';
@@ -49,6 +50,19 @@ export const empresaService = {
     if (existente) throw new ConflictError(`Ya existe una empresa con el NIT ${data.nit}`);
 
     const empresa = await empresaRepository.create(data);
+    registrarAccion({
+      usuario_email: 'super-admin-service',
+      rol: 'SYSTEM',
+      accion: 'creacion_empresa',
+      entidad: 'empresa',
+      entidad_id: empresa.id,
+      detalle: JSON.stringify({
+        nombre: empresa.nombre,
+        nit: empresa.nit,
+        correo: empresa.correo,
+        plan: empresa.plan,
+      }),
+    });
 
     // Auto-create 2 admins and register them in the Auth Service
     const dominio  = data.correo.split('@')[1] ?? 'empresa.com';
@@ -69,6 +83,9 @@ export const empresaService = {
           email:     adminEmail,
           password:  passwordTemporal,
           role:      'ADMIN',
+          companyId: empresa.id,
+          emailVerified: true,
+          mustChangePassword: true,
         });
 
         await adminEmpresaRepository.create({
@@ -85,6 +102,17 @@ export const empresaService = {
         });
 
         adminsCreadados.push({ email: adminEmail, nombre: adminNombre });
+        registrarAccion({
+          usuario_email: 'super-admin-service',
+          rol: 'SYSTEM',
+          accion: 'creacion_admin_empresa',
+          entidad: 'empresa_admin',
+          entidad_id: empresa.id,
+          detalle: JSON.stringify({
+            empresaId: empresa.id,
+            adminEmail,
+          }),
+        });
       } catch (err) {
         console.warn(`[EmpresaService] No se pudo crear admin ${i} para empresa ${empresa.id}:`, (err as Error).message);
       }
@@ -131,6 +159,9 @@ export const empresaService = {
       email:     data.email,
       password:  passwordTemporal,
       role:      'ADMIN',
+      companyId: empresaId,
+      emailVerified: true,
+      mustChangePassword: true,
     });
 
     const admin = await adminEmpresaRepository.create({

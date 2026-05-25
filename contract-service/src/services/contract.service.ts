@@ -113,26 +113,32 @@ export class ContractService {
         };
     }
 
-    public async findAllContracts(): Promise<ContractWithPaymentDistribution[]> {
+    public async findAllContracts(authorizationHeader: string): Promise<ContractWithPaymentDistribution[]> {
         const contracts = await this.contractRepository.findAll();
-        return contracts.map((contract) => this.withPaymentDistribution(contract));
+        const accessibleEmployeeIds = new Set(await this.employeeClient.listAccessibleEmployeeIds(authorizationHeader));
+        return contracts
+            .filter((contract) => accessibleEmployeeIds.has(contract.employeeId))
+            .map((contract) => this.withPaymentDistribution(contract));
     }
 
-    public async findContractById(id: number): Promise<ContractWithPaymentDistribution> {
+    public async findContractById(id: number, authorizationHeader: string): Promise<ContractWithPaymentDistribution> {
         const contract = await this.contractRepository.findById(id);
 
         if (!contract) {
             throw new NotFoundError("Contract not found by Id");
         }
+        await this.assertContractAccess(contract, authorizationHeader);
         return this.withPaymentDistribution(contract);
     }
 
-    public async findContractsByEmployeeId(employeeId: number): Promise<ContractWithPaymentDistribution[]> {
+    public async findContractsByEmployeeId(employeeId: number, authorizationHeader: string): Promise<ContractWithPaymentDistribution[]> {
+        await this.employeeClient.verifyEmployeeExists(employeeId, authorizationHeader);
         const contracts = await this.contractRepository.findByEmployeeId(employeeId);
         return contracts.map((contract) => this.withPaymentDistribution(contract));
     }
 
-    public async findActiveContractByEmployeeId(employeeId: number): Promise<ContractDocumentView> {
+    public async findActiveContractByEmployeeId(employeeId: number, authorizationHeader: string): Promise<ContractDocumentView> {
+        await this.employeeClient.verifyEmployeeExists(employeeId, authorizationHeader);
         const contract = await this.contractRepository.findActiveByEmployeeId(employeeId);
 
         if (!contract) {
@@ -152,12 +158,13 @@ export class ContractService {
         return this.buildContractDocumentView(contract);
     }
 
-    public async updateContractStatus(id: number, data: UpdateContractStatusDto, actor: ContractActor): Promise<ContractWithPaymentDistribution> {
+    public async updateContractStatus(id: number, data: UpdateContractStatusDto, actor: ContractActor, authorizationHeader: string): Promise<ContractWithPaymentDistribution> {
         const currentContract = await this.contractRepository.findById(id);
 
         if (!currentContract) {
             throw new NotFoundError("Contract not found by status");
         }
+        await this.assertContractAccess(currentContract, authorizationHeader);
 
         const contract = await this.contractRepository.updateStatus(id, data.status);
 
@@ -170,12 +177,13 @@ export class ContractService {
         return this.withPaymentDistribution(contract);
     }
 
-    public async createContractAmendment(contractId: number, data: CreateContractAmendmentDto, actor: ContractActor): Promise<ContractAmendment> {
+    public async createContractAmendment(contractId: number, data: CreateContractAmendmentDto, actor: ContractActor, authorizationHeader: string): Promise<ContractAmendment> {
         const contract = await this.contractRepository.findById(contractId);
 
         if (!contract) {
             throw new NotFoundError("Contract not found");
         }
+        await this.assertContractAccess(contract, authorizationHeader);
 
         if (contract.status !== ContractStatus.ACTIVE) {
             throw new ConflictError('contract amendments can only be created for active contracts');
@@ -210,12 +218,13 @@ export class ContractService {
         return amendment;
     }
 
-    public async findContractAmendments(contractId: number): Promise<ContractAmendment[]> {
+    public async findContractAmendments(contractId: number, authorizationHeader: string): Promise<ContractAmendment[]> {
         const contract = await this.contractRepository.findById(contractId);
 
         if (!contract) {
             throw new NotFoundError("Contract not found");
         }
+        await this.assertContractAccess(contract, authorizationHeader);
 
         return this.contractAmendmentRepository.findByContractId(contractId);
     }
@@ -245,13 +254,15 @@ export class ContractService {
 
     public async generateContractAmendmentUploadUrl(
         contractId: number,
-        data: CreateContractAmendmentFileUploadUrlDto
+        data: CreateContractAmendmentFileUploadUrlDto,
+        authorizationHeader: string
     ): Promise<SignedUploadUrl> {
         const contract = await this.contractRepository.findById(contractId);
 
         if (!contract) {
             throw new NotFoundError("Contract not found");
         }
+        await this.assertContractAccess(contract, authorizationHeader);
 
         if (contract.status !== ContractStatus.ACTIVE) {
             throw new ConflictError('contract amendment files can only be uploaded for active contracts');
@@ -265,12 +276,13 @@ export class ContractService {
         });
     }
 
-    public async generateContractDocumentUrl(contractId: number): Promise<{ key: string; url: string; expiresIn: number }> {
+    public async generateContractDocumentUrl(contractId: number, authorizationHeader: string): Promise<{ key: string; url: string; expiresIn: number }> {
         const contract = await this.contractRepository.findById(contractId);
 
         if (!contract) {
             throw new NotFoundError("Contract not found");
         }
+        await this.assertContractAccess(contract, authorizationHeader);
 
         if (!contract.fileS3Key) {
             throw new NotFoundError("Contract file not found");
@@ -286,13 +298,15 @@ export class ContractService {
 
     public async generateContractAmendmentDocumentUrl(
         contractId: number,
-        amendmentId: number
+        amendmentId: number,
+        authorizationHeader: string
     ): Promise<{ key: string; url: string; expiresIn: number }> {
         const contract = await this.contractRepository.findById(contractId);
 
         if (!contract) {
             throw new NotFoundError("Contract not found");
         }
+        await this.assertContractAccess(contract, authorizationHeader);
 
         const amendment = await this.contractAmendmentRepository.findById(amendmentId);
 
@@ -330,6 +344,10 @@ export class ContractService {
                 expiresIn: signedUrl.expiresIn,
             },
         };
+    }
+
+    private async assertContractAccess(contract: Contract, authorizationHeader: string): Promise<void> {
+        await this.employeeClient.verifyEmployeeExists(contract.employeeId, authorizationHeader);
     }
 
     private withPaymentDistribution(contract: Contract): ContractWithPaymentDistribution {

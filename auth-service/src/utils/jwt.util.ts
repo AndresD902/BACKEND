@@ -6,6 +6,7 @@ export interface JwtPayload {
   sub: string; // The sub is used because JWT normally uses sub as a user identifier
   email: string;
   role: RoleName;
+  companyId?: number;
   employeeId?: number; // Included for CONSULTATION role users to access their contracts
 }
 

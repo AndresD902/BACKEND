@@ -16,18 +16,23 @@ describe('registrarUsuario', () => {
     mockedAxios.post = vi.fn().mockResolvedValue({ data: fakeResponse });
 
     const payload = {
-      cedula: 'ADMIN9001234561',
+      firstName: 'Administrador',
+      lastName: 'Empresa',
       email: 'admin1@empresa.com',
       password: 'tempPass123',
-      rol: 'admin' as const,
+      role: 'ADMIN' as const,
+      companyId: 1,
     };
 
     const result = await registrarUsuario(payload);
 
     expect(mockedAxios.post).toHaveBeenCalledWith(
-      expect.stringContaining('/auth/register'),
+      expect.stringContaining('/internal/users'),
       payload,
-      expect.objectContaining({ timeout: expect.any(Number) }),
+      expect.objectContaining({
+        timeout: expect.any(Number),
+        headers: expect.objectContaining({ 'x-internal-key': expect.any(String) }),
+      }),
     );
     expect(result).toEqual(fakeResponse);
   });
@@ -37,10 +42,12 @@ describe('registrarUsuario', () => {
     mockedAxios.post = vi.fn().mockResolvedValue({ data: fakeData });
 
     const result = await registrarUsuario({
-      cedula: 'CC123456',
+      firstName: 'Recursos',
+      lastName: 'Humanos',
       email: 'rrhh@empresa.com',
       password: 'pass',
-      rol: 'rrhh',
+      role: 'HR',
+      companyId: 1,
     });
 
     expect(result).toEqual(fakeData);
@@ -51,10 +58,13 @@ describe('registrarUsuario', () => {
 
     await expect(
       registrarUsuario({
-        cedula: 'CC999',
+        firstName: 'Consulta',
+        lastName: 'Empleado',
         email: 'test@test.com',
         password: 'pass',
-        rol: 'consulta',
+        role: 'CONSULTATION',
+        companyId: 1,
+        employeeId: 10,
       }),
     ).rejects.toThrow('ECONNREFUSED');
   });
@@ -67,10 +77,12 @@ describe('registrarUsuario', () => {
 
     await expect(
       registrarUsuario({
-        cedula: 'CC001',
+        firstName: 'Duplicado',
+        lastName: 'Empresa',
         email: 'duplicado@empresa.com',
         password: 'pass',
-        rol: 'admin',
+        role: 'ADMIN',
+        companyId: 1,
       }),
     ).rejects.toThrow();
   });

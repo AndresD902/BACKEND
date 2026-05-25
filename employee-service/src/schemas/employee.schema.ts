@@ -83,6 +83,15 @@ export const createCargoSchema = z.object({
   motivo_cambio: z.string().max(255).optional(),
 });
 
+export const solicitarCorreccionSchema = z.object({
+  descripcion: z.string().trim().min(5, { message: 'La descripcion debe tener al menos 5 caracteres' }).max(1000),
+});
+
+export const reviewChangeRequestSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED']),
+  reviewNotes: z.string().trim().max(1000).optional(),
+});
+
 export type CreateEmpleadoInput = z.infer<typeof createEmpleadoSchema>;
 export type UpdateEmpleadoInput = z.infer<typeof updateEmpleadoSchema>;
 export type CreateCargoInput    = z.infer<typeof createCargoSchema>;

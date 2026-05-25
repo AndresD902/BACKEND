@@ -22,6 +22,24 @@ export const createUserSchema = z.object({
     .max(100, { message: 'Password must be at most 100 characters long' }),
 
   role: z.enum(RoleName, { message: 'Invalid role. Must be ADMIN, HR, or CONSULTATION' }),
+  companyId: z.coerce.number().int().positive().optional(),
+  employeeId: z.coerce.number().int().positive().optional(),
+  emailVerified: z.boolean().optional(),
+  mustChangePassword: z.boolean().optional(),
+});
+
+export const internalCreateUserSchema = createUserSchema.extend({
+  emailVerified: z.boolean().default(true),
+  mustChangePassword: z.boolean().default(true),
+});
+
+export const createManagedUserSchema = createUserSchema.extend({
+  role: z.literal(RoleName.HR).optional(),
+}).omit({
+  companyId: true,
+  employeeId: true,
+  emailVerified: true,
+  mustChangePassword: true,
 });
 
 export const loginSchema = z.object({
@@ -69,6 +87,7 @@ export const verifyEmailSchema = z.object({
 });
 
 export type CreateUserSchema = z.infer<typeof createUserSchema>;
+export type CreateManagedUserSchema = z.infer<typeof createManagedUserSchema>;
 export type LoginUserSchema = z.infer<typeof loginSchema>;
 export type RefreshTokenSchema = z.infer<typeof refreshTokenSchema>;
 export type LogoutSchema = z.infer<typeof logoutSchema>;

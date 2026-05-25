@@ -70,9 +70,10 @@ export class ContractController {
         }
     };
 
-    public findAllContracts = async (_request: Request, response: Response, next: NextFunction): Promise<void> => {
+    public findAllContracts = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
-            const contracts = await this.contractService.findAllContracts();
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const contracts = await this.contractService.findAllContracts(authorizationHeader);
 
             response.status(200).json({
                 success: true,
@@ -87,7 +88,8 @@ export class ContractController {
     public findContractById = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const contractId = this.parsePositiveInteger(request.params.id, 'Contract id');
-            const contract = await this.contractService.findContractById(contractId);
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const contract = await this.contractService.findContractById(contractId, authorizationHeader);
 
             response.status(200).json({
                 success: true,
@@ -102,7 +104,8 @@ export class ContractController {
     public findContractsByEmployeeId = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const employeeId = this.parsePositiveInteger(request.params.employeeId, 'Employee id');
-            const contracts = await this.contractService.findContractsByEmployeeId(employeeId);
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const contracts = await this.contractService.findContractsByEmployeeId(employeeId, authorizationHeader);
 
             response.status(200).json({
                 success: true,
@@ -117,7 +120,8 @@ export class ContractController {
     public findActiveContractByEmployeeId = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const employeeId = this.parsePositiveInteger(request.params.employeeId, 'Employee id');
-            const contract = await this.contractService.findActiveContractByEmployeeId(employeeId);
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const contract = await this.contractService.findActiveContractByEmployeeId(employeeId, authorizationHeader);
 
             response.status(200).json({
                 success: true,
@@ -145,7 +149,8 @@ export class ContractController {
             }
 
             const actor = this.getAuthenticatedUser(request);
-            const contract = await this.contractService.updateContractStatus(contractId, parseBody.data, actor);
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const contract = await this.contractService.updateContractStatus(contractId, parseBody.data, actor, authorizationHeader);
 
             response.status(200).json({
                 success: true,
@@ -173,7 +178,8 @@ export class ContractController {
             }
 
             const actor = this.getAuthenticatedUser(request);
-            const contractAmendment = await this.contractService.createContractAmendment(contractId, parseBody.data, actor);
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const contractAmendment = await this.contractService.createContractAmendment(contractId, parseBody.data, actor, authorizationHeader);
 
             response.status(201).json({
                 success: true,
@@ -188,7 +194,8 @@ export class ContractController {
     public findContractAmendments = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const contractId = this.parsePositiveInteger(request.params.id, 'Contract id');
-            const contractAmendments = await this.contractService.findContractAmendments(contractId);
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const contractAmendments = await this.contractService.findContractAmendments(contractId, authorizationHeader);
 
             response.status(200).json({
                 success: true,
@@ -230,7 +237,8 @@ export class ContractController {
     public generateContractDocumentUrl = async (request: Request, response: Response, next: NextFunction): Promise<void> => {
         try {
             const contractId = this.parsePositiveInteger(request.params.id, 'Contract id');
-            const document = await this.contractService.generateContractDocumentUrl(contractId);
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const document = await this.contractService.generateContractDocumentUrl(contractId, authorizationHeader);
 
             response.status(200).json({
                 success: true,
@@ -257,7 +265,8 @@ export class ContractController {
                 return;
             }
 
-            const upload = await this.contractService.generateContractAmendmentUploadUrl(contractId, parseBody.data);
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const upload = await this.contractService.generateContractAmendmentUploadUrl(contractId, parseBody.data, authorizationHeader);
 
             response.status(200).json({
                 success: true,
@@ -273,7 +282,8 @@ export class ContractController {
         try {
             const contractId = this.parsePositiveInteger(request.params.id, 'Contract id');
             const amendmentId = this.parsePositiveInteger(request.params.amendmentId, 'Contract amendment id');
-            const document = await this.contractService.generateContractAmendmentDocumentUrl(contractId, amendmentId);
+            const authorizationHeader = this.getAuthorizationHeader(request);
+            const document = await this.contractService.generateContractAmendmentDocumentUrl(contractId, amendmentId, authorizationHeader);
 
             response.status(200).json({
                 success: true,

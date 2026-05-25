@@ -1,12 +1,30 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { employeeController } from '../controllers/employee.controller';
 import { verifyToken } from '../middlewares/auth.middleware';
 import { requireRol } from '../middlewares/authorize.middleware';
 import { validateBody } from '../middlewares/validation.middleware';
-import { createEmpleadoSchema, updateEmpleadoSchema, createCargoSchema } from '../schemas/employee.schema';
+import { env } from '../config/env';
+import {
+  createEmpleadoSchema,
+  updateEmpleadoSchema,
+  createCargoSchema,
+  solicitarCorreccionSchema,
+  reviewChangeRequestSchema,
+} from '../schemas/employee.schema';
 import { RoleName } from '../shared/enums/role.enum';
 
 const router = Router();
+
+function requireConsultantSelfService(_req: Request, res: Response, next: NextFunction): void {
+  if (!env.consultantSelfServiceEnabled) {
+    res.status(404).json({
+      success: false,
+      message: 'Consultant self-service is disabled',
+    });
+    return;
+  }
+  next();
+}
 
 // Public endpoint for justificaciones (no authentication required)
 router.get('/justificaciones-public', employeeController.getJustificaciones);
@@ -18,12 +36,15 @@ router.get('/justificaciones', requireRol(RoleName.ADMIN, RoleName.HR), employee
 router.get('/export/csv', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.exportCsv);
 router.post('/presigned-url', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.generarPresignedUrl);
 router.get('/documentos/:docId/url', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.generarUrlDescarga);
-router.get('/me', requireRol(RoleName.CONSULTATION), employeeController.getMe);
-router.get('/me/cargo-actual', requireRol(RoleName.CONSULTATION), employeeController.getCargoActualMe);
-router.get('/me/contrato-activo', requireRol(RoleName.CONSULTATION), employeeController.getContratoLaboralActivoMe);
-router.get('/me/documentos', requireRol(RoleName.CONSULTATION), employeeController.getDocumentosMe);
-router.get('/me/documentos/:docId/url', requireRol(RoleName.CONSULTATION), employeeController.generarUrlDescargaDocumentoPropio);
-router.post('/me/solicitar-correccion', requireRol(RoleName.CONSULTATION), employeeController.solicitarCorreccionMe);
+router.get('/me', requireConsultantSelfService, requireRol(RoleName.CONSULTATION), employeeController.getMe);
+router.get('/me/cargo-actual', requireConsultantSelfService, requireRol(RoleName.CONSULTATION), employeeController.getCargoActualMe);
+router.get('/me/contrato-activo', requireConsultantSelfService, requireRol(RoleName.CONSULTATION), employeeController.getContratoLaboralActivoMe);
+router.get('/me/documentos', requireConsultantSelfService, requireRol(RoleName.CONSULTATION), employeeController.getDocumentosMe);
+router.get('/me/documentos/:docId/url', requireConsultantSelfService, requireRol(RoleName.CONSULTATION), employeeController.generarUrlDescargaDocumentoPropio);
+router.get('/me/change-requests', requireConsultantSelfService, requireRol(RoleName.CONSULTATION), employeeController.listMyChangeRequests);
+router.post('/me/solicitar-correccion', requireConsultantSelfService, requireRol(RoleName.CONSULTATION), validateBody(solicitarCorreccionSchema), employeeController.solicitarCorreccionMe);
+router.get('/change-requests', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.listChangeRequests);
+router.patch('/change-requests/:requestId/review', requireRol(RoleName.ADMIN, RoleName.HR), validateBody(reviewChangeRequestSchema), employeeController.reviewChangeRequest);
 router.get('/', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.getAll);
 router.get('/:id', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.getById);
 router.post('/', requireRol(RoleName.ADMIN, RoleName.HR), validateBody(createEmpleadoSchema), employeeController.create);
@@ -37,6 +58,6 @@ router.get('/:id/documentos', requireRol(RoleName.ADMIN, RoleName.HR), employeeC
 router.post('/:id/documentos', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.confirmarDocumento);
 router.post('/:id/documentos/:docId/aprobar', requireRol(RoleName.HR), employeeController.aprobarDocumento);
 router.patch('/:id/documentos/:docId/rechazar', requireRol(RoleName.HR), employeeController.rechazarDocumento);
-router.post('/:id/solicitar-correccion', requireRol(RoleName.ADMIN, RoleName.HR), employeeController.solicitarCorreccion);
+router.post('/:id/solicitar-correccion', requireRol(RoleName.ADMIN, RoleName.HR), validateBody(solicitarCorreccionSchema), employeeController.solicitarCorreccion);
 
 export default router;

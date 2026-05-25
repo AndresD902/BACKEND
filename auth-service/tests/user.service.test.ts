@@ -34,8 +34,11 @@ const baseUser = {
   email: 'andres@test.com',
   passwordHash: 'hashed-password',
   role: RoleName.ADMIN,
+  companyId: null,
+  employeeId: null,
   isActive: true,
   emailVerified: true,
+  mustChangePassword: false,
   notifLogin: false,
   notifCambios: false,
   lastLogin: null,
@@ -49,6 +52,7 @@ describe('UserService', () => {
     findById: jest.Mock;
     updateStatus: jest.Mock;
     updatePassword: jest.Mock;
+    countActiveByRoleAndCompany: jest.Mock;
   };
   let mockRefreshTokenRepository: {
     revokeAllByUserId: jest.Mock;
@@ -62,6 +66,7 @@ describe('UserService', () => {
       findById: jest.fn(),
       updateStatus: jest.fn(),
       updatePassword: jest.fn(),
+      countActiveByRoleAndCompany: jest.fn().mockResolvedValue(0),
     };
     mockRefreshTokenRepository = {
       revokeAllByUserId: jest.fn(),
@@ -139,6 +144,7 @@ describe('UserService', () => {
 
   describe('activate', () => {
     it('should activate a user and return mapped data', async () => {
+      mockUserRepository.findById.mockResolvedValue({ ...baseUser, isActive: false });
       mockUserRepository.updateStatus.mockResolvedValue(baseUser);
 
       const result = await userService.activate('1');
@@ -149,6 +155,7 @@ describe('UserService', () => {
     });
 
     it('should throw NotFoundError when user does not exist', async () => {
+      mockUserRepository.findById.mockResolvedValue(null);
       mockUserRepository.updateStatus.mockResolvedValue(null);
 
       await expect(userService.activate('999')).rejects.toThrow(NotFoundError);

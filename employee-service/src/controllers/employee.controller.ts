@@ -21,12 +21,12 @@ export class EmployeeController {
     const search       = req.query.search       ? String(req.query.search).slice(0, 50)       : undefined;
     const estado       = req.query.estado       ? String(req.query.estado).toLowerCase()       : undefined;
     const departamento = req.query.departamento ? String(req.query.departamento)               : undefined;
-    const result = await this.service.getAll(page, limit, { search, estado, departamento });
+    const result = await this.service.getAll(page, limit, { search, estado, departamento }, actor(req));
     res.status(200).json({ success: true, data: result });
   });
 
   public getById = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const empleado = await this.service.getById(Number(req.params.id));
+    const empleado = await this.service.getById(Number(req.params.id), actor(req));
     res.status(200).json({ success: true, data: empleado });
   });
 
@@ -92,6 +92,28 @@ export class EmployeeController {
     res.status(200).json({ success: true, message: 'Solicitud de correccion enviada a RRHH' });
   });
 
+  public listMyChangeRequests = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      throw new UnauthorizedError('User email is required');
+    }
+    const status = req.query.status ? String(req.query.status).toUpperCase() as any : undefined;
+    const data = await this.service.listMyChangeRequests(userEmail, status);
+    res.status(200).json({ success: true, data });
+  });
+
+  public listChangeRequests = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const status = req.query.status ? String(req.query.status).toUpperCase() as any : undefined;
+    const data = await this.service.listChangeRequests(actor(req), status);
+    res.status(200).json({ success: true, data });
+  });
+
+  public reviewChangeRequest = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { status, reviewNotes } = req.body as { status: 'APPROVED' | 'REJECTED'; reviewNotes?: string };
+    const data = await this.service.reviewChangeRequest(Number(req.params.requestId), status, actor(req), reviewNotes);
+    res.status(200).json({ success: true, data });
+  });
+
   public create = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const empleado = await this.service.create(req.body, actor(req));
     res.status(201).json({ success: true, data: empleado });
@@ -108,12 +130,12 @@ export class EmployeeController {
   });
 
   public getCargoActual = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const cargo = await this.service.getCargoActual(Number(req.params.id));
+    const cargo = await this.service.getCargoActual(Number(req.params.id), actor(req));
     res.status(200).json({ success: true, data: cargo });
   });
 
   public getHistorialCargos = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const historial = await this.service.getHistorialCargos(Number(req.params.id));
+    const historial = await this.service.getHistorialCargos(Number(req.params.id), actor(req));
     res.status(200).json({ success: true, data: historial });
   });
 
@@ -124,7 +146,7 @@ export class EmployeeController {
       throw new UnauthorizedError('Token requerido');
     }
 
-    const contrato = await this.service.getContratoLaboralActivo(Number(req.params.id), authorizationHeader);
+    const contrato = await this.service.getContratoLaboralActivo(Number(req.params.id), authorizationHeader, actor(req));
     res.status(200).json({ success: true, data: contrato });
   });
 
@@ -134,12 +156,12 @@ export class EmployeeController {
   });
 
   public getDocumentos = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const docs = await this.service.getDocumentos(Number(req.params.id));
+    const docs = await this.service.getDocumentos(Number(req.params.id), actor(req));
     res.status(200).json({ success: true, data: docs });
   });
 
   public generarPresignedUrl = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const result = await this.service.generarPresignedUrl(req.body);
+    const result = await this.service.generarPresignedUrl(req.body, actor(req));
     res.status(200).json({ success: true, data: result });
   });
 
@@ -149,7 +171,7 @@ export class EmployeeController {
   });
 
   public generarUrlDescarga = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const result = await this.service.generarUrlDescargaDocumento(Number(req.params.docId));
+    const result = await this.service.generarUrlDescargaDocumento(Number(req.params.docId), actor(req));
     res.status(200).json({ success: true, data: result });
   });
 
@@ -167,7 +189,7 @@ export class EmployeeController {
   public solicitarCorreccion = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const solicitante = actor(req).email;
     const { descripcion } = req.body as { descripcion: string };
-    await this.service.solicitarCorreccion(Number(req.params.id), descripcion, solicitante);
+    await this.service.solicitarCorreccion(Number(req.params.id), descripcion, solicitante, actor(req));
     res.status(200).json({ success: true, message: 'Solicitud de corrección enviada a RRHH' });
   });
 
@@ -175,7 +197,7 @@ export class EmployeeController {
     const search       = req.query.search       ? String(req.query.search).slice(0, 50) : undefined;
     const estado       = req.query.estado       ? String(req.query.estado).toLowerCase() : undefined;
     const departamento = req.query.departamento ? String(req.query.departamento)         : undefined;
-    const csv = await this.service.exportCsv({ search, estado, departamento });
+    const csv = await this.service.exportCsv({ search, estado, departamento }, actor(req));
     const fecha = new Date().toISOString().split('T')[0];
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="empleados_${fecha}.csv"`);
