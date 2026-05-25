@@ -1782,3 +1782,17 @@ hr-system-tests/
 
 *HR System — Sistema Administrador de Empleados · Versión 4.0*  
 *18 tablas · 7 microservicios · 4 roles · 4 dashboards · AWS S3 · JWT + Refresh Tokens con rotación · Festivos CO · Multiempresa · TypeScript*
+
+---
+
+## Cierre de produccion y despliegue
+
+La guia final de despliegue esta centralizada en `../deploy/README.md`. Esa carpeta incluye:
+
+- `docker-compose.prod.yml` para levantar backend, frontend, PostgreSQL y reverse proxy en una VM Linux.
+- `env.production.example` como checklist de variables por ambiente.
+- `nginx/hr-system.conf` para enrutar frontend y microservicios bajo un solo dominio.
+- `checklists/production-readiness.md` y `checklists/smoke-test.md` para validacion final.
+- `scripts/backup-postgres.sh` para backups de PostgreSQL en despliegues con base local Docker.
+
+Para produccion real, no usar Mailpit ni credenciales `local`. Se debe configurar un SMTP real y buckets S3 reales con acceso privado y presigned URLs.
