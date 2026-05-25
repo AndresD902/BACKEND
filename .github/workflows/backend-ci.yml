@@ -1,0 +1,90 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - feat/**
+      - refactor/**
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - auth-service
+          - employee-service
+          - contract-service
+          - vacation-service
+          - report-service
+          - history-service
+          - super-admin-service
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.service }}
+        run: npm ci
+
+      - name: Build
+        working-directory: ${{ matrix.service }}
+        run: npm run build
+
+      - name: Test
+        working-directory: ${{ matrix.service }}
+        run: npm test
+        env:
+          NODE_ENV: test
+          JWT_SECRET: minimo_32_caracteres_muy_seguro_aqui_1234
+          SUPERADMIN_JWT_SECRET: minimo_32_caracteres_superadmin_muy_seguro_aqui
+          INTERNAL_API_KEY: clave_interna_muy_segura_cambiar_en_ci
+          REGISTER_SECRET: clave_secreta_para_crear_primer_superadmin
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          AUTH_SERVICE_URL: http://localhost:3001/api/v1
+          EMPLOYEE_SERVICE_URL: http://localhost:3002/api
+          CONTRACT_SERVICE_URL: http://localhost:3003/api
+          VACATION_SERVICE_URL: http://localhost:3004/api
+          HISTORY_SERVICE_URL: http://localhost:3006
+          CORS_ORIGINS: http://localhost:5173
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          S3_BUCKET_NAME: test-bucket
+          SMTP_HOST: smtp.test.local
+          SMTP_PORT: 587
+          SMTP_SECURE: false
+          SMTP_USER: test@example.com
+          SMTP_PASS: test
