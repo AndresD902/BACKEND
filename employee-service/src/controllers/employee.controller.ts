@@ -5,6 +5,7 @@ import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { AuthenticatedUser } from '../types/authenticated-user.type';
 import { asyncHandler } from '../utils/async-handler.util';
 import { UnauthorizedError } from '../shared/errors/unauthorized.error';
+import { JUSTIFICACIONES_ESTADO_INACTIVO } from '../shared/justificaciones';
 
 function actor(req: AuthenticatedRequest): AuthenticatedUser {
   return req.user as AuthenticatedUser;
@@ -205,7 +206,6 @@ export class EmployeeController {
   });
 
   public getJustificaciones = asyncHandler(async (_req: AuthenticatedRequest, res: Response) => {
-    const { JUSTIFICACIONES_ESTADO_INACTIVO } = require('../shared/justificaciones');
     res.status(200).json({ success: true, data: JUSTIFICACIONES_ESTADO_INACTIVO });
   });
 

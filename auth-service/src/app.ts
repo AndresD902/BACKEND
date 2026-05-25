@@ -6,6 +6,7 @@ import routes from './routes';
 import { notFoundMiddleware } from './middlewares/not-found.middleware';
 import { errorHandler } from './middlewares/error-handler.middleware';
 import { env } from './config/env';
+import { authRateLimit } from './middlewares/rate-limit.middleware';
 
 const app = express();
 
@@ -18,6 +19,10 @@ app.use(cors({
 app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+app.use('/api/v1/auth/login', authRateLimit);
+app.use('/api/v1/auth/forgot-password', authRateLimit);
+app.use('/api/v1/auth/reset-password', authRateLimit);
 
 app.use('/api/v1', routes);
 app.use(notFoundMiddleware);

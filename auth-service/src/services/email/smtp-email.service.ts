@@ -366,6 +366,16 @@ class ConsoleEmailService implements IEmailService {
   }
 }
 
-export const emailService: IEmailService = env.smtpUser && env.smtpPass
-  ? new SmtpEmailService()
-  : new ConsoleEmailService();
+function createEmailService(): IEmailService {
+  if (env.smtpUser && env.smtpPass) {
+    return new SmtpEmailService();
+  }
+
+  if (env.nodeEnv === 'production') {
+    throw new Error('SMTP_USER and SMTP_PASS are required in production');
+  }
+
+  return new ConsoleEmailService();
+}
+
+export const emailService: IEmailService = createEmailService();
