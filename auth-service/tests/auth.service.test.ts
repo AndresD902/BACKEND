@@ -26,6 +26,7 @@ jest.mock('../src/config/env', () => ({
 
 jest.mock('../src/clients/employeeServiceClient', () => ({
   isRegisteredEmployee: jest.fn().mockResolvedValue(true),
+  getEmployeeIdByEmail: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock('../src/utils/password.util', () => ({
@@ -56,8 +57,11 @@ const baseUser = {
   email: 'andresposada@gmail.com',
   passwordHash: 'hashed-password',
   role: RoleName.ADMIN,
+  companyId: null,
+  employeeId: null,
   isActive: true,
   emailVerified: true,
+  mustChangePassword: false,
   notifLogin: false,
   notifCambios: false,
   lastLogin: null,
@@ -74,6 +78,7 @@ describe('AuthService', () => {
     updatePasswordHash: jest.Mock;
     updateEmailVerified: jest.Mock;
     updateNotificationPrefs: jest.Mock;
+    countActiveByRoleAndCompany: jest.Mock;
   };
 
   let mockRefreshTokenRepository: {
@@ -95,6 +100,7 @@ describe('AuthService', () => {
     sendPasswordResetEmail: jest.Mock;
     sendLoginAlertEmail: jest.Mock;
     sendEmployeeChangeEmail: jest.Mock;
+    sendInitialCredentialsEmail: jest.Mock;
   };
 
   let mockEmailVerificationRepository: {
@@ -114,6 +120,7 @@ describe('AuthService', () => {
       updatePasswordHash: jest.fn(),
       updateEmailVerified: jest.fn(),
       updateNotificationPrefs: jest.fn(),
+      countActiveByRoleAndCompany: jest.fn().mockResolvedValue(0),
     };
 
     mockRefreshTokenRepository = {
@@ -135,6 +142,7 @@ describe('AuthService', () => {
       sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
       sendLoginAlertEmail: jest.fn().mockResolvedValue(undefined),
       sendEmployeeChangeEmail: jest.fn().mockResolvedValue(undefined),
+      sendInitialCredentialsEmail: jest.fn().mockResolvedValue(undefined),
     };
 
     mockEmailVerificationRepository = {
@@ -222,7 +230,8 @@ describe('AuthService', () => {
     });
 
     it('should throw ForbiddenError if CONSULTATION user is not a registered employee', async () => {
-      const { isRegisteredEmployee } = jest.requireMock('../src/clients/employeeServiceClient') as { isRegisteredEmployee: jest.Mock };
+      const { isRegisteredEmployee, getEmployeeIdByEmail } = jest.requireMock('../src/clients/employeeServiceClient') as { isRegisteredEmployee: jest.Mock; getEmployeeIdByEmail: jest.Mock };
+      getEmployeeIdByEmail.mockResolvedValueOnce(null);
       isRegisteredEmployee.mockResolvedValueOnce(false);
 
       mockUserRepository.findByEmail.mockResolvedValue(null);
@@ -237,7 +246,8 @@ describe('AuthService', () => {
     });
 
     it('should allow CONSULTATION role when employee is registered', async () => {
-      const { isRegisteredEmployee } = jest.requireMock('../src/clients/employeeServiceClient') as { isRegisteredEmployee: jest.Mock };
+      const { isRegisteredEmployee, getEmployeeIdByEmail } = jest.requireMock('../src/clients/employeeServiceClient') as { isRegisteredEmployee: jest.Mock; getEmployeeIdByEmail: jest.Mock };
+      getEmployeeIdByEmail.mockResolvedValueOnce(null);
       isRegisteredEmployee.mockResolvedValueOnce(true);
 
       mockUserRepository.findByEmail.mockResolvedValue(null);

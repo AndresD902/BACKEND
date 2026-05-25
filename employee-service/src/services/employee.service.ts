@@ -5,10 +5,15 @@ import { generarUrlSubida, generarUrlDescarga } from '../config/s3';
 import { registrarCambio } from '../clients/historyServiceClient';
 import { notificarCambioEmpleado, notificarSolicitudCorreccion } from '../clients/authNotificationClient';
 import { ActiveContractDocument, contractServiceClient, IContractServiceClient } from '../clients/contractServiceClient';
+import { provisionConsultantAccount, ProvisionConsultantAccountFn } from '../clients/authAccountClient';
 import { IEmployeeRepository } from '../repositories/interfaces/employee.repository.interface';
 import { EmployeeFilters } from '../repositories/interfaces/employee.repository.interface';
 import { ICargoSalarioRepository } from '../repositories/interfaces/cargo-salario.repository.interface';
 import { IDocumentoRepository } from '../repositories/interfaces/documento.repository.interface';
+import {
+  employeeChangeRequestRepository,
+  EmployeeChangeRequestRepository,
+} from '../repositories/employeeChangeRequest.repository';
 import { IEmployeeService } from './interfaces/employee.service.interface';
 import { NotFoundError } from '../shared/errors/not-found.error';
 import { ConflictError } from '../shared/errors/conflict.error';
@@ -16,7 +21,13 @@ import { ForbiddenError } from '../shared/errors/forbidden.error';
 import { CreateEmpleadoDto } from '../dtos/create-employee.dto';
 import { UpdateEmpleadoDto, CreateCargoDto, ConfirmarDocumentoDto, PresignedUrlDto } from '../dtos/update-employee.dto';
 import { AuthenticatedUser } from '../types/authenticated-user.type';
-import { Empleado, CargoSalario, DocumentoEmpleado } from '../entities/employee.entity';
+import {
+  Empleado,
+  CargoSalario,
+  DocumentoEmpleado,
+  EmployeeChangeRequest,
+  EmployeeChangeRequestStatus,
+} from '../entities/employee.entity';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -40,11 +51,20 @@ export class EmployeeService implements IEmployeeService {
     private readonly notificar: NotificarCambioFn = notificarCambioEmpleado,
     private readonly contractClient: IContractServiceClient = contractServiceClient,
     private readonly notificarCorreccion: NotificarCorreccionFn = notificarSolicitudCorreccion,
+    private readonly changeRequestRepo: EmployeeChangeRequestRepository = employeeChangeRequestRepository,
+    private readonly provisionConsultant: ProvisionConsultantAccountFn = provisionConsultantAccount,
   ) {}
 
-  private async findOrFail(id: number): Promise<Empleado> {
+  private assertCompanyAccess(empleado: Empleado, actor?: AuthenticatedUser): void {
+    if (actor?.companyId && empleado.empresa_id && Number(empleado.empresa_id) !== actor.companyId) {
+      throw new ForbiddenError('No tienes permisos para acceder a este empleado');
+    }
+  }
+
+  private async findOrFail(id: number, actor?: AuthenticatedUser): Promise<Empleado> {
     const empleado = await this.empRepo.findById(id);
     if (!empleado) throw new NotFoundError(`Empleado con id ${id} no encontrado`);
+    this.assertCompanyAccess(empleado, actor);
     return empleado;
   }
 
@@ -58,17 +78,18 @@ export class EmployeeService implements IEmployeeService {
 
   // ─── Empleados ─────────────────────────────────────────────────────────────
 
-  async getAll(page: number, limit: number, filters?: EmployeeFilters) {
+  async getAll(page: number, limit: number, filters?: EmployeeFilters, actor?: AuthenticatedUser) {
     const offset = (page - 1) * limit;
+    const scopedFilters = actor?.companyId ? { ...filters, empresaId: actor.companyId } : filters;
     const [empleados, total] = await Promise.all([
-      this.empRepo.findAll(limit, offset, filters),
-      this.empRepo.count(filters),
+      this.empRepo.findAll(limit, offset, scopedFilters),
+      this.empRepo.count(scopedFilters),
     ]);
     return { empleados, total, page, limit };
   }
 
-  async getById(id: number): Promise<Empleado> {
-    return this.findOrFail(id);
+  async getById(id: number, actor?: AuthenticatedUser): Promise<Empleado> {
+    return this.findOrFail(id, actor);
   }
 
   async getMe(userEmail: string): Promise<Empleado> {
@@ -103,6 +124,22 @@ export class EmployeeService implements IEmployeeService {
 
   async solicitarCorreccionMe(userEmail: string, descripcion: string): Promise<void> {
     const empleado = await this.findOwnEmployeeOrFail(userEmail);
+    const request = await this.changeRequestRepo.create({
+      empleado_id: empleado.id,
+      empresa_id: empleado.empresa_id,
+      category: 'general',
+      justification: descripcion,
+      requested_by_email: userEmail,
+    });
+    this.registrar({
+      empleado_id:         empleado.id,
+      entidad:             'employee_change_request',
+      entidad_id:          request.id,
+      campo_modificado:    'creacion',
+      valor_nuevo:         JSON.stringify(request),
+      usuario_modificador: userEmail,
+      rol_modificador:     'CONSULTATION',
+    });
     this.notificarCorreccion({
       empleadoNombre: `${empleado.nombre} ${empleado.apellido}`,
       descripcion,
@@ -143,8 +180,29 @@ export class EmployeeService implements IEmployeeService {
     if (dto.departamento)     empleadoData.departamento      = dto.departamento;
     if (dto.nivel_educativo)  empleadoData.nivel_educativo   = dto.nivel_educativo;
     if (dto.fecha_ingreso)    empleadoData.fecha_ingreso     = dto.fecha_ingreso;
+    if (actor.companyId)      empleadoData.empresa_id         = actor.companyId;
 
     const empleado = await this.empRepo.create(empleadoData);
+
+    if (actor.companyId) {
+      try {
+        const result = await this.provisionConsultant({ empleado, companyId: actor.companyId });
+        this.registrar({
+          empleado_id:         empleado.id,
+          entidad:             'usuario_consultante',
+          campo_modificado:    result.created ? 'creacion' : 'asociacion_existente',
+          valor_nuevo:         JSON.stringify({
+            email: result.email,
+            companyId: actor.companyId,
+            employeeId: empleado.id,
+          }),
+          usuario_modificador: actor.email,
+          rol_modificador:     actor.rol,
+        });
+      } catch (error) {
+        console.error('[EmployeeService] consultant account could not be provisioned:', (error as Error).message);
+      }
+    }
 
     if (dto.cargo && dto.salario) {
       await this.cargoRepo.create({
@@ -177,7 +235,7 @@ export class EmployeeService implements IEmployeeService {
   }
 
   async update(id: number, dto: UpdateEmpleadoDto, actor: AuthenticatedUser): Promise<Empleado> {
-    const antes = await this.findOrFail(id);
+    const antes = await this.findOrFail(id, actor);
 
     if (dto.cedula && dto.cedula !== antes.cedula) {
       const existe = await this.empRepo.findByCedula(dto.cedula);
@@ -230,7 +288,7 @@ export class EmployeeService implements IEmployeeService {
   }
 
   async softDelete(id: number, actor: AuthenticatedUser): Promise<Empleado> {
-    await this.findOrFail(id);
+    await this.findOrFail(id, actor);
     const empleado = await this.empRepo.softDelete(id);
     if (!empleado) throw new NotFoundError(`Empleado con id ${id} no encontrado`);
 
@@ -254,23 +312,23 @@ export class EmployeeService implements IEmployeeService {
 
   // ─── Cargos y salarios ─────────────────────────────────────────────────────
 
-  async getCargoActual(empleadoId: number): Promise<CargoSalario | null> {
-    await this.findOrFail(empleadoId);
+  async getCargoActual(empleadoId: number, actor?: AuthenticatedUser): Promise<CargoSalario | null> {
+    await this.findOrFail(empleadoId, actor);
     return this.cargoRepo.findActivo(empleadoId);
   }
 
-  async getHistorialCargos(empleadoId: number): Promise<CargoSalario[]> {
-    await this.findOrFail(empleadoId);
+  async getHistorialCargos(empleadoId: number, actor?: AuthenticatedUser): Promise<CargoSalario[]> {
+    await this.findOrFail(empleadoId, actor);
     return this.cargoRepo.findAll(empleadoId);
   }
 
-  async getContratoLaboralActivo(empleadoId: number, authorizationHeader: string): Promise<ActiveContractDocument | null> {
-    await this.findOrFail(empleadoId);
+  async getContratoLaboralActivo(empleadoId: number, authorizationHeader: string, actor?: AuthenticatedUser): Promise<ActiveContractDocument | null> {
+    await this.findOrFail(empleadoId, actor);
     return this.contractClient.getActiveContractForEmployee(empleadoId, authorizationHeader);
   }
 
   async crearCargo(empleadoId: number, dto: CreateCargoDto, actor: AuthenticatedUser): Promise<CargoSalario> {
-    await this.findOrFail(empleadoId);
+    await this.findOrFail(empleadoId, actor);
 
     const anterior = await this.cargoRepo.findActivo(empleadoId);
     await this.cargoRepo.cerrarActivo(empleadoId);
@@ -311,12 +369,13 @@ export class EmployeeService implements IEmployeeService {
 
   // ─── Documentos S3 ─────────────────────────────────────────────────────────
 
-  async getDocumentos(empleadoId: number): Promise<DocumentoEmpleado[]> {
-    await this.findOrFail(empleadoId);
+  async getDocumentos(empleadoId: number, actor?: AuthenticatedUser): Promise<DocumentoEmpleado[]> {
+    await this.findOrFail(empleadoId, actor);
     return this.docRepo.findAll(empleadoId);
   }
 
-  async generarPresignedUrl(dto: PresignedUrlDto): Promise<{ url: string; key: string }> {
+  async generarPresignedUrl(dto: PresignedUrlDto, actor?: AuthenticatedUser): Promise<{ url: string; key: string }> {
+    await this.findOrFail(dto.empleado_id, actor);
     return this.urlSubida(dto.empleado_id, dto.tipo, dto.contentType);
   }
 
@@ -325,7 +384,7 @@ export class EmployeeService implements IEmployeeService {
     dto: ConfirmarDocumentoDto,
     actor: AuthenticatedUser,
   ): Promise<DocumentoEmpleado> {
-    await this.findOrFail(empleadoId);
+    await this.findOrFail(empleadoId, actor);
 
     // Validate file type
     if (dto.mime_type && !ALLOWED_MIME_TYPES.includes(dto.mime_type)) {
@@ -372,9 +431,10 @@ export class EmployeeService implements IEmployeeService {
     return pendingDoc;
   }
 
-  async generarUrlDescargaDocumento(docId: number): Promise<{ url: string; expires_in: number }> {
+  async generarUrlDescargaDocumento(docId: number, actor?: AuthenticatedUser): Promise<{ url: string; expires_in: number }> {
     const doc = await this.docRepo.findById(docId);
     if (!doc) throw new NotFoundError(`Documento con id ${docId} no encontrado`);
+    await this.findOrFail(doc.empleado_id, actor);
     const url = await this.urlDescarga(doc.s3_key);
     return { url, expires_in: 3600 };
   }
@@ -385,6 +445,7 @@ export class EmployeeService implements IEmployeeService {
     if (!doc) {
       throw new NotFoundError(`Documento con id ${documentoId} no encontrado`);
     }
+    await this.findOrFail(doc.empleado_id, actor);
 
     // Deactivate any other active approved document of the same type for this employee
     await this.docRepo.desactivarPorTipo(doc.empleado_id, doc.tipo);
@@ -423,6 +484,7 @@ export class EmployeeService implements IEmployeeService {
     if (!doc) {
       throw new NotFoundError(`Documento ${documentoId} no encontrado`);
     }
+    await this.findOrFail(doc.empleado_id, actor);
 
     // Actualizar documento en BD con estado rechazado
     const docActualizado = await this.docRepo.update(documentoId, {
@@ -449,8 +511,24 @@ export class EmployeeService implements IEmployeeService {
     return docActualizado;
   }
 
-  async solicitarCorreccion(empleadoId: number, descripcion: string, solicitante: string): Promise<void> {
-    const empleado = await this.findOrFail(empleadoId);
+  async solicitarCorreccion(empleadoId: number, descripcion: string, solicitante: string, actor?: AuthenticatedUser): Promise<void> {
+    const empleado = await this.findOrFail(empleadoId, actor);
+    const request = await this.changeRequestRepo.create({
+      empleado_id: empleado.id,
+      empresa_id: empleado.empresa_id,
+      category: 'general',
+      justification: descripcion,
+      requested_by_email: solicitante,
+    });
+    this.registrar({
+      empleado_id:         empleado.id,
+      entidad:             'employee_change_request',
+      entidad_id:          request.id,
+      campo_modificado:    'creacion',
+      valor_nuevo:         JSON.stringify(request),
+      usuario_modificador: solicitante,
+      rol_modificador:     actor?.rol ?? 'CONSULTATION',
+    });
     this.notificarCorreccion({
       empleadoNombre: `${empleado.nombre} ${empleado.apellido}`,
       descripcion,
@@ -458,8 +536,50 @@ export class EmployeeService implements IEmployeeService {
     });
   }
 
-  async exportCsv(filters?: EmployeeFilters): Promise<string> {
-    const empleados = await this.empRepo.findAll(10000, 0, filters);
+  async listChangeRequests(actor: AuthenticatedUser, status?: EmployeeChangeRequestStatus): Promise<EmployeeChangeRequest[]> {
+    return this.changeRequestRepo.findAll({
+      empresaId: actor.companyId,
+      status,
+    });
+  }
+
+  async listMyChangeRequests(userEmail: string, status?: EmployeeChangeRequestStatus): Promise<EmployeeChangeRequest[]> {
+    const empleado = await this.findOwnEmployeeOrFail(userEmail);
+    return this.changeRequestRepo.findAll({
+      empleadoId: empleado.id,
+      status,
+    });
+  }
+
+  async reviewChangeRequest(
+    id: number,
+    status: Exclude<EmployeeChangeRequestStatus, 'PENDING'>,
+    actor: AuthenticatedUser,
+    reviewNotes?: string,
+  ): Promise<EmployeeChangeRequest> {
+    const request = await this.changeRequestRepo.findById(id);
+    if (!request) throw new NotFoundError(`Solicitud con id ${id} no encontrada`);
+    if (actor.companyId && request.empresa_id && Number(request.empresa_id) !== actor.companyId) {
+      throw new ForbiddenError('No tienes permisos para revisar esta solicitud');
+    }
+    const updated = await this.changeRequestRepo.review(id, status, actor.email, reviewNotes);
+    if (!updated) throw new NotFoundError(`Solicitud con id ${id} no encontrada`);
+    this.registrar({
+      empleado_id:         request.empleado_id,
+      entidad:             'employee_change_request',
+      entidad_id:          id,
+      campo_modificado:    'status',
+      valor_anterior:      request.status,
+      valor_nuevo:         status,
+      usuario_modificador: actor.email,
+      rol_modificador:     actor.rol,
+    });
+    return updated;
+  }
+
+  async exportCsv(filters?: EmployeeFilters, actor?: AuthenticatedUser): Promise<string> {
+    const scopedFilters = actor?.companyId ? { ...filters, empresaId: actor.companyId } : filters;
+    const empleados = await this.empRepo.findAll(10000, 0, scopedFilters);
     const HEADERS = [
       'ID', 'Cédula', 'Tipo Documento', 'Nombre', 'Apellido', 'Género',
       'Fecha Nacimiento', 'Celular', 'Teléfono Fijo', 'Correo Personal',

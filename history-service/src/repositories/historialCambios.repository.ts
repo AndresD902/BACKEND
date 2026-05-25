@@ -3,6 +3,7 @@ import { HistorialCambio } from '../entities/historial-cambio.entity';
 
 export interface CreateCambioData {
   empleado_id: number;
+  tipo_accion?: string;
   entidad: string;
   entidad_id?: number;
   campo_modificado: string;
@@ -28,12 +29,13 @@ class HistorialCambiosRepository {
   async create(data: CreateCambioData): Promise<HistorialCambio> {
     const { rows } = await pool.query<HistorialCambio>(
       `INSERT INTO historial_cambios
-         (empleado_id, entidad, entidad_id, campo_modificado, valor_anterior,
+         (empleado_id, tipo_accion, entidad, entidad_id, campo_modificado, valor_anterior,
           valor_nuevo, usuario_modificador, rol_modificador, ip_origen, user_agent)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
       [
         data.empleado_id,
+        data.tipo_accion ?? null,
         data.entidad,
         data.entidad_id ?? null,
         data.campo_modificado,

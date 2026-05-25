@@ -41,7 +41,10 @@ export class VacationService {
   }
 
   /** Returns all vacation requests for a given employee, newest first. */
-  async getByEmpleadoId(empleadoId: number): Promise<Vacation[]> {
+  async getByEmpleadoId(empleadoId: number, authorizationHeader?: string): Promise<Vacation[]> {
+    if (authorizationHeader) {
+      await this.employeeClient.verifyEmployeeAccess(empleadoId, authorizationHeader);
+    }
     return this.vacationRepo.findByEmpleadoId(empleadoId);
   }
 
@@ -51,8 +54,19 @@ export class VacationService {
     estado?: Vacation['estado'];
     desde?: string;
     hasta?: string;
-  } = {}): Promise<Vacation[]> {
-    return this.vacationRepo.findAll(filters);
+  } = {}, authorizationHeader?: string): Promise<Vacation[]> {
+    if (authorizationHeader && filters.empleadoId) {
+      await this.employeeClient.verifyEmployeeAccess(filters.empleadoId, authorizationHeader);
+      return this.vacationRepo.findAll(filters);
+    }
+
+    const vacaciones = await this.vacationRepo.findAll(filters);
+    if (!authorizationHeader) {
+      return vacaciones;
+    }
+
+    const allowedEmployeeIds = new Set(await this.employeeClient.listAccessibleEmployeeIds(authorizationHeader));
+    return vacaciones.filter((vacacion) => allowedEmployeeIds.has(vacacion.empleadoId));
   }
 
   /**
@@ -63,7 +77,12 @@ export class VacationService {
   async getDiasDisponibles(
     empleadoId: number,
     options: { createIfMissing?: boolean } = {},
+    authorizationHeader?: string,
   ): Promise<DiasDisponibles> {
+    if (authorizationHeader) {
+      await this.employeeClient.verifyEmployeeAccess(empleadoId, authorizationHeader);
+    }
+
     const anio = currentYear();
     if (options.createIfMissing) {
       return this.diasDisponiblesService.obtenerOCrear(empleadoId, anio);
@@ -89,12 +108,23 @@ export class VacationService {
     message: string;
   }> {
     const employee = await this.employeeClient.getCurrentEmployee(authorizationHeader);
-    if (employee.id !== empleadoId) {
+    if (Number(employee.id) !== empleadoId) {
       throw new UnauthorizedError('El usuario no corresponde al empleado consultado');
     }
 
     const minimumSeniorityMonths = 12;
     const legalAnnualDays = env.diasLegalesAnuales;
+
+    if (!env.vacationEligibilityRuleEnabled) {
+      return {
+        eligible: true,
+        employeeId: empleadoId,
+        eligibleFrom: null,
+        minimumSeniorityMonths,
+        legalAnnualDays,
+        message: `Puedes solicitar vacaciones. Politica actual: ${legalAnnualDays} dias legales anuales.`,
+      };
+    }
 
     if (!employee.fecha_ingreso) {
       return {
@@ -151,7 +181,12 @@ export class VacationService {
     actor: AuthenticatedUser,
     ip: string,
     userAgent: string,
+    authorizationHeader?: string,
   ): Promise<Vacation> {
+    if (authorizationHeader) {
+      await this.employeeClient.verifyEmployeeAccess(data.empleado_id, authorizationHeader);
+    }
+
     const fechaInicio = parseDate(data.fecha_inicio);
     const fechaFin    = parseDate(data.fecha_fin);
 
@@ -213,22 +248,28 @@ export class VacationService {
    * Approves a pending vacation request, moving the reserved days from
    * `dias_pendientes` to `dias_usados`.
    */
-  async aprobar(id: number, actor: AuthenticatedUser, ip: string, userAgent: string): Promise<Vacation> {
+  async aprobar(id: number, actor: AuthenticatedUser, ip: string, userAgent: string, authorizationHeader?: string): Promise<Vacation> {
     const solicitud = await this.vacationRepo.findById(id);
     if (!solicitud) throw new NotFoundError(`Solicitud de vacaciones ${id} no encontrada`);
+    if (authorizationHeader) {
+      await this.employeeClient.verifyEmployeeAccess(solicitud.empleadoId, authorizationHeader);
+    }
     if (solicitud.estado !== 'pendiente') {
       throw new BadRequestError('Solo se pueden aprobar solicitudes pendientes');
     }
 
+    const empleado = authorizationHeader
+      ? await this.employeeClient.getEmployeeById(solicitud.empleadoId, authorizationHeader)
+      : null;
     const actualizada = await this.vacationRepo.updateEstado(id, 'aprobada', actor.email);
     const anio        = actualizada.fechaInicio.getFullYear();
     await this.diasRepo.aprobar(solicitud.empleadoId, anio, solicitud.diasHabiles);
 
     await this.emailService.notificarAprobacion({
-      empleadoNombre: `Empleado #${solicitud.empleadoId}`,
+      empleadoNombre: empleado ? `${empleado.nombre ?? ''} ${empleado.apellido ?? ''}`.trim() : `Empleado #${solicitud.empleadoId}`,
       fechaInicio:    toDateOnly(solicitud.fechaInicio),
       fechaFin:       toDateOnly(solicitud.fechaFin),
-      emailRRHH:      actor.email,
+      emailRRHH:      empleado?.correo_corporativo ?? empleado?.correo_personal ?? actor.email,
     });
 
     registrarCambio({
@@ -258,23 +299,30 @@ export class VacationService {
     actor: AuthenticatedUser,
     ip: string,
     userAgent: string,
+    authorizationHeader?: string,
   ): Promise<Vacation> {
     const solicitud = await this.vacationRepo.findById(id);
     if (!solicitud) throw new NotFoundError(`Solicitud de vacaciones ${id} no encontrada`);
+    if (authorizationHeader) {
+      await this.employeeClient.verifyEmployeeAccess(solicitud.empleadoId, authorizationHeader);
+    }
     if (solicitud.estado !== 'pendiente') {
       throw new BadRequestError('Solo se pueden rechazar solicitudes pendientes');
     }
 
+    const empleado = authorizationHeader
+      ? await this.employeeClient.getEmployeeById(solicitud.empleadoId, authorizationHeader)
+      : null;
     const actualizada = await this.vacationRepo.updateEstado(id, 'rechazada', actor.email, motivoRechazo);
     const anio        = solicitud.fechaInicio.getFullYear();
     await this.diasRepo.liberarPendientes(solicitud.empleadoId, anio, solicitud.diasHabiles);
 
     await this.emailService.notificarRechazo({
-      empleadoNombre: `Empleado #${solicitud.empleadoId}`,
+      empleadoNombre: empleado ? `${empleado.nombre ?? ''} ${empleado.apellido ?? ''}`.trim() : `Empleado #${solicitud.empleadoId}`,
       fechaInicio:    toDateOnly(solicitud.fechaInicio),
       fechaFin:       toDateOnly(solicitud.fechaFin),
       motivoRechazo,
-      emailRRHH:      actor.email,
+      emailRRHH:      empleado?.correo_corporativo ?? empleado?.correo_personal ?? actor.email,
     });
 
     registrarCambio({
@@ -298,9 +346,12 @@ export class VacationService {
    * Cancels a pending vacation request (employee-initiated) and frees the
    * reserved days.  No email is sent for cancellations.
    */
-  async cancelar(id: number, actor: AuthenticatedUser, ip: string, userAgent: string): Promise<Vacation> {
+  async cancelar(id: number, actor: AuthenticatedUser, ip: string, userAgent: string, authorizationHeader?: string): Promise<Vacation> {
     const solicitud = await this.vacationRepo.findById(id);
     if (!solicitud) throw new NotFoundError(`Solicitud de vacaciones ${id} no encontrada`);
+    if (authorizationHeader) {
+      await this.employeeClient.verifyEmployeeAccess(solicitud.empleadoId, authorizationHeader);
+    }
     if (solicitud.estado !== 'pendiente') {
       throw new BadRequestError('Solo se pueden cancelar solicitudes pendientes');
     }

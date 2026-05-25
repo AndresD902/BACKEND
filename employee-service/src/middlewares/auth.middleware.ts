@@ -25,6 +25,8 @@ export const verifyToken = (
       id:    String(payload.id ?? payload.sub),
       email: String(payload.email),
       rol:   String(payload.rol ?? payload.role),
+      companyId: payload.companyId === undefined ? undefined : Number(payload.companyId),
+      employeeId: payload.employeeId === undefined ? undefined : Number(payload.employeeId),
     };
     next();
   } catch {

@@ -7,6 +7,10 @@ export interface CreateUserData {
   email: string;
   passwordHash: string;
   role: RoleName;
+  companyId?: number | null;
+  employeeId?: number | null;
+  emailVerified?: boolean;
+  mustChangePassword?: boolean;
   isActive?: boolean;
 }
 
@@ -15,6 +19,7 @@ export interface IUserRepository {
   findById(id: string): Promise<User | null>;
   create(data: CreateUserData): Promise<User>;
   findAll(): Promise<User[]>;
+  countActiveByRoleAndCompany(role: RoleName, companyId: number): Promise<number>;
   updateLastLogin(id: string): Promise<void>;
   updateStatus(id: string, isActive: boolean): Promise<User | null>;
   updatePassword(id: string, passwordHash: string): Promise<User | null>;

@@ -30,6 +30,12 @@ function getInternalApiKey(): string {
   return 'dev-internal-key-change-in-prod';
 }
 
+function flag(name: string, fallback = true): boolean {
+  const value = process.env[name];
+  if (value === undefined) return fallback;
+  return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+}
+
 export const env = {
   nodeEnv:            getEnVariable('NODE_ENV'),
   port:               Number(getEnVariable('PORT')),
@@ -39,6 +45,9 @@ export const env = {
   historyServiceUrl:  process.env.HISTORY_SERVICE_URL ?? 'http://localhost:3006',
   employeeServiceUrl: process.env.EMPLOYEE_SERVICE_URL ?? 'http://localhost:3002',
   internalApiKey:     getInternalApiKey(),
+  rbacV2Enabled:      flag('RBAC_V2_ENABLED', true),
+  consultantSelfServiceEnabled: flag('CONSULTANT_SELF_SERVICE_ENABLED', true),
+  vacationEligibilityRuleEnabled: flag('VACATION_ELIGIBILITY_RULE_ENABLED', true),
   diasLegalesAnuales: Number(process.env.DIAS_LEGALES_ANUALES ?? '15'),
   smtpHost:           process.env.SMTP_HOST ?? 'smtp.gmail.com',
   smtpPort:           Number(process.env.SMTP_PORT ?? '587'),

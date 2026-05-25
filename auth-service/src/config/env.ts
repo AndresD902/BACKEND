@@ -43,6 +43,12 @@ function getCorsOrigins(): string[] {
     .filter(Boolean);
 }
 
+function flag(name: string, fallback = true): boolean {
+  const value = process.env[name];
+  if (value === undefined) return fallback;
+  return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+}
+
 export const env = {
   nodeEnv: getEnVariable('NODE_ENV'),
   port: Number(getEnVariable('PORT') ?? 3001),
@@ -56,6 +62,8 @@ export const env = {
   employeeServiceUrl: process.env.EMPLOYEE_SERVICE_URL ?? 'http://localhost:3002/api',
   internalApiKey: getInternalApiKey(),
   corsOrigins: getCorsOrigins(),
+  rbacV2Enabled: flag('RBAC_V2_ENABLED', true),
+  consultantSelfServiceEnabled: flag('CONSULTANT_SELF_SERVICE_ENABLED', true),
 
   // Email SMTP
   smtpHost: process.env.SMTP_HOST ?? 'smtp.gmail.com',

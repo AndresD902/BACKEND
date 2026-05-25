@@ -64,6 +64,7 @@ describe('EmployeeService', () => {
       update:                   jest.fn(),
       updateEstadoByCorreo:     jest.fn(),
       softDelete:               jest.fn(),
+      findAllDepartamentos:      jest.fn(),
     };
     cargoRepo = {
       findActivo:   jest.fn(),
@@ -77,6 +78,7 @@ describe('EmployeeService', () => {
       desactivarPorTipo:  jest.fn(),
       create:             jest.fn(),
       approve:            jest.fn(),
+      update:             jest.fn(),
     };
     mockUrlSubida  = jest.fn().mockResolvedValue({ url: 'https://s3.presigned', key: 'fotos/1.jpg' });
     mockUrlDescarga = jest.fn().mockResolvedValue('https://s3.download');
@@ -84,6 +86,7 @@ describe('EmployeeService', () => {
     mockNotificar = jest.fn();
     contractClient = {
       getActiveContractForEmployee: jest.fn(),
+      getLatestContractForCurrentUser: jest.fn(),
     };
 
     service = new EmployeeService(empRepo, cargoRepo, docRepo, mockUrlSubida, mockUrlDescarga, mockRegistrar, mockNotificar, contractClient);
@@ -373,6 +376,7 @@ describe('EmployeeService', () => {
 
   describe('generarPresignedUrl', () => {
     it('returns url and key from S3 helper', async () => {
+      empRepo.findById.mockResolvedValue(mockEmpleado);
       const result = await service.generarPresignedUrl({ empleado_id: 1, tipo: 'foto', contentType: 'image/jpeg' });
       expect(result).toEqual({ url: 'https://s3.presigned', key: 'fotos/1.jpg' });
       expect(mockUrlSubida).toHaveBeenCalledWith(1, 'foto', 'image/jpeg');
@@ -430,6 +434,7 @@ describe('EmployeeService', () => {
 
   describe('generarUrlDescargaDocumento', () => {
     it('returns signed download url with expiry', async () => {
+      empRepo.findById.mockResolvedValue(mockEmpleado);
       docRepo.findById.mockResolvedValue(mockDoc);
       const result = await service.generarUrlDescargaDocumento(1);
       expect(result).toEqual({ url: 'https://s3.download', expires_in: 3600 });
@@ -445,6 +450,7 @@ describe('EmployeeService', () => {
   describe('aprobarDocumento', () => {
     it('approves document and deactivates previous active documents of the same type', async () => {
       const approvedDoc = { ...mockDoc, activo: true, aprobado_por: actor.email };
+      empRepo.findById.mockResolvedValue(mockEmpleado);
       docRepo.findById.mockResolvedValue(mockDoc);
       docRepo.desactivarPorTipo.mockResolvedValue();
       docRepo.approve.mockResolvedValue(approvedDoc);
@@ -467,6 +473,7 @@ describe('EmployeeService', () => {
     });
 
     it('throws when repository cannot approve the document', async () => {
+      empRepo.findById.mockResolvedValue(mockEmpleado);
       docRepo.findById.mockResolvedValue(mockDoc);
       docRepo.desactivarPorTipo.mockResolvedValue();
       docRepo.approve.mockResolvedValue(null);

@@ -7,4 +7,8 @@ export interface CreateUserDto {
     email: string;
     password: string;
     role: RoleName;
+    companyId?: number;
+    employeeId?: number;
+    emailVerified?: boolean;
+    mustChangePassword?: boolean;
 }

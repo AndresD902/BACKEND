@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { pool } from '../config/database';
 import { VacationRepository } from '../repositories/vacation.repository';
 import { DiasDisponiblesRepository } from '../repositories/diasDisponibles.repository';
@@ -11,6 +11,7 @@ import { validateRequest } from '../middlewares/validation.middleware';
 import { createVacationSchema } from '../dtos/create-vacation.dto';
 import { rejectVacationSchema } from '../dtos/reject-vacation.dto';
 import { createFestivoSchema } from '../dtos/create-festivo.dto';
+import { env } from '../config/env';
 
 const router = Router();
 
@@ -26,15 +27,26 @@ const ADMIN_READ_ROLES = ['ADMIN', 'HR'] as const;
 const WRITE_ROLES = ['ADMIN', 'HR'] as const;
 const ADMIN_ROLES = ['ADMIN'] as const;
 
+function requireConsultantSelfService(_req: Request, res: Response, next: NextFunction): void {
+  if (!env.consultantSelfServiceEnabled) {
+    res.status(404).json({
+      success: false,
+      message: 'Consultant self-service is disabled',
+    });
+    return;
+  }
+  next();
+}
+
 // Festivos — rutas estáticas ANTES de las dinámicas con :id
 router.get('/festivos/:anio', authenticate, authorize(...READ_ROLES),  vacationController.getFestivosByAnio);
 router.post('/festivos',      authenticate, authorize(...ADMIN_ROLES), validateRequest(createFestivoSchema), vacationController.createFestivo);
 
 // Autoconsulta y solicitud propia del Consultante
-router.get('/me/eligibility', authenticate, authorize('CONSULTATION'), vacationController.getMyEligibility);
-router.get('/me/disponibles', authenticate, authorize('CONSULTATION'), vacationController.getMyDiasDisponibles);
-router.get('/me',             authenticate, authorize('CONSULTATION'), vacationController.getMine);
-router.post('/me',            authenticate, authorize('CONSULTATION'), validateRequest(createVacationSchema.omit({ empleado_id: true })), vacationController.createMine);
+router.get('/me/eligibility', authenticate, requireConsultantSelfService, authorize('CONSULTATION'), vacationController.getMyEligibility);
+router.get('/me/disponibles', authenticate, requireConsultantSelfService, authorize('CONSULTATION'), vacationController.getMyDiasDisponibles);
+router.get('/me',             authenticate, requireConsultantSelfService, authorize('CONSULTATION'), vacationController.getMine);
+router.post('/me',            authenticate, requireConsultantSelfService, authorize('CONSULTATION'), validateRequest(createVacationSchema.omit({ empleado_id: true })), vacationController.createMine);
 
 // Consultas por empleado
 router.get('/',                        authenticate, authorize(...ADMIN_READ_ROLES),  vacationController.getAll);

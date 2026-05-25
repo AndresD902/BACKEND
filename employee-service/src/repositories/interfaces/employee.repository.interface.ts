@@ -4,6 +4,7 @@ export interface EmployeeFilters {
   search?: string;
   estado?: string;
   departamento?: string;
+  empresaId?: number;
 }
 
 export interface IEmployeeRepository {
@@ -17,4 +18,5 @@ export interface IEmployeeRepository {
   update(id: number, data: Record<string, unknown>): Promise<Empleado | null>;
   updateEstadoByCorreo(correo: string, estado: string): Promise<void>;
   softDelete(id: number): Promise<Empleado | null>;
+  findAllDepartamentos(): Promise<Array<{ id: number; nombre: string; codigo_dane?: string }>>;
 }

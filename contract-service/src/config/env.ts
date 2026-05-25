@@ -47,6 +47,12 @@ function getCorsOrigins(): string[] {
     .filter(Boolean);
 }
 
+function flag(name: string, fallback = true): boolean {
+  const value = process.env[name];
+  if (value === undefined) return fallback;
+  return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+}
+
 export const env = {
   nodeEnv: getEnvVariable('NODE_ENV'),
   port: Number(getEnvVariable('PORT')),
@@ -58,6 +64,8 @@ export const env = {
   historyServiceUrl: process.env.HISTORY_SERVICE_URL ?? 'http://localhost:3006',
   internalApiKey: getInternalApiKey(),
   corsOrigins: getCorsOrigins(),
+  rbacV2Enabled: flag('RBAC_V2_ENABLED', true),
+  consultantSelfServiceEnabled: flag('CONSULTANT_SELF_SERVICE_ENABLED', true),
   awsRegion: getOptionalEnvVariable('AWS_REGION', 'us-east-1'),
   awsAccessKeyId: getOptionalEnvVariable('AWS_ACCESS_KEY_ID'),
   awsSecretAccessKey: getOptionalEnvVariable('AWS_SECRET_ACCESS_KEY'),

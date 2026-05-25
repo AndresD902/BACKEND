@@ -23,14 +23,14 @@ export class VacationController {
       estado: req.query.estado ? String(req.query.estado) as EstadoVacacion : undefined,
       desde: req.query.desde ? String(req.query.desde) : undefined,
       hasta: req.query.hasta ? String(req.query.hasta) : undefined,
-    });
+    }, this.getAuthorizationHeader(req));
     res.status(200).json(vacaciones);
   });
 
   /** `GET /empleado/:id` — list all vacation requests for an employee. */
   getByEmpleadoId = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const empleadoId = parseInt(String(req.params.id), 10);
-    const vacaciones = await this.vacationService.getByEmpleadoId(empleadoId);
+    const vacaciones = await this.vacationService.getByEmpleadoId(empleadoId, this.getAuthorizationHeader(req));
     res.status(200).json(vacaciones);
   });
 
@@ -40,7 +40,7 @@ export class VacationController {
     const query = req.query ?? {};
     const createParam = String(query.crear ?? query.create ?? '').toLowerCase();
     const createIfMissing = ['true', '1', 'si', 'sí', 'yes'].includes(createParam);
-    const dias = await this.vacationService.getDiasDisponibles(empleadoId, { createIfMissing });
+    const dias = await this.vacationService.getDiasDisponibles(empleadoId, { createIfMissing }, this.getAuthorizationHeader(req));
     res.status(200).json(dias);
   });
 
@@ -67,7 +67,7 @@ export class VacationController {
     const actor    = req.user!;
     const ip       = req.ip ?? '';
     const userAgent = req.headers['user-agent'] ?? '';
-    const solicitud = await this.vacationService.create(req.body, actor, ip, userAgent);
+    const solicitud = await this.vacationService.create(req.body, actor, ip, userAgent, this.getAuthorizationHeader(req));
     res.status(201).json(solicitud);
   });
 
@@ -92,7 +92,7 @@ export class VacationController {
     const actor     = req.user!;
     const ip        = req.ip ?? '';
     const userAgent  = req.headers['user-agent'] ?? '';
-    const actualizada = await this.vacationService.aprobar(id, actor, ip, userAgent);
+    const actualizada = await this.vacationService.aprobar(id, actor, ip, userAgent, this.getAuthorizationHeader(req));
     res.status(200).json(actualizada);
   });
 
@@ -102,7 +102,7 @@ export class VacationController {
     const actor     = req.user!;
     const ip        = req.ip ?? '';
     const userAgent  = req.headers['user-agent'] ?? '';
-    const actualizada = await this.vacationService.rechazar(id, req.body.motivo_rechazo, actor, ip, userAgent);
+    const actualizada = await this.vacationService.rechazar(id, req.body.motivo_rechazo, actor, ip, userAgent, this.getAuthorizationHeader(req));
     res.status(200).json(actualizada);
   });
 
@@ -112,7 +112,7 @@ export class VacationController {
     const actor     = req.user!;
     const ip        = req.ip ?? '';
     const userAgent  = req.headers['user-agent'] ?? '';
-    const actualizada = await this.vacationService.cancelar(id, actor, ip, userAgent);
+    const actualizada = await this.vacationService.cancelar(id, actor, ip, userAgent, this.getAuthorizationHeader(req));
     res.status(200).json(actualizada);
   });
 

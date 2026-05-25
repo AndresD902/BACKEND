@@ -71,6 +71,7 @@ function serviceFactory() {
   };
   const employeeClient = {
     verifyEmployeeExists: jest.fn(),
+    listAccessibleEmployeeIds: jest.fn(),
   };
   const service = new ContractService(
     repository as never,
@@ -263,10 +264,11 @@ describe('ContractService', () => {
   // ── findAllContracts ──────────────────────────────────────────────────────
 
   it('returns all contracts with payment distribution', async () => {
-    const { service, repository } = serviceFactory();
+    const { service, repository, employeeClient } = serviceFactory();
     repository.findAll.mockResolvedValue([contract(), contract({ id: 11 })]);
+    employeeClient.listAccessibleEmployeeIds.mockResolvedValue([22]);
 
-    const result = await service.findAllContracts();
+    const result = await service.findAllContracts('Bearer token');
 
     expect(result).toHaveLength(2);
     expect(result[0].paymentDistribution).toBeDefined();

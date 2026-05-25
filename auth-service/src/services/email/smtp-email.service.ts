@@ -231,6 +231,45 @@ class SmtpEmailService implements IEmailService {
       text: `Cambio en empleado — HR System\n\nEmpleado: ${employeeName}\nAcción: ${description}\nFecha: ${now}\n\nPuedes desactivar estas notificaciones en Configuración.`,
     });
   }
+
+  public async sendInitialCredentialsEmail(toEmail: string, password: string, role: string): Promise<void> {
+    await this.transporter.sendMail({
+      from: `"HR System Admin" <${env.smtpFrom}>`,
+      to: toEmail,
+      subject: 'Credenciales de acceso - HR System',
+      html: `
+<!DOCTYPE html><html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0F1117;font-family:'Segoe UI',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0F1117;padding:40px 0">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#161B27;border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;max-width:100%">
+        <tr><td style="padding:28px 36px;border-bottom:1px solid rgba(255,255,255,0.06)">
+          <span style="font-size:17px;font-weight:700;color:#e2e8f0">HR System Admin</span>
+        </td></tr>
+        <tr><td style="padding:36px 36px 28px">
+          <h1 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#f1f5f9">Tus credenciales de acceso</h1>
+          <p style="margin:0 0 20px;font-size:14px;color:#94a3b8;line-height:1.7">
+            Se creo una cuenta con rol <strong style="color:#e2e8f0">${role}</strong> para acceder a HR System.
+          </p>
+          <table style="width:100%;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);margin-bottom:20px">
+            <tr><td style="padding:12px 16px;font-size:12px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.04)">Correo</td>
+                <td style="padding:12px 16px;font-size:13px;color:#e2e8f0;border-bottom:1px solid rgba(255,255,255,0.04)">${toEmail}</td></tr>
+            <tr><td style="padding:12px 16px;font-size:12px;color:#64748b">Contrasena temporal</td>
+                <td style="padding:12px 16px;font-size:13px;color:#e2e8f0;font-family:monospace">${password}</td></tr>
+          </table>
+          <p style="margin:0;font-size:12px;color:#64748b;line-height:1.6">
+            Cambia esta contrasena en Configuracion despues de iniciar sesion.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`,
+      text: `Credenciales de acceso - HR System\n\nCorreo: ${toEmail}\nRol: ${role}\nContrasena temporal: ${password}\n\nCambia esta contrasena despues de iniciar sesion.`,
+    });
+  }
+
   public async sendCorrectionRequestEmail(toEmail: string, empleadoNombre: string, descripcion: string, solicitante: string): Promise<void> {
     const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
     await this.transporter.sendMail({
@@ -279,6 +318,14 @@ class SmtpEmailService implements IEmailService {
 }
 
 class ConsoleEmailService implements IEmailService {
+  public async sendInitialCredentialsEmail(toEmail: string, password: string, role: string): Promise<void> {
+    console.log('\n========== INITIAL CREDENTIALS EMAIL (sin SMTP configurado) ==========');
+    console.log(`Para:      ${toEmail}`);
+    console.log(`Rol:       ${role}`);
+    console.log(`Password:  ${password}`);
+    console.log('======================================================================\n');
+  }
+
   public async sendVerificationEmail(toEmail: string, verificationLink: string): Promise<void> {
     console.log('\n========== VERIFICATION EMAIL (sin SMTP configurado) ==========');
     console.log(`Para:   ${toEmail}`);

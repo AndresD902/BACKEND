@@ -28,6 +28,7 @@ function makeRes() {
 }
 
 const ACTOR = { sub: '1', email: 'hr@empresa.com', role: 'HR' as const };
+const AUTH_HEADERS = { authorization: 'Bearer token', 'user-agent': 'Vitest' };
 
 function fakeVacation(estado: Vacation['estado'] = 'pendiente'): Vacation {
   return {
@@ -63,7 +64,7 @@ describe('VacationController', () => {
     it('responds 200 with the vacation list', async () => {
       const list = [fakeVacation()];
       svc.getByEmpleadoId.mockResolvedValue(list);
-      const req  = { params: { id: '5' } } as unknown as Request;
+      const req  = { params: { id: '5' }, headers: AUTH_HEADERS } as unknown as Request;
       const res  = makeRes();
       const next = vi.fn() as unknown as NextFunction;
 
@@ -74,7 +75,7 @@ describe('VacationController', () => {
 
     it('calls next with the error when service throws', async () => {
       svc.getByEmpleadoId.mockRejectedValue(new NotFoundError());
-      const req  = { params: { id: '99' } } as unknown as Request;
+      const req  = { params: { id: '99' }, headers: AUTH_HEADERS } as unknown as Request;
       const res  = makeRes();
       const next = vi.fn() as unknown as NextFunction;
 
@@ -89,7 +90,7 @@ describe('VacationController', () => {
   describe('getDiasDisponibles', () => {
     it('responds 200 with the dias record', async () => {
       svc.getDiasDisponibles.mockResolvedValue(fakeDias());
-      const req  = { params: { id: '5' } } as unknown as Request;
+      const req  = { params: { id: '5' }, headers: AUTH_HEADERS } as unknown as Request;
       const res  = makeRes();
 
       await ctrl.getDiasDisponibles(req, res, vi.fn() as unknown as NextFunction);
@@ -106,7 +107,7 @@ describe('VacationController', () => {
         body:    { empleado_id: 5, fecha_inicio: '2025-09-01', fecha_fin: '2025-09-05' },
         user:    ACTOR,
         ip:      '127.0.0.1',
-        headers: { 'user-agent': 'Jest' },
+        headers: AUTH_HEADERS,
       } as unknown as AuthenticatedRequest;
       const res  = makeRes();
 
@@ -123,7 +124,7 @@ describe('VacationController', () => {
         params:  { id: '1' },
         user:    ACTOR,
         ip:      '',
-        headers: { 'user-agent': '' },
+        headers: AUTH_HEADERS,
       } as unknown as AuthenticatedRequest;
       const res = makeRes();
 
@@ -141,7 +142,7 @@ describe('VacationController', () => {
         body:    { motivo_rechazo: 'Sin presupuesto' },
         user:    ACTOR,
         ip:      '',
-        headers: { 'user-agent': '' },
+        headers: AUTH_HEADERS,
       } as unknown as AuthenticatedRequest;
       const res = makeRes();
 
@@ -158,7 +159,7 @@ describe('VacationController', () => {
         params:  { id: '1' },
         user:    ACTOR,
         ip:      '',
-        headers: { 'user-agent': '' },
+        headers: AUTH_HEADERS,
       } as unknown as AuthenticatedRequest;
       const res = makeRes();
 

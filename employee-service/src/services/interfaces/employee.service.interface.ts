@@ -1,4 +1,10 @@
-import { Empleado, CargoSalario, DocumentoEmpleado } from '../../entities/employee.entity';
+import {
+  Empleado,
+  CargoSalario,
+  DocumentoEmpleado,
+  EmployeeChangeRequest,
+  EmployeeChangeRequestStatus,
+} from '../../entities/employee.entity';
 import { CreateEmpleadoDto } from '../../dtos/create-employee.dto';
 import { UpdateEmpleadoDto, CreateCargoDto, ConfirmarDocumentoDto, PresignedUrlDto } from '../../dtos/update-employee.dto';
 import { AuthenticatedUser } from '../../types/authenticated-user.type';
@@ -6,8 +12,8 @@ import { EmployeeFilters } from '../../repositories/interfaces/employee.reposito
 import { ActiveContractDocument } from '../../clients/contractServiceClient';
 
 export interface IEmployeeService {
-  getAll(page: number, limit: number, filters?: EmployeeFilters): Promise<{ empleados: Empleado[]; total: number; page: number; limit: number }>;
-  getById(id: number): Promise<Empleado>;
+  getAll(page: number, limit: number, filters?: EmployeeFilters, actor?: AuthenticatedUser): Promise<{ empleados: Empleado[]; total: number; page: number; limit: number }>;
+  getById(id: number, actor?: AuthenticatedUser): Promise<Empleado>;
   getMe(userEmail: string): Promise<Empleado>;
   getCargoActualMe(userEmail: string): Promise<CargoSalario | null>;
   getContratoLaboralActivoMe(userEmail: string, authorizationHeader: string): Promise<ActiveContractDocument | null>;
@@ -17,17 +23,25 @@ export interface IEmployeeService {
   create(dto: CreateEmpleadoDto, actor: AuthenticatedUser): Promise<Empleado>;
   update(id: number, dto: UpdateEmpleadoDto, actor: AuthenticatedUser): Promise<Empleado>;
   softDelete(id: number, actor: AuthenticatedUser): Promise<Empleado>;
-  getCargoActual(empleadoId: number): Promise<CargoSalario | null>;
-  getHistorialCargos(empleadoId: number): Promise<CargoSalario[]>;
-  getContratoLaboralActivo(empleadoId: number, authorizationHeader: string): Promise<ActiveContractDocument | null>;
+  getCargoActual(empleadoId: number, actor?: AuthenticatedUser): Promise<CargoSalario | null>;
+  getHistorialCargos(empleadoId: number, actor?: AuthenticatedUser): Promise<CargoSalario[]>;
+  getContratoLaboralActivo(empleadoId: number, authorizationHeader: string, actor?: AuthenticatedUser): Promise<ActiveContractDocument | null>;
   crearCargo(empleadoId: number, dto: CreateCargoDto, actor: AuthenticatedUser): Promise<CargoSalario>;
-  getDocumentos(empleadoId: number): Promise<DocumentoEmpleado[]>;
-  generarPresignedUrl(dto: PresignedUrlDto): Promise<{ url: string; key: string }>;
+  getDocumentos(empleadoId: number, actor?: AuthenticatedUser): Promise<DocumentoEmpleado[]>;
+  generarPresignedUrl(dto: PresignedUrlDto, actor?: AuthenticatedUser): Promise<{ url: string; key: string }>;
   confirmarDocumento(empleadoId: number, dto: ConfirmarDocumentoDto, actor: AuthenticatedUser): Promise<DocumentoEmpleado>;
-  generarUrlDescargaDocumento(docId: number): Promise<{ url: string; expires_in: number }>;
+  generarUrlDescargaDocumento(docId: number, actor?: AuthenticatedUser): Promise<{ url: string; expires_in: number }>;
   aprobarDocumento(documentoId: number, actor: AuthenticatedUser): Promise<DocumentoEmpleado>;
   rechazarDocumento(documentoId: number, motivo: string, actor: AuthenticatedUser): Promise<DocumentoEmpleado>;
-  exportCsv(filters?: EmployeeFilters): Promise<string>;
-  solicitarCorreccion(empleadoId: number, descripcion: string, solicitante: string): Promise<void>;
+  exportCsv(filters?: EmployeeFilters, actor?: AuthenticatedUser): Promise<string>;
+  solicitarCorreccion(empleadoId: number, descripcion: string, solicitante: string, actor?: AuthenticatedUser): Promise<void>;
+  listChangeRequests(actor: AuthenticatedUser, status?: EmployeeChangeRequestStatus): Promise<EmployeeChangeRequest[]>;
+  listMyChangeRequests(userEmail: string, status?: EmployeeChangeRequestStatus): Promise<EmployeeChangeRequest[]>;
+  reviewChangeRequest(
+    id: number,
+    status: Exclude<EmployeeChangeRequestStatus, 'PENDING'>,
+    actor: AuthenticatedUser,
+    reviewNotes?: string,
+  ): Promise<EmployeeChangeRequest>;
   getDepartamentos(): Promise<Array<{ id: number; nombre: string; codigo_dane?: string }>>;
 }

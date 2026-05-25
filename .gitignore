@@ -10,3 +10,12 @@
 .DS_Store
 Thumbs.db
 coverage/
+# build/artifacts
+.runtime/
+**/dist/
+**/node_modules/
+**/.vite/
+.env
+**/.env
+**/.env.*
+

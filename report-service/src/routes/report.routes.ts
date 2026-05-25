@@ -16,10 +16,10 @@ router.get(
 );
 
 // Operational reports — accessible to all authenticated roles
-router.get('/estado-laboral', reportController.getEstadoLaboral);
-router.get('/vacaciones',     reportController.getReporteVacaciones);
-router.get('/contratos',      reportController.getReporteContratos);
-router.get('/turnover',       reportController.getReporteTurnover);
+router.get('/estado-laboral', requireRol('ADMIN', 'HR'), reportController.getEstadoLaboral);
+router.get('/vacaciones',     requireRol('ADMIN', 'HR'), reportController.getReporteVacaciones);
+router.get('/contratos',      requireRol('ADMIN', 'HR'), reportController.getReporteContratos);
+router.get('/turnover',       requireRol('ADMIN', 'HR'), reportController.getReporteTurnover);
 
 // CSV export — ADMIN and RRHH only
 router.get(

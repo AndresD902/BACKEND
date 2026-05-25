@@ -6,6 +6,11 @@ function buildWhere(filters?: EmployeeFilters): { clause: string; values: unknow
   const conditions: string[] = [];
   const values: unknown[] = [];
 
+  if (filters?.empresaId) {
+    values.push(filters.empresaId);
+    conditions.push(`empresa_id = $${values.length}`);
+  }
+
   if (filters?.estado) {
     values.push(filters.estado);
     conditions.push(`estado = $${values.length}`);

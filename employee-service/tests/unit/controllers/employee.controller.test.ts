@@ -40,6 +40,12 @@ describe('EmployeeController', () => {
     service = {
       getAll:                     jest.fn(),
       getById:                    jest.fn(),
+      getMe:                      jest.fn(),
+      getCargoActualMe:           jest.fn(),
+      getContratoLaboralActivoMe: jest.fn(),
+      getDocumentosMe:            jest.fn(),
+      generarUrlDescargaDocumentoPropio: jest.fn(),
+      solicitarCorreccionMe:      jest.fn(),
       create:                     jest.fn(),
       update:                     jest.fn(),
       softDelete:                 jest.fn(),
@@ -52,8 +58,13 @@ describe('EmployeeController', () => {
       confirmarDocumento:         jest.fn(),
       generarUrlDescargaDocumento: jest.fn(),
       aprobarDocumento:            jest.fn(),
+      rechazarDocumento:           jest.fn(),
       exportCsv:                   jest.fn(),
       solicitarCorreccion:         jest.fn(),
+      listChangeRequests:          jest.fn(),
+      listMyChangeRequests:        jest.fn(),
+      reviewChangeRequest:         jest.fn(),
+      getDepartamentos:            jest.fn(),
     };
     controller = new EmployeeController(service);
   });
@@ -68,19 +79,19 @@ describe('EmployeeController', () => {
       await controller.getAll(req(), r, next);
       expect(r.status).toHaveBeenCalledWith(200);
       expect(r.json).toHaveBeenCalledWith({ success: true, data });
-      expect(service.getAll).toHaveBeenCalledWith(1, 20, { search: undefined, estado: undefined, departamento: undefined });
+      expect(service.getAll).toHaveBeenCalledWith(1, 20, { search: undefined, estado: undefined, departamento: undefined }, expect.objectContaining({ email: 'admin@empresa.com' }));
     });
 
     it('parses page and limit from query string', async () => {
       service.getAll.mockResolvedValue({ empleados: [], total: 0, page: 3, limit: 5 });
       await controller.getAll(req({ query: { page: '3', limit: '5' } }), res(), next);
-      expect(service.getAll).toHaveBeenCalledWith(3, 5, { search: undefined, estado: undefined, departamento: undefined });
+      expect(service.getAll).toHaveBeenCalledWith(3, 5, { search: undefined, estado: undefined, departamento: undefined }, expect.objectContaining({ email: 'admin@empresa.com' }));
     });
 
     it('clamps page to minimum of 1', async () => {
       service.getAll.mockResolvedValue({ empleados: [], total: 0, page: 1, limit: 20 });
       await controller.getAll(req({ query: { page: '-10' } }), res(), next);
-      expect(service.getAll).toHaveBeenCalledWith(1, 20, { search: undefined, estado: undefined, departamento: undefined });
+      expect(service.getAll).toHaveBeenCalledWith(1, 20, { search: undefined, estado: undefined, departamento: undefined }, expect.objectContaining({ email: 'admin@empresa.com' }));
     });
 
     it('calls next with error on failure', async () => {
@@ -214,7 +225,7 @@ describe('EmployeeController', () => {
 
       expect(r.status).toHaveBeenCalledWith(200);
       expect(r.json).toHaveBeenCalledWith({ success: true, data: contrato });
-      expect(service.getContratoLaboralActivo).toHaveBeenCalledWith(1, 'Bearer token');
+      expect(service.getContratoLaboralActivo).toHaveBeenCalledWith(1, 'Bearer token', expect.objectContaining({ email: 'admin@empresa.com' }));
     });
 
     it('forwards UnauthorizedError to next when no Bearer token in headers', async () => {
@@ -234,7 +245,10 @@ describe('EmployeeController', () => {
 
       expect(r.status).toHaveBeenCalledWith(200);
       expect(r.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
-      expect(service.exportCsv).toHaveBeenCalledWith({ search: undefined, estado: undefined, departamento: undefined });
+      expect(service.exportCsv).toHaveBeenCalledWith(
+        { search: undefined, estado: undefined, departamento: undefined },
+        expect.objectContaining({ email: 'admin@empresa.com' }),
+      );
     });
 
     it('passes search, estado, and departamento query params to service', async () => {
@@ -245,7 +259,10 @@ describe('EmployeeController', () => {
 
       await controller.exportCsv(req({ query: { search: 'Juan', estado: 'ACTIVO', departamento: 'TI' } }), r, next);
 
-      expect(service.exportCsv).toHaveBeenCalledWith({ search: 'Juan', estado: 'activo', departamento: 'TI' });
+      expect(service.exportCsv).toHaveBeenCalledWith(
+        { search: 'Juan', estado: 'activo', departamento: 'TI' },
+        expect.objectContaining({ email: 'admin@empresa.com' }),
+      );
     });
   });
 

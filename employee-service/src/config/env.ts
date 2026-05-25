@@ -36,6 +36,12 @@ function csv(name: string, fallback: string): string[] {
     .filter(Boolean);
 }
 
+function flag(name: string, fallback = true): boolean {
+  const value = process.env[name];
+  if (value === undefined) return fallback;
+  return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+}
+
 export const env = {
   nodeEnv:    optional('NODE_ENV', 'development'),
   port:       Number(optional('PORT', '3002')),
@@ -44,6 +50,8 @@ export const env = {
   jwtSecret:          jwtSecret(),
   internalApiKey:     internalApiKey(),
   corsOrigins:        csv('CORS_ORIGINS', 'http://localhost:5173'),
+  rbacV2Enabled:      flag('RBAC_V2_ENABLED', true),
+  consultantSelfServiceEnabled: flag('CONSULTANT_SELF_SERVICE_ENABLED', true),
   historyServiceUrl:  optional('HISTORY_SERVICE_URL', 'http://localhost:3006'),
   authServiceUrl:     optional('AUTH_SERVICE_URL', 'http://localhost:3001/api/v1'),
   contractServiceUrl: optional('CONTRACT_SERVICE_URL', 'http://localhost:3003'),

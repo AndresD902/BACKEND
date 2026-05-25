@@ -7,8 +7,11 @@ export interface User {
   email: string;
   passwordHash: string;
   role: RoleName;
+  companyId: number | null;
+  employeeId: number | null;
   isActive: boolean;
   emailVerified: boolean;
+  mustChangePassword: boolean;
   lastLogin: Date | null;
   notifLogin: boolean;
   notifCambios: boolean;

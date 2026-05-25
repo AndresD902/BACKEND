@@ -10,6 +10,9 @@ export interface UserProfile {
   role: RoleName;
   isActive: boolean;
   emailVerified: boolean;
+  companyId: number | null;
+  employeeId: number | null;
+  mustChangePassword: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +30,7 @@ export interface NotificationPrefs {
 
 export interface IAuthService {
   register(dto: CreateUserDto): Promise<UserProfile>;
+  registerSystemUser(dto: CreateUserDto): Promise<UserProfile>;
   login(dto: LoginDto, ipOrigin?: string, userAgent?: string): Promise<LoginResult>;
   refresh(incomingRefreshToken: string): Promise<{ accessToken: string; email: string; role: string }>;
   logout(incomingRefreshToken: string): Promise<{ email?: string; role?: string }>;

@@ -27,7 +27,7 @@ router.get(
 
 router.get(
   '/acciones',
-  allowInternalApiKeyOrJwtRoles(RoleName.ADMIN),
+  allowInternalApiKeyOrJwtRoles(RoleName.ADMIN, RoleName.HR),
   (req: Request, res: Response, next: NextFunction) =>
     historyController.getAcciones(req as AuthenticatedRequest, res, next),
 );
