@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyJwt, JwtPayload } from '../utils/jwt.util';
 import { UnauthorizedError } from '../shared/errors/unauthorized.error';
 import { AppError } from '../shared/errors/app-error';
+import { env } from '../config/env';
 
 export interface AuthenticatedRequest extends Request {
   superAdmin?: JwtPayload;
@@ -36,7 +37,6 @@ export const verifyRegisterSecret = (
   _res: Response,
   next: NextFunction,
 ): void => {
-  const { env } = require('../config/env') as { env: { registerSecret: string } };
   const provided = req.headers['x-register-secret'];
   if (provided !== env.registerSecret) {
     return next(new AppError('Acceso no autorizado al registro de Super Admin', 403, 'FORBIDDEN'));
