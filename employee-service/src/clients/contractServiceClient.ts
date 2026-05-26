@@ -15,6 +15,20 @@ export interface IContractServiceClient {
   getLatestContractForCurrentUser(authorizationHeader: string): Promise<ActiveContractDocument | null>;
 }
 
+export function normalizeContractServiceUrl(value: string): string {
+  let normalized = value.trim();
+
+  while (normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  if (normalized.toLowerCase().endsWith('/api')) {
+    normalized = normalized.slice(0, -4);
+  }
+
+  return normalized;
+}
+
 export class ContractServiceClient implements IContractServiceClient {
   private readonly timeoutMs = 5000;
 
@@ -31,9 +45,7 @@ export class ContractServiceClient implements IContractServiceClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const contractServiceUrl = env.contractServiceUrl
-        .replace(/\/+$/, '')
-        .replace(/\/api$/i, '');
+      const contractServiceUrl = normalizeContractServiceUrl(env.contractServiceUrl);
       const response = await fetch(`${contractServiceUrl}${path}`, {
         method: 'GET',
         headers: {

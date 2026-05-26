@@ -1,5 +1,17 @@
-import { ContractServiceClient } from '../../../src/clients/contractServiceClient';
+import { ContractServiceClient, normalizeContractServiceUrl } from '../../../src/clients/contractServiceClient';
 import { AppError } from '../../../src/shared/errors/app-error';
+
+describe('normalizeContractServiceUrl', () => {
+  it.each([
+    ['http://localhost:3003', 'http://localhost:3003'],
+    ['http://localhost:3003/', 'http://localhost:3003'],
+    ['http://localhost:3003/api', 'http://localhost:3003'],
+    ['http://localhost:3003/api/', 'http://localhost:3003'],
+    [' http://localhost:3003/API/ ', 'http://localhost:3003'],
+  ])('normalizes %s', (input, expected) => {
+    expect(normalizeContractServiceUrl(input)).toBe(expected);
+  });
+});
 
 describe('ContractServiceClient', () => {
   const originalFetch = global.fetch;
