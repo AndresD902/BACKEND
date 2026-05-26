@@ -46,8 +46,7 @@ export class EmpresaController {
 
   // GET /api/super-admin/empresas/:id/empleados
   public listarEmpleados = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const token = req.headers.authorization ?? '';
-    const data  = await empresaService.listarEmpleados(Number(req.params['id']), token);
+    const data  = await empresaService.listarEmpleados(Number(req.params['id']));
     res.status(200).json({ success: true, data });
   });
 }

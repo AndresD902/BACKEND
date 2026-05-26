@@ -24,7 +24,7 @@ vi.mock('../../../src/clients/authClient', () => ({
 }));
 
 vi.mock('../../../src/clients/employeeClient', () => ({
-  getEmpleados: vi.fn(),
+  getEmpleadosPorEmpresa: vi.fn(),
 }));
 
 vi.mock('../../../src/services/email.service', () => ({
@@ -40,7 +40,7 @@ vi.mock('../../../src/utils/crypto.util', () => ({
 import { empresaRepository } from '../../../src/repositories/empresa.repository';
 import { adminEmpresaRepository } from '../../../src/repositories/adminEmpresa.repository';
 import { registrarUsuario } from '../../../src/clients/authClient';
-import { getEmpleados } from '../../../src/clients/employeeClient';
+import { getEmpleadosPorEmpresa } from '../../../src/clients/employeeClient';
 import { emailService } from '../../../src/services/email.service';
 import { empresaService } from '../../../src/services/empresa.service';
 import { ConflictError } from '../../../src/shared/errors/conflict.error';
@@ -51,7 +51,7 @@ import { EstadoEmpresa } from '../../../src/shared/enums/estado-empresa.enum';
 const mockEmpresaRepo = vi.mocked(empresaRepository);
 const mockAdminEmpresaRepo = vi.mocked(adminEmpresaRepository);
 const mockRegistrarUsuario = vi.mocked(registrarUsuario);
-const mockGetEmpleados = vi.mocked(getEmpleados);
+const mockGetEmpleadosPorEmpresa = vi.mocked(getEmpleadosPorEmpresa);
 const mockEmailService = vi.mocked(emailService);
 
 const FAKE_EMPRESA = {
@@ -259,7 +259,7 @@ describe('empresaService.listarEmpleados', () => {
 
   it('retorna empleados con detalle_estado para cada estado posible', async () => {
     mockEmpresaRepo.findById.mockResolvedValue(FAKE_EMPRESA);
-    mockGetEmpleados.mockResolvedValue([
+    mockGetEmpleadosPorEmpresa.mockResolvedValue([
       { id: 1, nombre: 'Juan', estado: 'activo' },
       { id: 2, nombre: 'Ana', estado: 'retirado' },
       { id: 3, nombre: 'Luis', estado: 'inactivo', razon_estado: '' },
@@ -268,7 +268,7 @@ describe('empresaService.listarEmpleados', () => {
       { id: 6, nombre: 'Rosa', estado: 'desconocido' },
     ]);
 
-    const result = await empresaService.listarEmpleados(1, 'Bearer token');
+    const result = await empresaService.listarEmpleados(1);
 
     const porId = Object.fromEntries(result.map((e) => [e['id'], e]));
     expect(porId[1]['detalle_estado']).toBe('Trabajando actualmente');
@@ -281,11 +281,11 @@ describe('empresaService.listarEmpleados', () => {
 
   it('retorna lista vacía y registra advertencia si el employee service falla', async () => {
     mockEmpresaRepo.findById.mockResolvedValue(FAKE_EMPRESA);
-    mockGetEmpleados.mockRejectedValue(new Error('Employee service unreachable'));
+    mockGetEmpleadosPorEmpresa.mockRejectedValue(new Error('Employee service unreachable'));
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const result = await empresaService.listarEmpleados(1, 'Bearer token');
+    const result = await empresaService.listarEmpleados(1);
 
     expect(result).toHaveLength(0);
     expect(warnSpy).toHaveBeenCalledWith(
@@ -298,6 +298,6 @@ describe('empresaService.listarEmpleados', () => {
   it('lanza NotFoundError si la empresa no existe', async () => {
     mockEmpresaRepo.findById.mockResolvedValue(null);
 
-    await expect(empresaService.listarEmpleados(99, 'Bearer token')).rejects.toThrow(NotFoundError);
+    await expect(empresaService.listarEmpleados(99)).rejects.toThrow(NotFoundError);
   });
 });
