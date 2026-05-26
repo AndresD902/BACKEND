@@ -31,7 +31,9 @@ export class ContractServiceClient implements IContractServiceClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const contractServiceUrl = env.contractServiceUrl.replace(/\/$/, '');
+      const contractServiceUrl = env.contractServiceUrl
+        .replace(/\/+$/, '')
+        .replace(/\/api$/i, '');
       const response = await fetch(`${contractServiceUrl}${path}`, {
         method: 'GET',
         headers: {
