@@ -164,13 +164,13 @@ describe('EmpresaController', () => {
     it('retorna empleados con status 200', async () => {
       const empleados = [{ id: 1, nombre: 'Juan', detalle_estado: 'Trabajando actualmente' }];
       mockEmpresaService.listarEmpleados.mockResolvedValue(empleados as never);
-      const req = makeReq({ params: { id: '1' }, headers: { authorization: 'Bearer token123' } });
+      const req = makeReq({ params: { id: '1' } });
       const res = makeRes();
 
       ctrl.listarEmpleados(req as unknown as Request, res as unknown as Response, next as NextFunction);
       await new Promise((r) => setImmediate(r));
 
-      expect(mockEmpresaService.listarEmpleados).toHaveBeenCalledWith(1, 'Bearer token123');
+      expect(mockEmpresaService.listarEmpleados).toHaveBeenCalledWith(1);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res._json).toHaveBeenCalledWith({ success: true, data: empleados });
     });

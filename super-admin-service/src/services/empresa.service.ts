@@ -1,7 +1,7 @@
 import { empresaRepository } from '../repositories/empresa.repository';
 import { adminEmpresaRepository } from '../repositories/adminEmpresa.repository';
 import { registrarUsuario } from '../clients/authClient';
-import { getEmpleados } from '../clients/employeeClient';
+import { getEmpleadosPorEmpresa } from '../clients/employeeClient';
 import { emailService } from './email.service';
 import { randomTempPassword } from '../utils/crypto.util';
 import { registrarAccion } from '../clients/historyClient';
@@ -180,13 +180,13 @@ export const empresaService = {
     return admin;
   },
 
-  async listarEmpleados(empresaId: number, token: string) {
+  async listarEmpleados(empresaId: number) {
     const empresa = await empresaRepository.findById(empresaId);
     if (!empresa) throw new NotFoundError('Empresa');
 
     let empleados: Record<string, unknown>[] = [];
     try {
-      empleados = await getEmpleados(token);
+      empleados = await getEmpleadosPorEmpresa(empresaId);
     } catch (err) {
       console.warn('[EmpresaService] No se pudo obtener empleados:', (err as Error).message);
     }
