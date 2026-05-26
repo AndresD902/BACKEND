@@ -1,0 +1,107 @@
+name: SonarCloud Backend
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  sonarcloud:
+    name: Analyze backend
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            auth-service/package-lock.json
+            contract-service/package-lock.json
+            employee-service/package-lock.json
+            history-service/package-lock.json
+            report-service/package-lock.json
+            super-admin-service/package-lock.json
+            vacation-service/package-lock.json
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in auth-service contract-service employee-service history-service report-service super-admin-service vacation-service; do
+            npm --prefix "$service" ci
+          done
+
+      - name: Build services
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in auth-service contract-service employee-service history-service report-service super-admin-service vacation-service; do
+            npm --prefix "$service" run build
+          done
+
+      - name: Run tests with coverage
+        shell: bash
+        env:
+          NODE_ENV: test
+          JWT_SECRET: minimo_32_caracteres_muy_seguro_aqui_1234
+          SUPERADMIN_JWT_SECRET: minimo_32_caracteres_superadmin_muy_seguro_aqui
+          INTERNAL_API_KEY: clave_interna_muy_segura_cambiar_en_ci
+          REGISTER_SECRET: clave_secreta_para_crear_primer_superadmin
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          AUTH_SERVICE_URL: http://localhost:3001/api/v1
+          EMPLOYEE_SERVICE_URL: http://localhost:3002/api
+          CONTRACT_SERVICE_URL: http://localhost:3003/api
+          VACATION_SERVICE_URL: http://localhost:3004/api
+          HISTORY_SERVICE_URL: http://localhost:3006
+          CORS_ORIGINS: http://localhost:5173
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          S3_BUCKET_NAME: test-bucket
+          SMTP_HOST: smtp.test.local
+          SMTP_PORT: 587
+          SMTP_SECURE: false
+          SMTP_USER: test@example.com
+          SMTP_PASS: test
+        run: |
+          set -euo pipefail
+          for service in auth-service contract-service employee-service history-service report-service super-admin-service vacation-service; do
+            npm --prefix "$service" run test:coverage
+          done
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
