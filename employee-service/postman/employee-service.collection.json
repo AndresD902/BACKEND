@@ -1,0 +1,1317 @@
+{
+  "info": {
+    "name": "Employee Service API",
+    "description": "Colección completa para probar el Employee Service.\n\n**Requisitos previos:**\n1. El servicio debe estar corriendo en `{{base_url}}` (npm run dev)\n2. La base de datos PostgreSQL debe estar activa\n3. Configura los tokens JWT en el Environment antes de ejecutar los tests protegidos\n\n**Roles disponibles:**\n- `ADMIN`: puede hacer todo\n- `RRHH`: puede listar, crear, asignar contratos y ver historial\n- `CONSULTA`: solo puede listar y ver empleados",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3002"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Health Check",
+      "description": "Verifica que el servicio y la base de datos estén operativos.",
+      "item": [
+        {
+          "name": "GET Health — Servicio activo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "health"]
+            },
+            "description": "Retorna 200 si la BD está conectada, 503 si no."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status es 200 o 503', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
+                  "});",
+                  "",
+                  "pm.test('Respuesta tiene estructura correcta', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('success');",
+                  "    pm.expect(body).to.have.property('message');",
+                  "    pm.expect(body.data).to.have.property('service');",
+                  "    pm.expect(body.data).to.have.property('database');",
+                  "});",
+                  "",
+                  "pm.test('Tiempo de respuesta < 500ms', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});",
+                  "",
+                  "pm.test('Content-Type es application/json', function () {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Autenticación (401 sin token)",
+      "description": "Verifica que los endpoints protegidos rechacen peticiones sin Authorization header.",
+      "item": [
+        {
+          "name": "GET /empleados — Sin token → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados"]
+            },
+            "description": "Sin Authorization header debe retornar 401."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401 sin token', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error code es UNAUTHORIZED', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.false;",
+                  "    pm.expect(body.error.code).to.equal('UNAUTHORIZED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /empleados — Sin token → 401",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401 sin token', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /empleados/:id — Sin token → 401",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401 sin token', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Empleados / Lectura",
+      "description": "Endpoints de consulta accesibles por todos los roles autenticados.",
+      "item": [
+        {
+          "name": "GET /empleados — Listar todos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_consulta}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados"]
+            },
+            "description": "Cualquier rol autenticado puede listar empleados. Retorna array sin passwordHash."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Respuesta es un array', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "    pm.expect(body.data).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Ningún empleado expone passwordHash', function () {",
+                  "    const body = pm.response.json();",
+                  "    body.data.forEach(emp => {",
+                  "        pm.expect(emp).to.not.have.property('passwordHash');",
+                  "        pm.expect(emp).to.not.have.property('password_hash');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('Tiempo de respuesta < 1000ms', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+                  "});",
+                  "",
+                  "// Guarda el primer ID para usarlo en los siguientes tests",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length > 0) {",
+                  "    pm.environment.set('empleado_id', body.data[0].id.toString());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /empleados/:id — Buscar por ID (existe)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_consulta}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}"]
+            },
+            "description": "Busca un empleado por ID. Usa el ID guardado en el test anterior."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Respuesta tiene campos obligatorios', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "    pm.expect(body.data).to.have.property('id');",
+                  "    pm.expect(body.data).to.have.property('cedula');",
+                  "    pm.expect(body.data).to.have.property('firstName');",
+                  "    pm.expect(body.data).to.have.property('lastName');",
+                  "    pm.expect(body.data).to.have.property('email');",
+                  "    pm.expect(body.data).to.have.property('status');",
+                  "});",
+                  "",
+                  "pm.test('No expone passwordHash', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data).to.not.have.property('passwordHash');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /empleados/:id — ID inexistente → 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_consulta}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/999999",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "999999"]
+            },
+            "description": "ID que no existe en la BD debe retornar 404 con código NOT_FOUND_ERROR."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error code es NOT_FOUND_ERROR', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.false;",
+                  "    pm.expect(body.error.code).to.equal('NOT_FOUND_ERROR');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Empleados / Creación",
+      "description": "POST /api/v1/empleados — requiere rol ADMIN o RRHH. Usa form-data por el upload de archivos.",
+      "item": [
+        {
+          "name": "POST /empleados — Rol CONSULTA → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_consulta}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "cedula", "value": "100200300", "type": "text" },
+                { "key": "firstName", "value": "Test", "type": "text" },
+                { "key": "lastName", "value": "User", "type": "text" },
+                { "key": "gender", "value": "MALE", "type": "text" },
+                { "key": "email", "value": "test@example.com", "type": "text" },
+                { "key": "password", "value": "password123", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados"]
+            },
+            "description": "El rol CONSULTA no tiene permiso para crear empleados. Debe retornar 403."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403 - Rol insuficiente', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error code es FORBIDDEN', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.false;",
+                  "    pm.expect(body.error.code).to.equal('FORBIDDEN');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /empleados — Campos faltantes → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "firstName", "value": "Ana", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados"]
+            },
+            "description": "Faltan campos requeridos (cedula, lastName, gender, email, password). Debe retornar 400 con detalle de validación."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 - Validación fallida', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error code es REQUEST_VALIDATION_ERROR', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.false;",
+                  "    pm.expect(body.error.code).to.equal('REQUEST_VALIDATION_ERROR');",
+                  "});",
+                  "",
+                  "pm.test('Hay detalles de los campos inválidos', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.error.details).to.be.an('array').that.is.not.empty;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /empleados — Email inválido → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "cedula", "value": "100200300", "type": "text" },
+                { "key": "firstName", "value": "Ana", "type": "text" },
+                { "key": "lastName", "value": "Lopez", "type": "text" },
+                { "key": "gender", "value": "FEMALE", "type": "text" },
+                { "key": "email", "value": "esto-no-es-un-email", "type": "text" },
+                { "key": "password", "value": "pass123", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados"]
+            },
+            "description": "Email con formato incorrecto debe retornar 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 - Email inválido', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error menciona el campo email', function () {",
+                  "    const body = pm.response.json();",
+                  "    const details = JSON.stringify(body.error.details);",
+                  "    pm.expect(details.toLowerCase()).to.include('email');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /empleados — Contraseña muy corta → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "cedula", "value": "100200300", "type": "text" },
+                { "key": "firstName", "value": "Ana", "type": "text" },
+                { "key": "lastName", "value": "Lopez", "type": "text" },
+                { "key": "gender", "value": "FEMALE", "type": "text" },
+                { "key": "email", "value": "ana@test.com", "type": "text" },
+                { "key": "password", "value": "123", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados"]
+            },
+            "description": "Contraseña menor a 6 caracteres debe retornar 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 - Contraseña muy corta', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /empleados — Registro exitoso (RRHH)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "cedula", "value": "112233445", "type": "text" },
+                { "key": "firstName", "value": "Laura", "type": "text" },
+                { "key": "lastName", "value": "Ramírez", "type": "text" },
+                { "key": "gender", "value": "FEMALE", "type": "text" },
+                { "key": "email", "value": "laura.ramirez@empresa.com", "type": "text" },
+                { "key": "password", "value": "segura123", "type": "text" },
+                { "key": "phone", "value": "3001234567", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados"]
+            },
+            "description": "Creación exitosa de empleado con rol RRHH. Debe retornar 201 con el empleado creado (sin passwordHash)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 - Empleado creado', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Respuesta tiene el empleado creado', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "    pm.expect(body.data).to.have.property('id');",
+                  "    pm.expect(body.data.cedula).to.equal('112233445');",
+                  "    pm.expect(body.data.firstName).to.equal('Laura');",
+                  "    pm.expect(body.data.status).to.equal('ACTIVE');",
+                  "});",
+                  "",
+                  "pm.test('No expone passwordHash', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data).to.not.have.property('passwordHash');",
+                  "});",
+                  "",
+                  "pm.test('Email está en minúsculas', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data.email).to.equal(body.data.email.toLowerCase());",
+                  "});",
+                  "",
+                  "// Guarda el ID del empleado creado para los tests siguientes",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.id) {",
+                  "    pm.environment.set('empleado_id', body.data.id.toString());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /empleados — Cédula duplicada → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "cedula", "value": "112233445", "type": "text" },
+                { "key": "firstName", "value": "Otro", "type": "text" },
+                { "key": "lastName", "value": "Usuario", "type": "text" },
+                { "key": "gender", "value": "MALE", "type": "text" },
+                { "key": "email", "value": "otro@empresa.com", "type": "text" },
+                { "key": "password", "value": "segura123", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados"]
+            },
+            "description": "Usa la misma cédula del test anterior. Debe retornar 409 CONFLICT_ERROR."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 409 - Cédula ya registrada', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Error code es CONFLICT_ERROR', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.false;",
+                  "    pm.expect(body.error.code).to.equal('CONFLICT_ERROR');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - Empleados / Actualización de Identidad",
+      "description": "PATCH /:id/identity — solo ADMIN puede modificar cédula, nombre, apellido.",
+      "item": [
+        {
+          "name": "PATCH /identity — Rol RRHH → 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"NuevoNombre\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/identity",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "identity"]
+            },
+            "description": "Solo ADMIN puede modificar identidad. RRHH debe recibir 403."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403 - RRHH no puede modificar identidad', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error code es FORBIDDEN', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.error.code).to.equal('FORBIDDEN');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /identity — Admin actualiza nombre",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Laura Marcela\",\n  \"changeReason\": \"Corrección de nombre en documento de identidad\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/identity",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "identity"]
+            },
+            "description": "ADMIN actualiza el nombre de un empleado con razón del cambio."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Nombre fue actualizado', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "    pm.expect(body.data.firstName).to.equal('Laura Marcela');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /identity — ID inexistente → 404",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Fantasma\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/999999/identity",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "999999", "identity"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 - Empleados / Contrato",
+      "description": "PATCH /:id/contract — ADMIN y RRHH pueden asignar contratos.",
+      "item": [
+        {
+          "name": "PATCH /contract — Contrato FIXED_TERM sin fecha fin → 400",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position\": \"Desarrollador\",\n  \"salary\": 5000000,\n  \"contractType\": \"FIXED_TERM\",\n  \"contractStart\": \"2025-01-01\",\n  \"paymentMethod\": \"TRANSFER\",\n  \"paymentFrequency\": \"MONTHLY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/contract",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "contract"]
+            },
+            "description": "FIXED_TERM requiere contractEnd. Sin él debe retornar 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 - contractEnd requerido para FIXED_TERM', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error menciona contractEnd', function () {",
+                  "    const body = pm.response.json();",
+                  "    const details = JSON.stringify(body.error.details);",
+                  "    pm.expect(details).to.include('contractEnd');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /contract — Contrato INDEFINITE exitoso",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position\": \"Desarrolladora Senior\",\n  \"salary\": 7500000,\n  \"contractType\": \"INDEFINITE\",\n  \"contractStart\": \"2025-03-01\",\n  \"paymentMethod\": \"TRANSFER\",\n  \"paymentFrequency\": \"MONTHLY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/contract",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "contract"]
+            },
+            "description": "Asigna un contrato indefinido correctamente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Contrato asignado correctamente', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "    pm.expect(body.data.position).to.equal('Desarrolladora Senior');",
+                  "    pm.expect(body.data.salary).to.equal(7500000);",
+                  "    pm.expect(body.data.contractType).to.equal('INDEFINITE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /contract — Contrato FIXED_TERM con fecha fin",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position\": \"Practicante\",\n  \"salary\": 1500000,\n  \"contractType\": \"FIXED_TERM\",\n  \"contractStart\": \"2025-06-01\",\n  \"contractEnd\": \"2025-12-31\",\n  \"paymentMethod\": \"TRANSFER\",\n  \"paymentFrequency\": \"MONTHLY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/contract",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "contract"]
+            },
+            "description": "FIXED_TERM con contractEnd válido debe asignarse correctamente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('contractEnd está presente', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data.contractEnd).to.not.be.null;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 - Empleados / Estado",
+      "description": "PATCH /:id/status — solo ADMIN puede cambiar el estado del empleado.",
+      "item": [
+        {
+          "name": "PATCH /status — Rol RRHH → 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "status"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403 - RRHH no puede cambiar estado', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /status — Estado inválido → 400",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"BORRADO\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "status"]
+            },
+            "description": "Solo se permiten ACTIVE, INACTIVE, SUSPENDED. Cualquier otro valor debe retornar 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 - Estado inválido', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /status — Admin suspende empleado",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SUSPENDED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "status"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Estado actualizado a SUSPENDED', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data.status).to.equal('SUSPENDED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /status — Admin reactiva empleado",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "status"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Estado actualizado a ACTIVE', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data.status).to.equal('ACTIVE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "08 - Historial de Cambios",
+      "description": "GET /:id/history — accesible por ADMIN y RRHH. Registra todos los cambios del empleado.",
+      "item": [
+        {
+          "name": "GET /history — Rol CONSULTA → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_consulta}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "history"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403 - CONSULTA no puede ver historial', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /history — RRHH consulta historial",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}", "history"]
+            },
+            "description": "Retorna el historial de cambios del empleado. Debe incluir al menos el registro de creación."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Retorna array de historial', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "    pm.expect(body.data).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Cada registro tiene la estructura correcta', function () {",
+                  "    const body = pm.response.json();",
+                  "    body.data.forEach(record => {",
+                  "        pm.expect(record).to.have.property('id');",
+                  "        pm.expect(record).to.have.property('changedBy');",
+                  "        pm.expect(record).to.have.property('changeReason');",
+                  "        pm.expect(record).to.have.property('snapshotBefore');",
+                  "        pm.expect(record).to.have.property('snapshotAfter');",
+                  "        pm.expect(record).to.have.property('createdAt');",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "09 - Empleados / Eliminación",
+      "description": "DELETE /:id — solo ADMIN puede eliminar empleados. Este test debe ejecutarse al final.",
+      "item": [
+        {
+          "name": "DELETE /empleados/:id — Rol RRHH → 403",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_rrhh}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403 - RRHH no puede eliminar', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /empleados/:id — Admin elimina exitosamente",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}"]
+            },
+            "description": "ADMIN elimina el empleado creado en el test 04. Debe retornar 200 con success: true."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('success es true', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /empleados/:id — Ya eliminado → 404",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/empleados/{{empleado_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "empleados", "{{empleado_id}}"]
+            },
+            "description": "Intentar eliminar el mismo ID dos veces debe retornar 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404 - Empleado ya no existe', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10 - Rutas Inexistentes",
+      "description": "Verifica que rutas no definidas retornen 404 correctamente.",
+      "item": [
+        {
+          "name": "GET /ruta-inexistente → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ruta-que-no-existe",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ruta-que-no-existe"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404 para rutas no definidas', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error code es NOT_FOUND_ERROR', function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.false;",
+                  "    pm.expect(body.error.code).to.equal('NOT_FOUND_ERROR');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
